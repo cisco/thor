@@ -30,3 +30,8 @@
 
 # Debug files
 *.dSYM/
+
+#Editor files
+*~
+old
+

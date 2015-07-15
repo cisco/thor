@@ -1,0 +1,26 @@
+-if                 c:\video\Rover\TelePresence_1920x1080_60.yuv  ; Input yuv sequence
+-of                 str.bit                                       ; Output bitstream
+-rf                 rec.yuv                                       ; Reconstructed yuv sequence
+-stat               stat.txt                                      ; Statistics to file
+-width              1920                                          ; Witdh of luminance
+-height             1080                                          ; Height of luminance
+-n                  16                                            ; Number of frames to encode
+-f                  60                                            ; Frame rate in Hz
+-qp                 32                                            ; Quantization parameter
+-HQperiod           12                                            ; Period of high quality frames
+-mqpP               1.2                                           ; QP multiplier for low quality frames
+-dqpI              -2                                             ; QP offset for intra frames
+-lambda_coeffI      1.2                                           ; Multiplier for lambda - I frames
+-lambda_coeffP      1.2                                           ; Multiplier for lambda - P frames
+
+;
+;Low complexity operating point
+;
+-intra_rdo          0                                             ; Use RDO for choosing intra mode
+-enable_tb_split    0                                             ; Enable splitting of a block in 4 transform blocks
+-enable_pb_split    0                                             ; Enable splitting of an inter block in 4 prediction blocks
+-early_skip_thr     1.0                                           ; Early skip threshold
+-max_num_ref        2                                             ; Number of reference frames
+-use_block_contexts 1                                             ; Use block contexts
+-enable_bipred      0                                             ; Enable biprediction
+-encoder_speed      2                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)

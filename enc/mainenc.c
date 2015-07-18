@@ -69,7 +69,6 @@ static int reorder_frame_offset(int idx, int sub_gop)
 #endif
 }
 
-
 int main(int argc, char **argv)
 {
   FILE *infile, *strfile, *reconfile;
@@ -92,6 +91,7 @@ int main(int argc, char **argv)
   double bit_rate_in_kbps;
   enc_params *params;
   encoder_info_t encoder_info;
+  int y4m_output;
 
   init_use_simd();
 
@@ -118,14 +118,27 @@ int main(int argc, char **argv)
     fatalerror("Could not open out-file for writing.");
   }
   reconfile = NULL;
-  if (params->reconfilestr && !(reconfile = fopen(params->reconfilestr,"wb")))
-  {
-    fatalerror("Could not open recon-file for reading.");
+  y4m_output = 0;
+  if (params->reconfilestr) {
+    char *p;
+    if (!(reconfile = fopen(params->reconfilestr,"wb")))
+    {
+      fatalerror("Could not open recon-file for reading.");
+    }
+    p = strrchr(params->reconfilestr,'.');
+    y4m_output = p != NULL && strcmp(p,".y4m") == 0;
   }
-
+  
   fseek(infile, 0, SEEK_END);
   input_file_size = ftell(infile);
   fseek(infile, 0, SEEK_SET);
+
+
+  if (y4m_output) {
+    fprintf(reconfile,
+     "YUV4MPEG2 W%d H%d F%d:1 Ip A0:0 C420jpeg XYSCSS=420JPEG\x0a",
+     params->width, params->height, (int)params->frame_rate);
+  }
 
   accsnr.y = 0;
   accsnr.u = 0;
@@ -420,6 +433,10 @@ int main(int argc, char **argv)
         rec_buffer_idx = (last_frame_output+1) % MAX_REORDER_BUFFER;
         if (rec_available[rec_buffer_idx]) {
           last_frame_output++;
+          if (y4m_output)
+          {
+            fprintf(reconfile, "FRAME\x0a");
+          }
           write_yuv_frame(&rec[rec_buffer_idx],width,height,reconfile);
           rec_available[rec_buffer_idx]=0;
         }

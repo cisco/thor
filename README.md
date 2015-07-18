@@ -4,9 +4,13 @@ Implementation of [https://tools.ietf.org/html/draft-fuldseth-netvc-thor](https:
 
 ## Build
 
-Only builds for Windows Visual Studio for now.
+Windows: Use Visual Studio with build/Thor.sln.
 
-Mac/Linux/other builds are coming later after intrinsics issues resolved.
+Mac/Linux:
+
+    make -j8
+
+Binaries will appear in the build/ directory.
 
 ## Usage
 

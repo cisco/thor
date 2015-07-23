@@ -15,6 +15,7 @@
 -lambda_coeffI      1.2                                           ; Multiplier for lambda - I frames
 -lambda_coeffP      1.2                                           ; Multiplier for lambda - P frames
 -lambda_coeffB      1.2                                           ; Multiplier for lambda - B frames
+-intra_period       64                                            ; Frame distance between intra frames
 
 ;
 ;High complexity operating point

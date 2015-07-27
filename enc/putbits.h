@@ -50,7 +50,6 @@ typedef struct
 
 void flush_all_bits(stream_t *str, FILE *outfile);
 void putbits(unsigned int n,unsigned int val,stream_t *str);
-void flush_bytebuf(stream_t *str, FILE *outfile);
 void flush_bitbuf(stream_t *str);
 int get_bit_pos(stream_t *str);
 unsigned int leading_zeros(unsigned int code);

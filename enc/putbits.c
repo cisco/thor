@@ -41,7 +41,7 @@ static unsigned int mask[33] = {
     0x0fffffff,0x1fffffff,0x3fffffff,0x7fffffff,
     0xffffffff};
 
-void flush_bytebuf(stream_t *str, FILE *outfile)
+static void flush_bytebuf(stream_t *str, FILE *outfile)
 {
   if (outfile)
   {
@@ -56,8 +56,22 @@ void flush_bytebuf(stream_t *str, FILE *outfile)
 
 void flush_all_bits(stream_t *str, FILE *outfile)
 {
+  uint32_t frame_bytes;
   int i;
   int bytes = 4 - str->bitrest/8;
+  frame_bytes = str->bytepos + bytes;
+  if (outfile)
+  {
+    uint8_t frame_bytes_buf[4];
+    for (i = 0; i < 4; i++)
+    {
+      frame_bytes_buf[i] = (uint8_t)(frame_bytes >> (24 - i*8));
+    }
+    if (fwrite(frame_bytes_buf, sizeof(frame_bytes_buf), 1, outfile) != 1)
+    {
+      fatalerror("Problem writing bitstream to file.");
+    }
+  }
 
   printf("final flush: bytes=%4d\n",bytes);
   if ((str->bytepos+bytes) > str->bytesize)
@@ -68,6 +82,8 @@ void flush_all_bits(stream_t *str, FILE *outfile)
   {
     str->bitstream[str->bytepos++] = (str->bitbuf >> (24-i*8)) & 0xff;
   }
+  str->bitbuf = 0;
+  str->bitrest = 32;
 
   if (outfile)
   {

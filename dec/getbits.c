@@ -24,6 +24,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "global.h"
@@ -46,21 +47,25 @@ static const unsigned int msk[33] =
 
 int initbits_dec(FILE *infile, stream_t *str)
 {
-  fpos_t fpos[1];
-  long pos1,pos2;
+  uint8_t frame_bytes_buf[4];
+  uint32_t length;
+  int ret;
 
   str->incnt = 0;
   str->rdptr = str->rdbfr + 2048;
   str->bitcnt = 0;
   str->infile = infile;
 
-  fgetpos(str->infile,fpos);
-  pos1 = ftell(str->infile);
-  fseek(str->infile,0,SEEK_END);
-  pos2 = ftell(str->infile);
-  fsetpos(str->infile,fpos);
-  str->length = pos2 - pos1;
-  return 0;
+  length = 0;
+  ret = fread(frame_bytes_buf, sizeof(frame_bytes_buf), 1, infile) != 1;
+  if (!ret)
+  {
+    length = frame_bytes_buf[0] << 24 | frame_bytes_buf[1] << 16
+     | frame_bytes_buf[2] << 8 | frame_bytes_buf[3];
+  }
+  str->length = length;
+
+  return ret;
 }
 
 int fillbfr(stream_t *str)
@@ -75,14 +80,25 @@ int fillbfr(stream_t *str)
 
   if (str->rdptr >= str->rdbfr + 2048)
   {
-    //l = (int)fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
-    fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
-    str->rdptr = str->rdbfr;
+    int read_size;
+    read_size = str->length;
+    if (read_size > 0) {
+      if (read_size > 2048) read_size = 2048;
+      //l = (int)fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
+      str->rdptr = str->rdbfr + 2048 - read_size;
+      fread(str->rdptr, sizeof(*str->rdptr), read_size, str->infile);
+      str->length -= read_size;
 
-    while (str->incnt <= 24 && (str->rdptr < str->rdbfr + 2048))
+      while (str->incnt <= 24 && (str->rdptr < str->rdbfr + 2048))
+      {
+        str->inbfr = (str->inbfr << 8) | *str->rdptr++;
+        str->incnt += 8;
+      }
+    }
+    else
     {
-      str->inbfr = (str->inbfr << 8) | *str->rdptr++;
-      str->incnt += 8;
+      str->inbfr <<= (32 - str->incnt);
+      str->incnt = 32;
     }
   }
 

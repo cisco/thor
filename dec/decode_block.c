@@ -640,7 +640,7 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   int decode_this_size = (yposY + size <= height) && (xposY + size <= width);
   int decode_rectangular_size = !decode_this_size && frame_type != I_FRAME;
 
-  int bit_start = stream->bitcnt;
+  int bit_start = od_ec_dec_tell(&stream->ec);
 
   int mode = MODE_SKIP;
  
@@ -658,7 +658,8 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
     decoder_info->frame_info.qpb = decoder_info->frame_info.qp + delta_qp;
   }
 
-  decoder_info->bit_count.super_mode[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);
+  decoder_info->bit_count.super_mode[decoder_info->bit_count.stat_frame_type]
+   += (od_ec_dec_tell(&stream->ec) - bit_start);
 
   if (split_flag){
     int new_size = size/2;

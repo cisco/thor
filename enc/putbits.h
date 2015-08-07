@@ -31,31 +31,42 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdio.h>
 #include <stdint.h>
+#include "entenc.h"
 
-typedef struct
-{
-  uint32_t bytesize;     //Buffer size - typically maximum compressed frame size
-  uint32_t bytepos;      //Byte position in bitstream
-  uint8_t *bitstream;   //Compressed bit stream
-  uint32_t bitbuf;       //Recent bits not written the bitstream yet
-  uint32_t bitrest;      //Empty bits in bitbuf
-} stream_t;
+typedef struct od_ec_enc stream_t;
 
-typedef struct
-{
-  uint32_t bytepos;      //Byte position in bitstream
-  uint32_t bitbuf;       //Recent bits not written the bitstream yet
-  uint32_t bitrest;      //Empty bits in bitbuf
-} stream_pos_t;
+typedef struct od_ec_enc stream_pos_t;
 
 void flush_all_bits(stream_t *str, FILE *outfile);
-void putbits(unsigned int n,unsigned int val,stream_t *str);
-void flush_bitbuf(stream_t *str);
-int get_bit_pos(stream_t *str);
-unsigned int leading_zeros(unsigned int code);
 
-void write_stream_pos(stream_t *stream, stream_pos_t *stream_pos);
-void read_stream_pos(stream_pos_t *stream_pos, stream_t *stream);
-void copy_stream(stream_t *str1, stream_t *str2);
+static inline uint32_t bitreverse(uint32_t val)
+{
+  val = ((val >> 16) & 0x0000FFFFU) | ((val <<16) & 0xFFFF0000U);
+  val = ((val >> 8) & 0x00FF00FFU) | ((val << 8) & 0xFF00FF00U);
+  val = ((val >> 4) & 0x0F0F0F0FU) | ((val << 4) & 0xF0F0F0F0U);
+  val = ((val >> 2) & 0x33333333U) | ((val << 2) & 0xCCCCCCCCU);
+  return ((val >> 1) & 0x55555555U) | ((val << 1) & 0xAAAAAAAAUL);
+}
+
+static inline void putbits(unsigned int n,unsigned int val,stream_t *str)
+{
+  OD_ASSERT(n > 0);
+  od_ec_enc_bits(str, bitreverse(val << (32 - n)), n);
+}
+
+static inline int get_bit_pos(stream_t *str)
+{
+  return od_ec_enc_tell(str);
+}
+
+static inline void write_stream_pos(stream_t *stream, stream_pos_t *stream_pos)
+{
+  od_ec_enc_rollback(stream, stream_pos);
+}
+
+static inline void read_stream_pos(stream_pos_t *stream_pos, stream_t *stream)
+{
+  od_ec_enc_checkpoint(stream_pos, stream);
+}
 
 #endif

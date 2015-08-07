@@ -28,23 +28,38 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _GETBITS_H_
 
 #include <stdio.h>
+#include "entdec.h"
 
 typedef struct
 {
+  od_ec_dec ec;
   FILE *infile;
-  unsigned char rdbfr[2051];
-  unsigned char *rdptr;
-  unsigned int inbfr;
-  int incnt;
-  int bitcnt;
-  int length;
+  unsigned char *buf;
 } stream_t;
 
 int initbits_dec(FILE *infile, stream_t *str);
-int fillbfr(stream_t *str);
+
+static inline unsigned bitreverse(unsigned val)
+{
+  val = ((val >> 16) & 0x0000FFFFU) | ((val <<16) & 0xFFFF0000U);
+  val = ((val >> 8) & 0x00FF00FFU) | ((val << 8) & 0xFF00FF00U);
+  val = ((val >> 4) & 0x0F0F0F0FU) | ((val << 4) & 0xF0F0F0F0U);
+  val = ((val >> 2) & 0x33333333U) | ((val << 2) & 0xCCCCCCCCU);
+  return ((val >> 1) & 0x55555555U) | ((val << 1) & 0xAAAAAAAAUL);
+}
+
 unsigned int showbits(stream_t *str, int n);
-unsigned int getbits1(stream_t *str);
-int flushbits(stream_t *str, int n);
-unsigned int getbits(stream_t *str, int n);
+
+static inline unsigned int getbits1(stream_t *str)
+{
+  return od_ec_dec_bits(&str->ec, 1);
+}
+
+void flushbits(stream_t *str, int n);
+
+static inline unsigned int getbits(stream_t *str, int n)
+{
+  return n > 0 ? bitreverse(od_ec_dec_bits(&str->ec, n) << (32 - n)) : 0;
+}
 
 #endif

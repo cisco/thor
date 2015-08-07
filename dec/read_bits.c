@@ -253,13 +253,12 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   int16_t *coeff_v = block_info->coeffq_v;
 
   zerovec.y = zerovec.x = 0;
-  bit_start = stream->bitcnt;
 
   mode = decoder_info->mode;
   int coeff_block_type = (mode == MODE_INTRA)<<1;
 
   /* Initialize bit counter for statistical purposes */
-  bit_start = stream->bitcnt;
+  bit_start = od_ec_dec_tell(&stream->ec);
 
   if (mode == MODE_SKIP){
     /* Derive skip vector candidates and number of skip vector candidates from neighbour blocks */
@@ -291,7 +290,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     }
     else
       skip_idx = 0;
-    decoder_info->bit_count.skip_idx[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.skip_idx[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
 
     block_info->num_skip_vec = num_skip_vec;
     block_info->pred_data.skip_idx = skip_idx;
@@ -352,7 +352,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     }
     else
       skip_idx = 0;
-    decoder_info->bit_count.skip_idx[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.skip_idx[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
 
     block_info->num_skip_vec = num_skip_vec;
     block_info->pred_data.skip_idx = skip_idx;
@@ -450,7 +451,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       read_mv(stream,&mv_arr[2],&mvp2);
       read_mv(stream,&mv_arr[3],&mvp2);
     }
-    decoder_info->bit_count.mv[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.mv[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
     block_info->pred_data.ref_idx0 = ref_idx;
     block_info->pred_data.ref_idx1 = ref_idx;
     block_info->pred_data.dir = 0;
@@ -554,7 +556,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     block_info->pred_data.dir = 2;
     int combined_ref = block_info->pred_data.ref_idx0 * decoder_info->frame_info.num_ref + block_info->pred_data.ref_idx1;
     decoder_info->bit_count.bi_ref[stat_frame_type][combined_ref] += 1;
-    decoder_info->bit_count.mv[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.mv[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
   }
 
   else if (mode==MODE_INTRA){
@@ -606,7 +609,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       intra_mode = intra_mode_map_inv[code];
     }
 
-    decoder_info->bit_count.intra_mode[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.intra_mode[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
     decoder_info->bit_count.size_and_intra_mode[stat_frame_type][log2i(size)-3][intra_mode] += 1;
 
     block_info->pred_data.intra_mode = intra_mode;
@@ -623,7 +627,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     int tmp,cbp2;
     int cbp_table[8] = {1,0,5,2,6,3,7,4};
 
-    bit_start = stream->bitcnt;
+    bit_start = od_ec_dec_tell(&stream->ec);
     code = get_vlc(0,stream);
 
     if (decoder_info->tb_split_enable && (mode==MODE_INTRA || (mode==MODE_INTER && PBpart==0))){
@@ -636,7 +640,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       tb_split = 0;
     }
     block_info->tb_split = tb_split;
-    decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
+    decoder_info->bit_count.cbp[stat_frame_type] +=
+     (od_ec_dec_tell(&stream->ec) - bit_start);
 
     if (tb_split == 0){
       tmp = 0;
@@ -670,25 +675,28 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       block_info->cbp = cbp;
 
       if (cbp.y){
-        bit_start = stream->bitcnt;
+        bit_start = od_ec_dec_tell(&stream->ec);
         read_coeff(stream,coeff_y,sizeY,coeff_block_type|0);
-        decoder_info->bit_count.coeff_y[stat_frame_type] += (stream->bitcnt - bit_start);
+        decoder_info->bit_count.coeff_y[stat_frame_type] +=
+         (od_ec_dec_tell(&stream->ec) - bit_start);
       }
       else
         memset(coeff_y,0,sizeY*sizeY*sizeof(int16_t));
 
       if (cbp.u){
-        bit_start = stream->bitcnt;
+        bit_start = od_ec_dec_tell(&stream->ec);
         read_coeff(stream,coeff_u,sizeC,coeff_block_type|1);
-        decoder_info->bit_count.coeff_u[stat_frame_type] += (stream->bitcnt - bit_start);
+        decoder_info->bit_count.coeff_u[stat_frame_type] +=
+         (od_ec_dec_tell(&stream->ec) - bit_start);
       }
       else
         memset(coeff_u,0,sizeC*sizeC*sizeof(int16_t));
 
       if (cbp.v){
-        bit_start = stream->bitcnt;
+        bit_start = od_ec_dec_tell(&stream->ec);
         read_coeff(stream,coeff_v,size/2,coeff_block_type|1);
-        decoder_info->bit_count.coeff_v[stat_frame_type] += (stream->bitcnt - bit_start);
+        decoder_info->bit_count.coeff_v[stat_frame_type] +=
+         (od_ec_dec_tell(&stream->ec) - bit_start);
       }
       else
         memset(coeff_v,0,sizeC*sizeC*sizeof(int16_t));
@@ -700,7 +708,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
         /* Loop over 4 TUs */
         for (index=0;index<4;index++){
-          bit_start = stream->bitcnt;
+          bit_start = od_ec_dec_tell(&stream->ec);
           code = get_vlc(0,stream);
           int tmp = 0;
           while (code != cbp_table[tmp] && tmp < 8) tmp++;
@@ -711,7 +719,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           cbp.v = ((tmp>>2)&1);
 
           /* Updating statistics for CBP */
-          decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
+          decoder_info->bit_count.cbp[stat_frame_type] +=
+           (od_ec_dec_tell(&stream->ec) - bit_start);
           decoder_info->bit_count.cbp_stat[stat_frame_type][cbp.y + (cbp.u<<1) + (cbp.v<<2)] += 1;
 
           /* Decode coefficients for this TU */
@@ -719,9 +728,10 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           /* Y */
           coeff = coeff_y + index*sizeY/2*sizeY/2;
           if (cbp.y){
-            bit_start = stream->bitcnt;
+            bit_start = od_ec_dec_tell(&stream->ec);
             read_coeff(stream,coeff,sizeY/2,coeff_block_type|0);
-            decoder_info->bit_count.coeff_y[stat_frame_type] += (stream->bitcnt - bit_start);
+            decoder_info->bit_count.coeff_y[stat_frame_type] +=
+             (od_ec_dec_tell(&stream->ec) - bit_start);
           }
           else{
             memset(coeff,0,sizeY/2*sizeY/2*sizeof(int16_t));
@@ -730,9 +740,10 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           /* U */
           coeff = coeff_u + index*sizeC/2*sizeC/2;
           if (cbp.u){
-            bit_start = stream->bitcnt;
+            bit_start = od_ec_dec_tell(&stream->ec);
             read_coeff(stream,coeff,sizeC/2,coeff_block_type|1);
-            decoder_info->bit_count.coeff_u[stat_frame_type] += (stream->bitcnt - bit_start);
+            decoder_info->bit_count.coeff_u[stat_frame_type] +=
+             (od_ec_dec_tell(&stream->ec) - bit_start);
           }
           else{
             memset(coeff,0,sizeC/2*sizeC/2*sizeof(int16_t));
@@ -741,9 +752,10 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           /* V */
           coeff = coeff_v + index*sizeC/2*sizeC/2;
           if (cbp.v){
-            bit_start = stream->bitcnt;
+            bit_start = od_ec_dec_tell(&stream->ec);
             read_coeff(stream,coeff,sizeC/2,coeff_block_type|1);
-            decoder_info->bit_count.coeff_v[stat_frame_type] += (stream->bitcnt - bit_start);
+            decoder_info->bit_count.coeff_v[stat_frame_type] +=
+             (od_ec_dec_tell(&stream->ec) - bit_start);
           }
           else{
             memset(coeff,0,sizeC/2*sizeC/2*sizeof(int16_t));
@@ -759,23 +771,25 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
         /* Loop over 4 TUs */
         for (index=0;index<4;index++){
-          bit_start = stream->bitcnt;
+          bit_start = od_ec_dec_tell(&stream->ec);
           cbp.y = getbits(stream,1);
-          decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
+          decoder_info->bit_count.cbp[stat_frame_type] +=
+           (od_ec_dec_tell(&stream->ec) - bit_start);
 
           /* Y */
           coeff = coeff_y + index*sizeY/2*sizeY/2;
           if (cbp.y){
-            bit_start = stream->bitcnt;
+            bit_start = od_ec_dec_tell(&stream->ec);
             read_coeff(stream,coeff,sizeY/2,coeff_block_type|0);
-            decoder_info->bit_count.coeff_y[stat_frame_type] += (stream->bitcnt - bit_start);
+            decoder_info->bit_count.coeff_y[stat_frame_type] +=
+             (od_ec_dec_tell(&stream->ec) - bit_start);
           }
           else{
             memset(coeff,0,sizeY/2*sizeY/2*sizeof(int16_t));
           }
         }
 
-        bit_start = stream->bitcnt;
+        bit_start = od_ec_dec_tell(&stream->ec);
         int tmp;
         tmp = getbits(stream,1);
         if (tmp){
@@ -799,18 +813,21 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
             }
           }
         }
-        decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
+        decoder_info->bit_count.cbp[stat_frame_type] +=
+         (od_ec_dec_tell(&stream->ec) - bit_start);
         if (cbp.u){
-          bit_start = stream->bitcnt;
+          bit_start = od_ec_dec_tell(&stream->ec);
           read_coeff(stream,coeff_u,sizeC,coeff_block_type|1);
-          decoder_info->bit_count.coeff_u[stat_frame_type] += (stream->bitcnt - bit_start);
+          decoder_info->bit_count.coeff_u[stat_frame_type] +=
+           (od_ec_dec_tell(&stream->ec) - bit_start);
         }
         else
           memset(coeff_u,0,sizeC*sizeC*sizeof(int16_t));
         if (cbp.v){
-          bit_start = stream->bitcnt;
+          bit_start = od_ec_dec_tell(&stream->ec);
           read_coeff(stream,coeff_v,size/2,coeff_block_type|1);
-          decoder_info->bit_count.coeff_v[stat_frame_type] += (stream->bitcnt - bit_start);
+          decoder_info->bit_count.coeff_v[stat_frame_type] +=
+           (od_ec_dec_tell(&stream->ec) - bit_start);
         }
         else
           memset(coeff_v,0,sizeC*sizeC*sizeof(int16_t));

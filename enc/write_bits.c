@@ -371,8 +371,10 @@ void write_super_mode(stream_t *stream,write_data_t *write_data, int split_flag)
   }
   else{
     /* Split flag = 0 */
-    if (size > MIN_BLOCK_SIZE || split_flag==1)
+    if (!write_data->encode_rectangular_size
+     && (size > MIN_BLOCK_SIZE || split_flag==1)){
       putbits(1,split_flag,stream);
+    }
   }
 }
 

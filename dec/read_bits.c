@@ -705,7 +705,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
         }
         block_info->cbp.y = 1; //TODO: Do properly with respect to deblocking filter
         block_info->cbp.u = 1;
-        block_info->cbp.u = 1;
+        block_info->cbp.v = 1;
       }
       else{
         int index;
@@ -771,7 +771,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
         block_info->cbp.y = 1; //TODO: Do properly with respect to deblocking filter
         block_info->cbp.u = 1;
-        block_info->cbp.u = 1;
+        block_info->cbp.v = 1;
       } //if (size==8)
     } //if (tb_split==0)
   } //if (mode!=MODE_SKIP)

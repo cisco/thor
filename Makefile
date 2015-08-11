@@ -1,7 +1,7 @@
 ENCODER_PROGRAM = build/Thorenc
 DECODER_PROGRAM = build/Thordec
 
-CFLAGS += -std=c99 -g -O6 -Wall -pedantic -I common
+CFLAGS += -std=c99 -g -O6 -Wall -pedantic -I src/common
 LDFLAGS = -lm
 
 ifeq ($(ARCH),neon)
@@ -18,33 +18,33 @@ endif
 
 
 COMMON_SOURCES = \
-	common/common_block.c \
-	common/common_frame.c \
-	common/transform.c \
-	common/intra_prediction.c \
-	common/inter_prediction.c \
-	common/common_kernels.c \
-	common/snr.c \
-	common/simd.c
+	src/common/common_block.c \
+	src/common/common_frame.c \
+	src/common/transform.c \
+	src/common/intra_prediction.c \
+	src/common/inter_prediction.c \
+	src/common/common_kernels.c \
+	src/common/snr.c \
+	src/common/simd.c
 
 ENCODER_SOURCES = \
-	enc/encode_block.c \
-	enc/encode_frame.c \
-	enc/mainenc.c \
-	enc/putbits.c \
-	enc/putvlc.c \
-	enc/strings.c \
-	enc/write_bits.c \
-	enc/enc_kernels.c \
+	src/enc/encode_block.c \
+	src/enc/encode_frame.c \
+	src/enc/mainenc.c \
+	src/enc/putbits.c \
+	src/enc/putvlc.c \
+	src/enc/strings.c \
+	src/enc/write_bits.c \
+	src/enc/enc_kernels.c \
 	$(COMMON_SOURCES)
 
 DECODER_SOURCES = \
-	dec/decode_block.c \
-	dec/getbits.c \
-	dec/getvlc.c \
-	dec/maindec.c \
-	dec/read_bits.c \
-	dec/decode_frame.c \
+	src/dec/decode_block.c \
+	src/dec/getbits.c \
+	src/dec/getvlc.c \
+	src/dec/maindec.c \
+	src/dec/read_bits.c \
+	src/dec/decode_frame.c \
 	$(COMMON_SOURCES)
 
 ENCODER_OBJECTS = $(ENCODER_SOURCES:.c=.o)

@@ -40,7 +40,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\common"
+				AdditionalIncludeDirectories="..\..\src\common"
 				PreprocessorDefinitions="WIN32;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -117,7 +117,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				EnableFiberSafeOptimizations="true"
-				AdditionalIncludeDirectories="..\..\Common\"
+				AdditionalIncludeDirectories="..\..\src\Common\"
 				PreprocessorDefinitions="WIN32;_CRT_SECURE_NO_WARNINGS"
 				ExceptionHandling="0"
 				RuntimeLibrary="0"
@@ -176,55 +176,55 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\..\common\common_block.c"
+				RelativePath="..\..\src\common\common_block.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\common_frame.c"
+				RelativePath="..\..\src\common\common_frame.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\common_kernels.c"
+				RelativePath="..\..\src\common\common_kernels.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\decode_block.c"
+				RelativePath="..\..\src\dec\decode_block.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\decode_frame.c"
+				RelativePath="..\..\src\dec\decode_frame.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\getbits.c"
+				RelativePath="..\..\src\dec\getbits.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\getvlc.c"
+				RelativePath="..\..\src\dec\getvlc.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\inter_prediction.c"
+				RelativePath="..\..\src\common\inter_prediction.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\intra_prediction.c"
+				RelativePath="..\..\src\common\intra_prediction.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\maindec.c"
+				RelativePath="..\..\src\dec\maindec.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\read_bits.c"
+				RelativePath="..\..\src\dec\read_bits.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\simd.c"
+				RelativePath="..\..\src\common\simd.c"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\transform.c"
+				RelativePath="..\..\src\common\transform.c"
 				>
 			</File>
 		</Filter>
@@ -234,63 +234,63 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath="..\..\common\common_block.h"
+				RelativePath="..\..\src\common\common_block.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\common_frame.h"
+				RelativePath="..\..\src\common\common_frame.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\common_kernels.h"
+				RelativePath="..\..\src\common\common_kernels.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\decode_block.h"
+				RelativePath="..\..\src\dec\decode_block.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\decode_frame.h"
+				RelativePath="..\..\src\dec\decode_frame.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\getbits.h"
+				RelativePath="..\..\src\dec\getbits.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\getvlc.h"
+				RelativePath="..\..\src\dec\getvlc.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\global.h"
+				RelativePath="..\..\src\common\global.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\inter_prediction.h"
+				RelativePath="..\..\src\common\inter_prediction.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\intra_prediction.h"
+				RelativePath="..\..\src\common\intra_prediction.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\maindec.h"
+				RelativePath="..\..\src\dec\maindec.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\dec\read_bits.h"
+				RelativePath="..\..\src\dec\read_bits.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\simd.h"
+				RelativePath="..\..\src\common\simd.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\transform.h"
+				RelativePath="..\..\src\common\transform.h"
 				>
 			</File>
 			<File
-				RelativePath="..\..\common\types.h"
+				RelativePath="..\..\src\common\types.h"
 				>
 			</File>
 		</Filter>

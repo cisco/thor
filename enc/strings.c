@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include "global.h"
 #include "strings.h"
+#include "mainenc.h"
 
 #define MAX_PARAMS 200
 

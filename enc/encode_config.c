@@ -28,7 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdlib.h>
 #include <string.h>
 #include "global.h"
-#include "strings.h"
+#include "encode_config.h"
 
 #define MAX_PARAMS 200
 

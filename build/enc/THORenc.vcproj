@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9,00"
+	Version="9.00"
 	Name="THORenc"
 	ProjectGUID="{9F952487-2A1E-4B0A-A752-1E2CFE8D9595}"
 	RootNamespace="THORenc"
@@ -201,6 +201,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\enc\encode_config.c"
+				>
+			</File>
+			<File
 				RelativePath="..\..\enc\encode_frame.c"
 				>
 			</File>
@@ -230,10 +234,6 @@
 			</File>
 			<File
 				RelativePath="..\..\common\snr.c"
-				>
-			</File>
-			<File
-				RelativePath="..\..\enc\strings.c"
 				>
 			</File>
 			<File
@@ -271,6 +271,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\enc\encode_config.h"
+				>
+			</File>
+			<File
 				RelativePath="..\..\enc\encode_frame.h"
 				>
 			</File>
@@ -304,10 +308,6 @@
 			</File>
 			<File
 				RelativePath="..\..\common\snr.h"
-				>
-			</File>
-			<File
-				RelativePath="..\..\enc\strings.h"
 				>
 			</File>
 			<File

@@ -1,7 +1,7 @@
 ENCODER_PROGRAM = build/Thorenc
 DECODER_PROGRAM = build/Thordec
 
-CFLAGS += -std=c99 -g -O6 -Wall -pedantic -I common
+CFLAGS += -std=c99 -g -O3 -Wall -pedantic -I common
 LDFLAGS = -lm
 
 ifeq ($(ARCH),neon)

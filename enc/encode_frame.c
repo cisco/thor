@@ -57,8 +57,8 @@ void clpf_frame(encoder_info_t *encoder_info){
   uint8_t *orgY = encoder_info->orig->y;
   int stride_y = encoder_info->rec->stride_y;
   int stride_c = encoder_info->rec->stride_c;
-  int num_sb_hor = width/MAX_BLOCK_SIZE;
-  int num_sb_ver = height/MAX_BLOCK_SIZE;
+  int num_sb_hor = (width + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
+  int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
       xpos = l*MAX_BLOCK_SIZE;

@@ -68,7 +68,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 
   /* Vertical filtering */
   for (i=0;i<height;i+=MIN_BLOCK_SIZE){
-    for (j=MIN_BLOCK_SIZE;j<width-MIN_BLOCK_SIZE;j+=MIN_BLOCK_SIZE){
+    for (j = MIN_BLOCK_SIZE; j<width; j += MIN_BLOCK_SIZE) {
 
 #if NEW_DEBLOCK_TEST
       p12 = recY[(i+2)*stride + j - 2];
@@ -154,7 +154,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
   }
 
   /* Horizontal filtering */
-  for (i=MIN_BLOCK_SIZE;i<height-MIN_BLOCK_SIZE;i+=MIN_BLOCK_SIZE){
+  for (i = MIN_BLOCK_SIZE; i<height; i += MIN_BLOCK_SIZE) {
     for (j=0;j<width;j+=MIN_BLOCK_SIZE){
 
 #if NEW_DEBLOCK_TEST
@@ -268,7 +268,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
 
     /* Vertical filtering */
     for (i=0;i<height;i+=MIN_BLOCK_SIZE){
-      for (j=MIN_BLOCK_SIZE;j<width-MIN_BLOCK_SIZE;j+=MIN_BLOCK_SIZE){
+      for (j = MIN_BLOCK_SIZE; j<width; j += MIN_BLOCK_SIZE) {
         int i2 = i/2;
         int j2 = j/2;
         q_index = (i/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (j/MIN_PB_SIZE);
@@ -297,7 +297,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
     }
 
     /* Horizontal filtering */
-    for (i=MIN_BLOCK_SIZE;i<height-MIN_BLOCK_SIZE;i+=MIN_BLOCK_SIZE){
+    for (i = MIN_BLOCK_SIZE; i<height; i += MIN_BLOCK_SIZE) {
       for (j=0;j<width;j+=MIN_BLOCK_SIZE){
         int i2 = i/2;
         int j2 = j/2;

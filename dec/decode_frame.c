@@ -42,8 +42,8 @@ void clpf_frame(decoder_info_t *decoder_info){
   int width = decoder_info->width;
   int xpos,ypos,index,filter_flag,filter;
   int k,l,x0,x1,y0,y1;
-  int num_sb_hor = width/MAX_BLOCK_SIZE;
-  int num_sb_ver = height/MAX_BLOCK_SIZE;
+  int num_sb_hor = (width + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
+  int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
 
   uint8_t *recY = decoder_info->rec->y;
   uint8_t *recU = decoder_info->rec->u;

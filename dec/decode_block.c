@@ -114,6 +114,19 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
   }
 }
 
+// clamp motion vector to stay within reference padding size
+void clamp_mv_to_padding(mv_t *mv, int sign, int ypos, int xpos, int bwidth, int bheight, int width, int height)
+{
+  if (sign == 0) {
+    mv->x = clip(mv->x, -4 * (PADDING_Y - 3 + xpos) + ((mv->x) & 3), 4 * (width  - bwidth  - xpos + PADDING_Y - 4) + ((mv->x) & 3));
+    mv->y = clip(mv->y, -4 * (PADDING_Y - 3 + ypos) + ((mv->y) & 3), 4 * (height - bheight - ypos + PADDING_Y - 4) + ((mv->y) & 3));
+  }
+  else {
+    mv->x = clip(mv->x, -4 * (width  - bwidth  - xpos + PADDING_Y - 4) + ((mv->x) & 3), 4 * (PADDING_Y - 3 + xpos) + ((mv->x) & 3));
+    mv->y = clip(mv->y, -4 * (height - bheight - ypos + PADDING_Y - 4) + ((mv->y) & 3), 4 * (PADDING_Y - 3 + ypos) + ((mv->y) & 3));
+  }
+}
+
 void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
 
   int width = decoder_info->width;
@@ -207,10 +220,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int sign1 = ref1->frame_num > rec->frame_num;
 
       mv = block_info.pred_data.mv_arr0[0];
+      clamp_mv_to_padding(&mv, sign0, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0);
       get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
       get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
       mv = block_info.pred_data.mv_arr1[0];
+      clamp_mv_to_padding(&mv, sign1, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1);
       get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
       get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
@@ -239,6 +254,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       ref_y = ref->y + ref_posY;
       ref_u = ref->u + ref_posC;
       ref_v = ref->v + ref_posC;
+      clamp_mv_to_padding(&mv, sign, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock_y, ref_y, bwidth, bheight, ref->stride_y, sizeY, &mv, sign);
       get_inter_prediction_chroma(pblock_u, ref_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign);
       get_inter_prediction_chroma(pblock_v, ref_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign);
@@ -276,10 +292,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int sign1 = ref1->frame_num > rec->frame_num;
 
       mv = block_info.pred_data.mv_arr0[0];
+      clamp_mv_to_padding(&mv, sign0, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0);
       get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
       get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
       mv = block_info.pred_data.mv_arr1[0];
+      clamp_mv_to_padding(&mv, sign1, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1);
       get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
       get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
@@ -306,6 +324,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       ref_y = ref->y + ref_posY;
       ref_u = ref->u + ref_posC;
       ref_v = ref->v + ref_posC;
+      clamp_mv_to_padding(&mv, sign, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock_y, ref_y, sizeY, sizeY, ref->stride_y, sizeY, &mv, sign);
       get_inter_prediction_chroma(pblock_u, ref_u, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign);
       get_inter_prediction_chroma(pblock_v, ref_v, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign);
@@ -340,6 +359,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int offsetrY = idy*psizeY*ref->stride_y + idx*psizeY;
       int offsetrC = idy*psizeC*ref->stride_c + idx*psizeC;
       mv = block_info.pred_data.mv_arr0[index];
+      clamp_mv_to_padding(&mv, sign, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock_y + offsetpY, ref_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign);
       get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign);
       get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign);
@@ -378,10 +398,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int offsetrY = idy*psizeY*ref->stride_y + idx*psizeY;
       int offsetrC = idy*psizeC*ref->stride_c + idx*psizeC;
       mv = block_info.pred_data.mv_arr0[index];
+      clamp_mv_to_padding(&mv, sign0, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock0_y + offsetpY, ref0_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign0);
       get_inter_prediction_chroma(pblock0_u + offsetpC, ref0_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0);
       get_inter_prediction_chroma(pblock0_v + offsetpC, ref0_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0);
       mv = block_info.pred_data.mv_arr1[index];
+      clamp_mv_to_padding(&mv, sign1, ypos, xpos, bwidth, bheight, width, height);
       get_inter_prediction_luma  (pblock1_y + offsetpY, ref1_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign1);
       get_inter_prediction_chroma(pblock1_u + offsetpC, ref1_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1);
       get_inter_prediction_chroma(pblock1_v + offsetpC, ref1_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1);

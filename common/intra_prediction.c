@@ -296,7 +296,12 @@ void get_upright_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,int wid
     }
     if (upright_available){
       for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+j];
+        if(xpos + j >= width) {
+          ver[j] = ver[j-1];
+        }
+        else {
+          ver[j] = rec[(ypos-1)*stride+xpos+j];
+        }
       }
     }
     else{
@@ -342,7 +347,12 @@ void get_upupright_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,int w
     }
     if (upright_available){
       for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+j];
+        if(xpos + j >= width) {
+          ver[j] = ver[j-1];
+        }
+        else {
+          ver[j] = rec[(ypos-1)*stride+xpos+j];
+        }
       }
     }
     else{

@@ -105,14 +105,6 @@ SIMD_INLINE void v64_store_unaligned(void *p, v64 a) {
   _mm_storel_epi64((__m128i*)p, a);
 }
 
-SIMD_INLINE v64 v64_align(v64 a, v64 b, const unsigned int c) {
-#if __OPTIMIZE__
-  return c ? _mm_srli_si128(_mm_unpacklo_epi64(b, a), c) : b;
-#else
-  return c ? v64_from_64((v64_u64(b) >> c*8) | (v64_u64(a) << (8-c)*8)) : b;
-#endif
-}
-
 
 SIMD_INLINE v64 v64_zero() {
   return _mm_setzero_si128();
@@ -497,100 +489,23 @@ SIMD_INLINE v64 v64_shr_s32(v64 a, unsigned int c) {
   return _mm_sra_epi32(a, _mm_cvtsi32_si128(c));
 }
 
-/* Fallback to variable argument if we're not compiling with optimise */
-#if __OPTIMIZE__
-
-SIMD_INLINE v64 v64_shl_n_byte(v64 a, const unsigned int c) {
-  return _mm_slli_si128(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_byte(v64 a, const unsigned int c) {
-  return _mm_srli_si128(_mm_unpacklo_epi64(a, a), c + 8);
-}
-
-SIMD_INLINE v64 v64_shl_n_8(v64 a, const unsigned int c) {
-  return _mm_packus_epi16(_mm_srli_epi16(_mm_slli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c), 8),
-                          _mm_setzero_si128());
-}
-
-SIMD_INLINE v64 v64_shr_n_u8(v64 a, const unsigned int  c) {
-  return _mm_packus_epi16(_mm_srli_epi16(_mm_unpacklo_epi8(a, a), c + 8), _mm_setzero_si128());
-}
-
-SIMD_INLINE v64 v64_shr_n_s8(v64 a, const unsigned int c) {
-  return _mm_packs_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(a, a), c + 8), _mm_setzero_si128());
-}
-
-SIMD_INLINE v64 v64_shl_n_16(v64 a, const unsigned int c) {
-  return _mm_slli_epi16(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_u16(v64 a, const unsigned int c) {
-  return _mm_srli_epi16(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_s16(v64 a, const unsigned int c) {
-  return _mm_srai_epi16(a, c);
-}
-
-SIMD_INLINE v64 v64_shl_n_32(v64 a, const unsigned int c) {
-  return _mm_slli_epi32(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_u32(v64 a, const unsigned int c) {
-  return _mm_srli_epi32(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_s32(v64 a, const unsigned int c) {
-  return _mm_srai_epi32(a, c);
-}
-
-#else
-
-SIMD_INLINE v64 v64_shl_n_byte(v64 a, const unsigned int c) {
-  return v64_from_64(v64_u64(a) << c*8);
-}
-
-SIMD_INLINE v64 v64_shr_n_byte(v64 a, const unsigned int c) {
-  return v64_from_64(v64_u64(a) >> c*8);
-}
-
-SIMD_INLINE v64 v64_shl_n_8(v64 a, const unsigned int c) {
-  return v64_shl_8(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_u8(v64 a, const unsigned int  c) {
-  return v64_shr_u8(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_s8(v64 a, const unsigned int c) {
-  return v64_shr_s8(a, c);
-}
-
-SIMD_INLINE v64 v64_shl_n_16(v64 a, const unsigned int c) {
-  return v64_shl_16(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_u16(v64 a, const unsigned int c) {
-  return v64_shr_u16(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_s16(v64 a, const unsigned int c) {
-  return v64_shr_s16(a, c);
-}
-
-SIMD_INLINE v64 v64_shl_n_32(v64 a, const unsigned int c) {
-  return v64_shl_32(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_u32(v64 a, const unsigned int c) {
-  return v64_shr_u32(a, c);
-}
-
-SIMD_INLINE v64 v64_shr_n_s32(v64 a, const unsigned int c) {
-  return v64_shr_s32(a, c);
-}
-
-#endif
+/* These intrinsics require immediate values, so we must use #defines
+   to enforce that. */
+#define v64_align(a, b, c) c ? \
+ _mm_srli_si128(_mm_unpacklo_epi64(b, a), c) : b;
+#define v64_shl_n_byte(a, c) _mm_slli_si128(a, c)
+#define v64_shr_n_byte(a, c) _mm_srli_si128(_mm_unpacklo_epi64(a, a), c + 8)
+#define v64_shl_n_8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_sll_epi16( \
+ _mm_unpacklo_epi8(_mm_setzero_si128(), a), c), 8), _mm_setzero_si128())
+#define v64_shr_n_u8(a, c) _mm_packus_epi16(_mm_srl_epi16(_mm_unpacklo_epi8( \
+ _mm_setzero_si128(), a), (c) + 8), _mm_setzero_si128())
+#define v64_shr_n_s8(a, c) _mm_packs_epi16(_mm_sra_epi16(_mm_unpacklo_epi8( \
+ _mm_setzero_si128(), a), (c) + 8), _mm_setzero_si128())
+#define v64_shl_n_16(a, c) _mm_slli_epi16(a, c)
+#define v64_shr_n_u16(a, c) _mm_srli_epi16(a, c)
+#define v64_shr_n_s16(a, c) _mm_srai_epi16(a, c)
+#define v64_shl_n_32(a, c) _mm_slli_epi32(a, c)
+#define v64_shr_n_u32(a, c) _mm_srli_epi32(a, c)
+#define v64_shr_n_s32(a, c) _mm_srai_epi32(a, c)
 
 #endif /* _V64_INTRINSICS_H */

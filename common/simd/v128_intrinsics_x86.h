@@ -81,23 +81,6 @@ SIMD_INLINE void v128_store_unaligned(void *p, v128 a) {
 }
 
 
-SIMD_INLINE v128 v128_align(v128 a, v128 b, const unsigned int c) {
-#if defined(__OPTIMIZE__) || defined(_MSC_VER)
-#if defined (__SSSE3__)
-  return c ? _mm_alignr_epi8(a, b, c) : b;
-#else
-  return c ? _mm_or_si128(_mm_srli_si128(b, c), _mm_slli_si128(a, 16 - c)) : b;
-#endif
-#else
-  return c < 8 ?
-    v128_from_v64(v64_align(v128_low_v64(a), v128_high_v64(b), c),
-                  v64_align(v128_high_v64(b), v128_low_v64(b), c)) :
-    v128_from_v64(v64_align(v128_high_v64(a), v128_low_v64(a), c-8),
-                  v64_align(v128_low_v64(a), v128_high_v64(b), c-8));
-#endif
-}
-
-
 SIMD_INLINE v128  v128_zero() {
   return _mm_setzero_si128();
 }
@@ -521,112 +504,33 @@ SIMD_INLINE v128 v128_shr_s32(v128 a, unsigned int c) {
   return _mm_sra_epi32(a, _mm_cvtsi32_si128(c));
 }
 
-/* Fallback to variable argument if we're not compiling with optimise */
-#if __OPTIMIZE__
-
-SIMD_INLINE v128 v128_shl_n_byte(v64 a, const unsigned int c) {
-  return _mm_slli_si128(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_byte(v64 a, const unsigned int c) {
-  return _mm_srli_si128(a, c);
-}
-
-SIMD_INLINE v128 v128_shl_n_8(v128 a, const unsigned int c) {
-  return _mm_packus_epi16(_mm_srli_epi16(_mm_slli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c), 8),
-                          _mm_srli_epi16(_mm_slli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c), 8) );
-}
-
-SIMD_INLINE v128 v128_shr_n_u8(v128 a, const unsigned int c) {
-  return _mm_packus_epi16(_mm_srli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8),
-                          _mm_srli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8));
-}
-
-SIMD_INLINE v128 v128_shr_n_s8(v128 a, const unsigned int c) {
-  return _mm_packs_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8),
-                         _mm_srai_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8));
-}
-
-SIMD_INLINE v128 v128_shl_n_16(v128 a, const unsigned int c) {
-  return _mm_slli_epi16(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_u16(v128 a, const unsigned int c) {
-  return _mm_srli_epi16(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_s16(v128 a, const unsigned int c) {
-  return _mm_srai_epi16(a, c);
-}
-
-SIMD_INLINE v128 v128_shl_n_32(v128 a, const unsigned int c) {
-  return _mm_slli_epi32(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_u32(v128 a, const unsigned int c) {
-  return _mm_srli_epi32(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int c) {
-  return _mm_srai_epi32(a, c);
-}
-
+/* These intrinsics require immediate values,
+   so we must use #defines to enforce that. */
+#if defined (__SSSE3__)
+# define v128_align(a, b, c) c ? \
+   _mm_alignr_epi8(a, b, c) : b
 #else
-
-SIMD_INLINE v128 v128_shl_n_byte(v128 a, const unsigned int n) {
-  if (n < 8)
-    return v128_from_v64(v64_or(v64_shl_n_byte(v128_high_v64(a), n),
-                                v64_shr_n_byte(v128_low_v64(a), 8 - n)),
-                         v64_shl_n_byte(v128_low_v64(a), n));
-  else
-    return v128_from_v64(v64_shl_n_byte(v128_low_v64(a), n - 8), v64_zero());
-}
-
-SIMD_INLINE v128 v128_shr_n_byte(v128 a, const unsigned int n) {
-  if (n < 8)
-    return v128_from_v64(v64_shr_n_byte(v128_high_v64(a), n),
-                         v64_or(v64_shr_n_byte(v128_low_v64(a), n),
-                                v64_shl_n_byte(v128_high_v64(a), 8 - n)));
-  else
-    return v128_from_v64(v64_zero(), v64_shr_n_byte(v128_high_v64(a), n - 8));
-}
-
-SIMD_INLINE v128 v128_shl_n_8(v128 a, const unsigned int c) {
-  return v128_shl_8(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_u8(v128 a, const unsigned int c) {
-  return v128_shr_u8(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_s8(v128 a, const unsigned int c) {
-  return v128_shr_s8(a, c);
-}
-
-SIMD_INLINE v128 v128_shl_n_16(v128 a, const unsigned int c) {
-  return v128_shl_16(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_u16(v128 a, const unsigned int c) {
-  return v128_shr_u16(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_s16(v128 a, const unsigned int c) {
-  return v128_shr_s16(a, c);
-}
-
-SIMD_INLINE v128 v128_shl_n_32(v128 a, const unsigned int c) {
-  return v128_shl_32(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_u32(v128 a, const unsigned int c) {
-  return v128_shr_u32(a, c);
-}
-
-SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int c) {
-  return v128_shr_s32(a, c);
-}
-
+# define v128_align(a, b, c) c ? \
+   _mm_or_si128(_mm_srli_si128(b, c), \
+   _mm_slli_si128(a, 16 - c)) : b
 #endif
+#define v128_shl_n_byte(a, c) _mm_slli_si128(a, c)
+#define v128_shr_n_byte(a, c) _mm_srli_si128(a, c)
+#define _v128_shl_n_8(a, c) _mm_packus_epi16( _mm_srli_epi16(_mm_sll_epi16( \
+ _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)), 8), \
+ _mm_srli_epi16(_mm_sll_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), \
+ (a)), (c)), 8) )
+#define _v128_shr_n_u8(a, c) _mm_packus_epi16( _mm_srl_epi16( \
+ _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)+8), \
+ _mm_srl_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), (a)), (c)+8) )
+#define _v128_shr_n_s8(a, c) _mm_packs_epi16( _mm_sra_epi16( \
+ _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)+8), \
+ _mm_sra_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), (a)), (c)+8) )
+#define v128_shl_n_16(a, c) _mm_slli_epi16(a, c)
+#define v128_shr_n_u16(a, c) _mm_srli_epi16(a, c)
+#define v128_shr_n_s16(a, c) _mm_srai_epi16(a, c)
+#define v128_shl_n_32(a, c) _mm_slli_epi32(a, c)
+#define v128_shr_n_u32(a, c) _mm_srli_epi32(a, c)
+#define v128_shr_n_s32(a, c) _mm_srai_epi32(a, c)
 
 #endif /* _V128_INTRINSICS_H */

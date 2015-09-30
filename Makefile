@@ -33,7 +33,7 @@ ENCODER_SOURCES = \
 	enc/mainenc.c \
 	enc/putbits.c \
 	enc/putvlc.c \
-	enc/strings.c \
+	enc/encode_config.c \
 	enc/write_bits.c \
 	enc/enc_kernels.c \
 	$(COMMON_SOURCES)

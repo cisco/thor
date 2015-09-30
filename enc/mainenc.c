@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <assert.h>
 
 #include "global.h"
-#include "strings.h"
+#include "encode_config.h"
 #include "snr.h"
 #include "mainenc.h"
 #include "common_frame.h"

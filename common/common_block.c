@@ -183,21 +183,21 @@ void find_block_contexts(int ypos, int xpos, int height, int width, int size, de
 
 void clpf_block(uint8_t *rec,int x0, int x1, int y0, int y1,int stride){
 
-  int y,x,A,B,C,D,E,F,delta,sum,sign;
+  int y,x,A,B,C,D,X,Xprime,delta,sum,sign;
   uint8_t tmp_block[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
 
   for (y=y0;y<y1;y++){
     for (x=x0;x<x1;x++){
       A = rec[(y-1)*stride + x+0];
       B = rec[(y+0)*stride + x-1];
-      C = rec[(y+0)*stride + x+0];
-      D = rec[(y+0)*stride + x+1];
-      E = rec[(y+1)*stride + x+0];
-      sum = A+B+D+E-4*C;
+      X = rec[(y+0)*stride + x+0];
+      C = rec[(y+0)*stride + x+1];
+      D = rec[(y+1)*stride + x+0];
+      sum = A+B+C+D-4*X;
       sign = sum < 0 ? -1 : 1;
       delta = sign*min(1,((abs(sum)+2)>>2));
-      F = clip255(C + delta);
-      tmp_block[(y-y0)*MAX_BLOCK_SIZE + x-x0] = F;
+      Xprime = clip255(X + delta);
+      tmp_block[(y-y0)*MAX_BLOCK_SIZE + x-x0] = Xprime;
     }
   }
   for (y=y0;y<y1;y++){

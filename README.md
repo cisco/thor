@@ -14,7 +14,17 @@ Binaries will appear in the build/ directory.
 
 ## Usage
 
-encoder:        Thorenc -cf config.txt
 
-decoder:        Thordec str.bit out.yuv
+encoder:        Thorenc -if inputfile -of outputfile [-options..]
 
+
+(Inputfile format has to be .y4m or .yuv)
+
+
+decoder:        Thordec inputfile outputfile
+
+
+
+##Options:
+
+-cf	Config file in which explictly define the parameters of encoder

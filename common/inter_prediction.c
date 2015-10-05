@@ -249,7 +249,7 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   int up_index1 = block_index - block_stride + (block_size - 1)/2;
   int up_index2 = block_index - block_stride + block_size - 1;
   int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
+  int left_index1 = block_index + block_stride*((block_size - 1)/2) - 1;
   int left_index2 = block_index + block_stride*(block_size-1) - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
   int upright_index = block_index - block_stride + block_size;
@@ -366,7 +366,7 @@ int get_mv_merge(int yposY,int xposY,int width,int height,int size,deblock_data_
   int up_index1 = block_index - block_stride + (block_size - 1)/2;
   int up_index2 = block_index - block_stride + block_size - 1;
   int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
+  int left_index1 = block_index + block_stride*((block_size-1)/2) - 1;
   int left_index2 = block_index + block_stride*(block_size-1) - 1;
   int upright_index = block_index - block_stride + block_size;
   int upleft_index = block_index - block_stride - 1;
@@ -522,7 +522,7 @@ int get_mv_skip(int yposY,int xposY,int width,int height,int size,deblock_data_t
   int up_index1 = block_index - block_stride + (block_size - 1)/2;
   int up_index2 = block_index - block_stride + block_size - 1;
   int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
+  int left_index1 = block_index + block_stride*((block_size-1)/2) - 1;
   int left_index2 = block_index + block_stride*(block_size-1) - 1;
   int upright_index = block_index - block_stride + block_size;
   int upleft_index = block_index - block_stride - 1;

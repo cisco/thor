@@ -348,41 +348,89 @@ void close_yuv_frame(yuv_frame_t  *frame)
   free(frame->v); 
 }
 
-void read_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *infile)
-{
-	{
-		unsigned int ysize = width*height;
-		unsigned int csize = ysize/4;
-		if (fread(frame->y, sizeof(unsigned char), ysize, infile) != ysize)
-		{
-     fatalerror("Error reading Y from file");
-		}
-		if (fread(frame->u, sizeof(unsigned char), csize, infile) != csize)
-		{
-			fatalerror("Error reading U from file");
-		}
-		if (fread(frame->v, sizeof(unsigned char), csize, infile) != csize)
-		{
-			fatalerror("Error reading V from file");
-		}
-	}
+/*Extend the edge into the padding.*/
+static void img_plane_edge_ext8(unsigned char * dst_data, int dstride,
+ int plane_width, int plane_height, int horz_padding, int vert_padding) {
+  unsigned char *dst;
+  int x;
+  int y;
+  /*Right side.*/
+  for (y = 0; y < plane_height; y++) {
+    dst = dst_data + plane_width - 1 + dstride*y;
+    for (x = 1; x <= horz_padding; x++) {
+      dst[x] = dst[0];
+    }
+  }
+  /*Bottom.*/
+  dst = dst_data - horz_padding + plane_height*dstride;
+  for (y = 0; y < vert_padding; y++) {
+    for (x = 0; x < plane_width + horz_padding; x++) {
+      dst[x] = (dst - dstride)[x];
+    }
+    dst += dstride;
+  }
 }
 
-void write_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *outfile)
+void read_yuv_frame(yuv_frame_t  *frame, int crop_width, int crop_height,
+ int width, int height, FILE *infile)
 {
-	unsigned int ysize = width*height;
-	unsigned int csize = ysize/4;
-	if (fwrite(frame->y, sizeof(unsigned char), ysize, outfile) != ysize)
-  {
-		fatalerror("Error writing Y to file");
+  int pli;
+  for (pli = 0; pli < 3; pli++) {
+    int xdec = pli == 0 ? 0 : 1;
+    int plane_width = (crop_width + xdec) >> xdec;
+    int plane_height = (crop_height + xdec) >> xdec;
+    int outstride = width >> xdec;
+    int y;
+    unsigned char * plane;
+    switch (pli) {
+      case 0:
+        plane = frame->y;
+        break;
+      case 1:
+        plane = frame->u;
+        break;
+      case 2:
+        plane = frame->v;
+        break;
+    }
+    for (y = 0; y < plane_height; y++) {
+      if (fread(plane + y*outstride, sizeof(unsigned char), plane_width, infile)
+       != plane_width) {
+        fatalerror("Error reading plane from file");
+      }
+    }
+    img_plane_edge_ext8(plane, outstride, plane_width, plane_height,
+     (width >> xdec) - plane_width, (height >> xdec) - plane_height);
   }
-  if (fwrite(frame->u, sizeof(unsigned char), csize, outfile)	!= csize)
-  {
-		fatalerror("Error writing U to file");    
-  }
-	if (fwrite(frame->v, sizeof(unsigned char), csize, outfile)	!= csize)
-  {
-		fatalerror("Error writing V to file");    
+}
+
+void write_yuv_frame(yuv_frame_t  *frame, int crop_width, int crop_height,
+ int width, int height, FILE *outfile)
+{
+  int pli;
+  for (pli = 0; pli < 3; pli++) {
+    int xdec = pli == 0 ? 0 : 1;
+    int plane_width = (crop_width + xdec) >> xdec;
+    int plane_height = (crop_height + xdec) >> xdec;
+    int y;
+    unsigned char * plane;
+    switch (pli) {
+      case 0:
+        plane = frame->y;
+        break;
+      case 1:
+        plane = frame->u;
+        break;
+      case 2:
+        plane = frame->v;
+        break;
+    }
+    for (y = 0; y < plane_height; y++) {
+      if (fwrite(plane + y*(width>>xdec), sizeof(unsigned char), plane_width, outfile)
+       != plane_width) {
+        fatalerror("Error writing plane from file");
+      }
+    }
   }
 }
 

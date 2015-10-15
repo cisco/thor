@@ -137,7 +137,7 @@ int main(int argc, char **argv)
   if (y4m_output) {
     fprintf(reconfile,
      "YUV4MPEG2 W%d H%d F%d:1 Ip A0:0 C420jpeg XYSCSS=420JPEG\x0a",
-     params->width, params->height, (int)params->frame_rate);
+     params->crop_width, params->crop_height, (int)params->frame_rate);
   }
 
   accsnr.y = 0;
@@ -147,10 +147,10 @@ int main(int argc, char **argv)
 
   height = params->height;
   width = params->width;
-  input_stride_y = width;
-  input_stride_c = width/2;
-  ysize = height * width;
-  csize = ysize / 4;
+  input_stride_y = params->crop_width;
+  input_stride_c = (params->crop_width + 1)/2;
+  ysize = params->crop_width*params->crop_height;
+  csize = ((params->crop_width + 1)/2)*((params->crop_height + 1)/2);
   frame_size = ysize + 2*csize;
 
   /* Create frames*/
@@ -185,8 +185,8 @@ int main(int argc, char **argv)
 
   /* Write sequence header */ //TODO: Separate function for sequence header
   start_bits = get_bit_pos(&stream);
-  putbits(16,width,&stream);
-  putbits(16,height,&stream);
+  putbits(16,params->crop_width,&stream);
+  putbits(16,params->crop_height,&stream);
   putbits(1,params->enable_pb_split,&stream);
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
@@ -388,7 +388,7 @@ int main(int argc, char **argv)
 
       /* Read input frame */
       fseek(infile, frame_num*(frame_size+params->frame_headerlen)+params->file_headerlen+params->frame_headerlen, SEEK_SET);
-      read_yuv_frame(&orig,width,height,infile);
+      read_yuv_frame(&orig,params->crop_width,params->crop_height,width,height,infile);
       orig.frame_num = encoder_info.frame_info.frame_num;
 
       /* Encode frame */
@@ -437,7 +437,8 @@ int main(int argc, char **argv)
           {
             fprintf(reconfile, "FRAME\x0a");
           }
-          write_yuv_frame(&rec[rec_buffer_idx],width,height,reconfile);
+          write_yuv_frame(&rec[rec_buffer_idx],params->crop_width,
+           params->crop_height,width,height,reconfile);
           rec_available[rec_buffer_idx]=0;
         }
       }
@@ -449,7 +450,8 @@ int main(int argc, char **argv)
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {
       rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
       if (rec_available[rec_buffer_idx]) {
-        write_yuv_frame(&rec[rec_buffer_idx],width,height,reconfile);
+        write_yuv_frame(&rec[rec_buffer_idx],params->crop_width,params->crop_height,
+         width,height,reconfile);
         rec_available[rec_buffer_idx]=0;
       }
       else

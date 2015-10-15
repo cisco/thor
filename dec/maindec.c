@@ -128,6 +128,8 @@ int main(int argc, char** argv)
     int last_frame_output = -1;
     int width;
     int height;
+    int crop_width;
+    int crop_height;
     int r;
     int sub_gop=1;
 
@@ -147,8 +149,10 @@ int main(int argc, char** argv)
 
     int bit_start = stream.bitcnt;
     /* Read sequence header */
-    width = getbits(&stream,16);
-    height = getbits(&stream,16);
+    crop_width = getbits(&stream,16);
+    crop_height = getbits(&stream,16);
+    width = ((crop_width + 7) >> 3) << 3;
+    height = ((crop_height + 7) >> 3) << 3;
 
     decoder_info.width = width;
     decoder_info.height = height;
@@ -198,7 +202,8 @@ int main(int argc, char** argv)
         rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
         if (rec_available[rec_buffer_idx]) {
           last_frame_output++;
-          write_yuv_frame(&rec[rec_buffer_idx],width,height,outfile);
+          write_yuv_frame(&rec[rec_buffer_idx],crop_width,
+           crop_height,width,height,outfile);
           rec_available[rec_buffer_idx] = 0;
         }
         printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
@@ -212,7 +217,8 @@ int main(int argc, char** argv)
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {
       rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
       if (rec_available[rec_buffer_idx])
-        write_yuv_frame(&rec[rec_buffer_idx],width,height,outfile);
+        write_yuv_frame(&rec[rec_buffer_idx],crop_width,
+         crop_height,width,height,outfile);
       else
         break;
     }

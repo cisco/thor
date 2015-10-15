@@ -35,6 +35,8 @@ typedef struct
 {
     unsigned int width;
     unsigned int height;
+    unsigned int crop_width;
+    unsigned int crop_height;
     unsigned int qp;
     char *infilestr;
     char *outfilestr;

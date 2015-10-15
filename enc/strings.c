@@ -291,8 +291,8 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-stat",                 NULL, ARG_FILENAME, &params->statfilestr);
   add_param_to_list(&list, "-n",                   "600", ARG_INTEGER,  &params->num_frames);
   add_param_to_list(&list, "-skip",                  "0", ARG_INTEGER,  &params->skip);
-  add_param_to_list(&list, "-width",              "1920", ARG_INTEGER,  &params->width);
-  add_param_to_list(&list, "-height",             "1080", ARG_INTEGER,  &params->height);
+  add_param_to_list(&list, "-width",              "1920", ARG_INTEGER,  &params->crop_width);
+  add_param_to_list(&list, "-height",             "1080", ARG_INTEGER,  &params->crop_height);
   add_param_to_list(&list, "-qp",                   "32", ARG_INTEGER,  &params->qp);  
   add_param_to_list(&list, "-f",                    "60", ARG_FLOAT,    &params->frame_rate);
   add_param_to_list(&list, "-lambda_coeffI",       "1.0", ARG_FLOAT,    &params->lambda_coeffI);
@@ -365,11 +365,11 @@ enc_params *parse_config_params(int argc, char **argv)
       while (pos < len && buf[pos] != '\n') {
           switch (buf[pos++]) {
           case 'W':
-            params->width = strtol(buf+pos, &end, 10);
+            params->crop_width = strtol(buf+pos, &end, 10);
             pos = end-buf+1;
             break;
           case 'H':
-            params->height = strtol(buf+pos, &end, 10);
+            params->crop_height = strtol(buf+pos, &end, 10);
             pos = end-buf+1;
             break;
           case 'F':
@@ -406,6 +406,8 @@ enc_params *parse_config_params(int argc, char **argv)
     }
     fclose(infile);
   }
+  params->width = ((params->crop_width + 7) >> 3) << 3;
+  params->height = ((params->crop_height + 7) >> 3) << 3;
   return params;
 }
 
@@ -431,10 +433,6 @@ void check_parameters(enc_params *params)
   if(params->num_frames <= 0)
   {
     fatalerror("Number of frames must be positive");
-  }
-  if (params->width%8 || params->height%8)
-  {
-    fatalerror("Width and height must be a multiple of 8\n");
   }
 
   if (params->max_num_ref < 1 || params->max_num_ref > 4)

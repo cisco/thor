@@ -61,6 +61,20 @@ static const int16_t filter_coeffsY[4][8] = {
 };
 #endif
 
+static const int16_t filter_coeffsYbi[4][8] = {
+  { 0, 0, 128,  0,  0,  0 },
+  { 4,-21,118, 35, -9,  1 },
+  { 3,-17, 78, 78, -17, 3 },
+  { 1,-9,  35,118, -21, 4 }
+};
+
+static const int16_t filter_coeffsYuni[4][8] = {
+  { 0,  0,128,  0,  0,  0},
+  { 3,-15,111, 37,-10,  2},
+  { 3,-16, 77, 77,-16,  3},
+  { 2,-10, 37,111,-15,  3}
+};
+
 static const int8_t filter_coeffsC[8][4] = {
     { 0, 64,  0,  0},
     {-2, 58,  10,-2},
@@ -120,10 +134,9 @@ void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int h
   }
 }
 
-void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign)
+void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred)
 {
   int i,j;
-
   int m,i_off,j_off;
   mv_t mvtemp;
   mvtemp.x = sign ? -mv->x : mv->x;
@@ -132,8 +145,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   int hor_frac = (mvtemp.x)&3;
   int ver_int = (mvtemp.y)>>2;
   int hor_int = (mvtemp.x)>>2;
-  int32_t tmp[80][80]; //7-bit filter exceeds 16 bit temporary storage
-
+  int32_t tmp[MAX_BLOCK_SIZE+16][MAX_BLOCK_SIZE + 16]; //7-bit filter exceeds 16 bit temporary storage
   /* Integer position */
   if (ver_frac==0 && hor_frac==0){
     j_off = 0 + hor_int;
@@ -165,45 +177,41 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   }
   return;
 #endif
-
-  if (use_simd) {
-    get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride);
-  }
-  else {
-    /* Special lowpass filter at center position */
-    if (ver_frac == 2 && hor_frac == 2) {
-      for(i=0;i<height;i++){
-        for (j=0;j<width;j++){
-          int sum = 0;
-          i_off = i + ver_int;
-          j_off = j + hor_int;
-
-          sum += 0*ref[(i_off-1)*stride+j_off-1]+1*ref[(i_off-1)*stride+j_off+0]+1*ref[(i_off-1)*stride+j_off+1]+0*ref[(i_off-1)*stride+j_off+2];
-          sum += 1*ref[(i_off+0)*stride+j_off-1]+2*ref[(i_off+0)*stride+j_off+0]+2*ref[(i_off+0)*stride+j_off+1]+1*ref[(i_off+0)*stride+j_off+2];
-          sum += 1*ref[(i_off+1)*stride+j_off-1]+2*ref[(i_off+1)*stride+j_off+0]+2*ref[(i_off+1)*stride+j_off+1]+1*ref[(i_off+1)*stride+j_off+2];
-          sum += 0*ref[(i_off+2)*stride+j_off-1]+1*ref[(i_off+2)*stride+j_off+0]+1*ref[(i_off+2)*stride+j_off+1]+0*ref[(i_off+2)*stride+j_off+2];
-          pblock[i*pstride+j] = clip255((sum + 8)>>4);
-        }
+  if (use_simd)
+    get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred);
+  /* Special lowpass filter at center position */
+  else if (ver_frac == 2 && hor_frac == 2) {
+    for(i=0;i<height;i++){
+      for (j=0;j<width;j++){
+        int sum = 0;
+        i_off = i + ver_int;
+        j_off = j + hor_int;
+        sum += 0*ref[(i_off-1)*stride+j_off-1]+1*ref[(i_off-1)*stride+j_off+0]+1*ref[(i_off-1)*stride+j_off+1]+0*ref[(i_off-1)*stride+j_off+2];
+        sum += 1*ref[(i_off+0)*stride+j_off-1]+2*ref[(i_off+0)*stride+j_off+0]+2*ref[(i_off+0)*stride+j_off+1]+1*ref[(i_off+0)*stride+j_off+2];
+        sum += 1*ref[(i_off+1)*stride+j_off-1]+2*ref[(i_off+1)*stride+j_off+0]+2*ref[(i_off+1)*stride+j_off+1]+1*ref[(i_off+1)*stride+j_off+2];
+        sum += 0*ref[(i_off+2)*stride+j_off-1]+1*ref[(i_off+2)*stride+j_off+0]+1*ref[(i_off+2)*stride+j_off+1]+0*ref[(i_off+2)*stride+j_off+2];
+        pblock[i*pstride+j] = clip255((sum + 8)>>4);
       }
-    } else {
-
-      /* Vertical filtering */
-      for(i=-OFFYM1;i<width+OFFY;i++){
-        for (j=0;j<height;j++){
-          int sum = 0;
-          i_off = i + hor_int;
-          j_off = j + ver_int;
-          for (m=0;m<NTAPY;m++) sum += filter_coeffsY[ver_frac][m] * ref[(j_off + m - OFFYM1) * stride + i_off]; //7-bit version
-          tmp[j][i+OFFYM1] = sum;
-        }
+    }
+  } else {
+    /* Vertical filtering */
+    const int16_t *filterV = (bipred ? filter_coeffsYbi : filter_coeffsYuni)[ver_frac];
+    for(i=-OFFYM1;i<width+OFFY;i++){
+      for (j=0;j<height;j++){
+        int sum = 0;
+        i_off = i + hor_int;
+        j_off = j + ver_int;
+        for (m=0;m<NTAPY;m++) sum += filterV[m] * ref[(j_off + m - OFFYM1) * stride + i_off]; //7-bit version
+        tmp[j][i+OFFYM1] = sum;
       }
-      /* Horizontal filtering */
-      for(i=0;i<width;i++){
-        for (j=0;j<height;j++){
-          int sum = 0;
-          for (m=0;m<NTAPY;m++) sum += filter_coeffsY[hor_frac][m] * tmp[j][i+m]; //7-bit version
-          pblock[j*pstride+i] = clip255((sum + 8192)>>14); //7-bit version
-        }
+    }
+    /* Horizontal filtering */
+    const int16_t *filterH = (bipred ? filter_coeffsYbi : filter_coeffsYuni)[hor_frac];
+    for(i=0;i<width;i++){
+      for (j=0;j<height;j++){
+        int sum = 0;
+        for (m=0;m<NTAPY;m++) sum += filterH[m] * tmp[j][i+m]; //7-bit version
+        pblock[j*pstride+i] = clip255((sum + 8192)>>14); //7-bit version
       }
     }
   }
@@ -211,31 +219,21 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
 
 mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
 {
-  mv_t mvp;
-  mvr_t zerovec;
-  mvr_t mva,mvb,mvc;
-  zerovec.x = 0;
-  zerovec.y = 0;
-  zerovec.ref_idx = 0;
+  mv_t mvp, mva, mvb, mvc;
+  inter_pred_t zero_pred, inter_predA, inter_predB, inter_predC;
 
-  mva = zerovec;
-  mvb = zerovec;
-  mvc = zerovec;
+  /* Initialize zero unipred structure */
+  zero_pred.mv0.x = 0;
+  zero_pred.mv0.y = 0;
+  zero_pred.ref_idx0 = 0;
+  zero_pred.mv1.x = 0;
+  zero_pred.mv1.y = 0;
+  zero_pred.ref_idx1 = 0;
+  zero_pred.bipred_flag = 0;
 
-
-  mvb_t zerovecb;
-  mvb_t mvba,mvbb,mvbc;
-  zerovecb.x0 = 0;
-  zerovecb.y0 = 0;
-  zerovecb.ref_idx0 = 0;
-  zerovecb.x1 = 0;
-  zerovecb.y1 = 0;
-  zerovecb.ref_idx1 = 0;
-  zerovecb.dir = 0;
-
-   mvba = zerovecb;
-   mvbb = zerovecb;
-   mvbc = zerovecb;
+  inter_predA = zero_pred;
+  inter_predB = zero_pred;
+  inter_predC = zero_pred;
 
   /* Parameters values measured in units of 8 pixels */
   int block_size = size/MIN_PB_SIZE;
@@ -249,7 +247,7 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   int up_index1 = block_index - block_stride + (block_size - 1)/2;
   int up_index2 = block_index - block_stride + block_size - 1;
   int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
+  int left_index1 = block_index + block_stride*((block_size-1)/2) - 1;
   int left_index2 = block_index + block_stride*(block_size-1) - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
   int upright_index = block_index - block_stride + block_size;
@@ -266,249 +264,273 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   int L = left_available;
   int DL = downleft_available;
 
-
   if (U==0 && UR==0 && L==0 && DL==0){
-     mvba = zerovecb;
-     mvbb = zerovecb;
-     mvbc = zerovecb;
+     inter_predA = zero_pred;
+     inter_predB = zero_pred;
+     inter_predC = zero_pred;
   }
   else if (U==1 && UR==0 && L==0 && DL==0){
-     mvba = deblock_data[up_index0].mvb;
-     mvbb = deblock_data[up_index1].mvb;
-     mvbc = deblock_data[up_index2].mvb;
+     inter_predA = deblock_data[up_index0].inter_pred;
+     inter_predB = deblock_data[up_index1].inter_pred;
+     inter_predC = deblock_data[up_index2].inter_pred;
   }
   else if (U==1 && UR==1 && L==0 && DL==0){
-     mvba = deblock_data[up_index0].mvb;
-     mvbb = deblock_data[up_index2].mvb;
-     mvbc = deblock_data[upright_index].mvb;
+     inter_predA = deblock_data[up_index0].inter_pred;
+     inter_predB = deblock_data[up_index2].inter_pred;
+     inter_predC = deblock_data[upright_index].inter_pred;
   }
   else if (U==0 && UR==0 && L==1 && DL==0){
-     mvba = deblock_data[left_index0].mvb;
-     mvbb = deblock_data[left_index1].mvb;
-     mvbc = deblock_data[left_index2].mvb;
+     inter_predA = deblock_data[left_index0].inter_pred;
+     inter_predB = deblock_data[left_index1].inter_pred;
+     inter_predC = deblock_data[left_index2].inter_pred;
   }
   else if (U==1 && UR==0 && L==1 && DL==0){
-     mvba = deblock_data[upleft_index].mvb;
-     mvbb = deblock_data[up_index2].mvb;
-     mvbc = deblock_data[left_index2].mvb;
+     inter_predA = deblock_data[upleft_index].inter_pred;
+     inter_predB = deblock_data[up_index2].inter_pred;
+     inter_predC = deblock_data[left_index2].inter_pred;
   }
   else if (U==1 && UR==1 && L==1 && DL==0){
-     mvba = deblock_data[up_index0].mvb;
-     mvbb = deblock_data[upright_index].mvb;
-     mvbc = deblock_data[left_index2].mvb;
+     inter_predA = deblock_data[up_index0].inter_pred;
+     inter_predB = deblock_data[upright_index].inter_pred;
+     inter_predC = deblock_data[left_index2].inter_pred;
   }
  else if (U==0 && UR==0 && L==1 && DL==1){
-     mvba = deblock_data[left_index0].mvb;
-     mvbb = deblock_data[left_index2].mvb;
-     mvbc = deblock_data[downleft_index].mvb;
+     inter_predA = deblock_data[left_index0].inter_pred;
+     inter_predB = deblock_data[left_index2].inter_pred;
+     inter_predC = deblock_data[downleft_index].inter_pred;
   }
  else if (U==1 && UR==0 && L==1 && DL==1){
-     mvba = deblock_data[up_index2].mvb;
-     mvbb = deblock_data[left_index0].mvb;
-     mvbc = deblock_data[downleft_index].mvb;
+     inter_predA = deblock_data[up_index2].inter_pred;
+     inter_predB = deblock_data[left_index0].inter_pred;
+     inter_predC = deblock_data[downleft_index].inter_pred;
   }
  else if (U==1 && UR==1 && L==1 && DL==1){
-     mvba = deblock_data[up_index0].mvb;
-     mvbb = deblock_data[upright_index].mvb;
-     mvbc = deblock_data[left_index0].mvb;
+     inter_predA = deblock_data[up_index0].inter_pred;
+     inter_predB = deblock_data[upright_index].inter_pred;
+     inter_predC = deblock_data[left_index0].inter_pred;
   }
   else{
     printf("Error in mvp definition\n");
   }
-  mva.x = mvba.x0;
-  mva.y = mvba.y0;
-  mvb.x = mvbb.x0;
-  mvb.y = mvbb.y0;
-  mvc.x = mvbc.x0;
-  mvc.y = mvbc.y0;
 
+  mva = inter_predA.mv0;
+  mvb = inter_predB.mv0;
+  mvc = inter_predC.mv0;
 
   /* Median */
   if (mva.x < mvb.x)
-    mvp.x = min(mvb.x,max(mva.x,mvc.x));
+    mvp.x = min(mvb.x, max(mva.x, mvc.x));
   else
-    mvp.x = min(mva.x,max(mvb.x,mvc.x));
+    mvp.x = min(mva.x, max(mvb.x, mvc.x));
 
   if (mva.y < mvb.y)
-    mvp.y = min(mvb.y,max(mva.y,mvc.y));
+    mvp.y = min(mvb.y, max(mva.y, mvc.y));
   else
-    mvp.y = min(mva.y,max(mvb.y,mvc.y));
+    mvp.y = min(mva.y, max(mvb.y, mvc.y));
+
   return mvp;
 }
 
-int get_mv_merge(int yposY,int xposY,int width,int height,int size,deblock_data_t *deblock_data, mvb_t *mvb_skip)
-{
-  int num_skip_vec=0;
-  int idx,duplicate;
-#if LIMITED_SKIP
-  mvb_t tmb_skip[4];
-#else
-  mvb_t tmb_skip[MAX_NUM_SKIP];
-#endif
-  mvb_t zerovecb;
-  zerovecb.dir = 0;
-  zerovecb.x0 = 0;
-  zerovecb.y0 = 0;
-  zerovecb.ref_idx0 = 0;
-  zerovecb.x1 = 0;
-  zerovecb.y1 = 0;
-  zerovecb.ref_idx1 = 0;
-
-  /* Parameters values measured in units of 4 pixels */
-  int block_size = size/MIN_PB_SIZE;
-  int block_stride = width/MIN_PB_SIZE;
-  int block_posy = yposY/MIN_PB_SIZE;
-  int block_posx = xposY/MIN_PB_SIZE;
-  int block_index = block_posy * block_stride + block_posx;
-
-  /* Block positions in units of 8x8 pixels */
-  int up_index0 = block_index - block_stride;
-  int up_index1 = block_index - block_stride + (block_size - 1)/2;
-  int up_index2 = block_index - block_stride + block_size - 1;
-  int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
-  int left_index2 = block_index + block_stride*(block_size-1) - 1;
-  int upright_index = block_index - block_stride + block_size;
-  int upleft_index = block_index - block_stride - 1;
-  int downleft_index = block_index + block_stride*block_size - 1;
-
-
-  /* Special case for rectangular skip blocks at frame boundaries */
-  if (yposY+size > height){
-    left_index1 = left_index2 = left_index0;
-  }
-  if (xposY+size > width){
-    up_index1 = up_index2 = up_index0;
-  }
-
-  /* Determine availability */
-  int up_available = get_up_available(yposY,xposY,size,width);
-  int left_available = get_left_available(yposY,xposY,size,width);
-  int upright_available = get_upright_available(yposY,xposY,size,width);
-  int downleft_available = get_downleft_available(yposY,xposY,size,height);
-
-  int U = up_available;
-  int UR = upright_available;
-  int L = left_available;
-  int DL = downleft_available;
-
-  if (U==0 && UR==0 && L==0 && DL==0){
-    tmb_skip[0] = zerovecb;
-    tmb_skip[1] = zerovecb;
-    tmb_skip[2] = zerovecb;
-    tmb_skip[3] = zerovecb;
-  }
-  else if (U==1 && UR==0 && L==0 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[up_index1].mvb;
-    tmb_skip[2] = deblock_data[up_index2].mvb;
-    tmb_skip[3] = deblock_data[up_index2].mvb;
-  }
-  else if (U==1 && UR==1 && L==0 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-    tmb_skip[2] = deblock_data[upright_index].mvb;
-    tmb_skip[3] = deblock_data[upright_index].mvb;
-  }
-  else if (U==0 && UR==0 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[left_index0].mvb;
-    tmb_skip[1] = deblock_data[left_index1].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[left_index2].mvb;
-  }
-  else if (U==1 && UR==0 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[upleft_index].mvb;
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[up_index0].mvb;
-  }
-  else if (U==1 && UR==1 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[left_index0].mvb;
-  }
-  else if (U==0 && UR==0 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[left_index0].mvb;
-    tmb_skip[1] = deblock_data[left_index2].mvb;
-    tmb_skip[2] = deblock_data[downleft_index].mvb;
-    tmb_skip[3] = deblock_data[downleft_index].mvb;
-  }
-  else if (U==1 && UR==0 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[up_index2].mvb;
-    tmb_skip[1] = deblock_data[left_index0].mvb;
-    tmb_skip[2] = deblock_data[downleft_index].mvb;
-    tmb_skip[3] = deblock_data[up_index0].mvb;
-  }
-  else if (U==1 && UR==1 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-    tmb_skip[2] = deblock_data[left_index0].mvb;
-    tmb_skip[3] = deblock_data[downleft_index].mvb;
-  }
-  else{
-    printf("Error in skip vector definition\n");
-  }
-
-#if LIMITED_SKIP
-  if (left_available)
-    tmb_skip[0] = deblock_data[left_index2].mvb;
-  else
-    tmb_skip[0] = zerovecb;
-  if (upright_available)
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-  else if (up_available)
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-  else
-    tmb_skip[1] = zerovecb;
-#endif
-
-  int i;
-  /* Remove duplicates */
-  num_skip_vec = 1;
-#if ENABLE_SKIP_BIPRED
-#else
-  for (i=0;i<MAX_NUM_SKIP;i++){
-    tmb_skip[i].dir = 0;
-    tmb_skip[i].x1 =  tmb_skip[i].x0;
-    tmb_skip[i].y1 =  tmb_skip[i].y0;
-    tmb_skip[i].ref_idx1 = tmb_skip[i].ref_idx0;
-  }
-#endif
-  mvb_skip[0] = tmb_skip[0];
-
-  for (i=1;i<MAX_NUM_SKIP;i++){
-    duplicate = 0;
-    for (idx=0; idx<num_skip_vec; idx++){
-      if (tmb_skip[i].x0 == mvb_skip[idx].x0 && tmb_skip[i].y0 == mvb_skip[idx].y0 && tmb_skip[i].ref_idx0 == mvb_skip[idx].ref_idx0 &&
-          tmb_skip[i].x1 == mvb_skip[idx].x1 && tmb_skip[i].y1 == mvb_skip[idx].y1 && tmb_skip[i].ref_idx1 == mvb_skip[idx].ref_idx1 &&
-          (tmb_skip[i].dir == mvb_skip[idx].dir || tmb_skip[i].dir == -1)) duplicate = 1; //TODO: proper handling fo dir for intra
-    }
-    if (duplicate==0){
-      mvb_skip[num_skip_vec++] = tmb_skip[i];
-    }
-  }
-
-  return num_skip_vec;
+void mvb_to_inter_pred(mvb_t *mvb, inter_pred_t *inter_pred) {
+  inter_pred->mv0.x = mvb->x0;
+  inter_pred->mv0.y = mvb->y0;
+  inter_pred->ref_idx0 = mvb->ref_idx0;
+  inter_pred->mv1.x = mvb->x1;
+  inter_pred->mv1.y = mvb->y1;
+  inter_pred->ref_idx1 = mvb->ref_idx1;
+  inter_pred->bipred_flag = mvb->dir;
 }
 
-int get_mv_skip(int yposY,int xposY,int width,int height,int size,deblock_data_t *deblock_data, mvb_t *mvb_skip)
+void inter_pred_to_mvb(inter_pred_t *inter_pred, mvb_t *mvb) {
+  mvb->x0 = inter_pred->mv0.x;
+  mvb->y0 = inter_pred->mv0.y;
+  mvb->ref_idx0 = inter_pred->ref_idx0;
+  mvb->x1 = inter_pred->mv1.x;
+  mvb->y1 = inter_pred->mv1.y;
+  mvb->ref_idx1 = inter_pred->ref_idx1;
+  mvb->dir = inter_pred->bipred_flag;
+}
+
+int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
+{
+  int num_merge_vec = 0;
+  int i, idx, duplicate;
+  inter_pred_t zero_pred;
+  inter_pred_t tmp_merge_candidates[MAX_NUM_SKIP];
+
+  /* Initialize zero unipred structure */
+  zero_pred.mv0.x = 0;
+  zero_pred.mv0.y = 0;
+  zero_pred.ref_idx0 = 0;
+  zero_pred.mv1.x = 0;
+  zero_pred.mv1.y = 0;
+  zero_pred.ref_idx1 = 0;
+  zero_pred.bipred_flag = 0;
+
+  /* Parameters values measured in units of 4 pixels */
+  int block_size = size / MIN_PB_SIZE;
+  int block_stride = width / MIN_PB_SIZE;
+  int block_posy = yposY / MIN_PB_SIZE;
+  int block_posx = xposY / MIN_PB_SIZE;
+  int block_index = block_posy * block_stride + block_posx;
+
+  /* Block positions in units of 8x8 pixels */
+  int up_index0 = block_index - block_stride;
+  int up_index2 = block_index - block_stride + block_size - 1;
+  int left_index0 = block_index - 1;
+  int left_index2 = block_index + block_stride*(block_size - 1) - 1;
+  int upright_index = block_index - block_stride + block_size;
+
+  /* Determine availability */
+  int up_available = get_up_available(yposY, xposY, size, width);
+  int left_available = get_left_available(yposY, xposY, size, width);
+  int upright_available = get_upright_available(yposY, xposY, size, width);
+
+#if LIMITED_SKIP
+  /* Special case for rectangular skip blocks at frame boundaries */
+  if (yposY + size > height) {
+    left_index2 = left_index0;
+  }
+  if (xposY + size > width) {
+    up_index2 = up_index0;
+  }
+  if (left_available)
+    tmp_merge_candidates[0] = deblock_data[left_index2].inter_pred;
+  else
+    tmp_merge_candidates[0] = zero_pred;
+  if (upright_available)
+    tmp_merge_candidates[1] = deblock_data[upright_index].inter_pred;
+  else if (up_available)
+    tmp_merge_candidates[1] = deblock_data[up_index2].inter_pred;
+  else
+    tmp_merge_candidates[1] = zero_pred;
+#else
+  int up_index1 = block_index - block_stride + (block_size - 1) / 2;
+  int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
+  int upleft_index = block_index - block_stride - 1;
+  int downleft_index = block_index + block_stride*block_size - 1;
+  int downleft_available = get_downleft_available(yposY, xposY, size, height);
+
+  /* Special case for rectangular skip blocks at frame boundaries */
+  if (yposY + size > height) {
+    left_index1 = left_index2 = left_index0;
+  }
+  if (xposY + size > width) {
+    up_index1 = up_index2 = up_index0;
+  }
+
+  int U = up_available;
+  int UR = upright_available;
+  int L = left_available;
+  int DL = downleft_available;
+
+  if (U == 0 && UR == 0 && L == 0 && DL == 0) {
+    tmp_merge_candidates[0] = zero_pred;
+    tmp_merge_candidates[1] = zero_pred;
+    tmp_merge_candidates[2] = zero_pred;
+    tmp_merge_candidates[3] = zero_pred;
+  }
+  else if (U == 1 && UR == 0 && L == 0 && DL == 0) {
+    tmp_merge_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[up_index1].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[up_index2].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[up_index2].inter_pred;
+  }
+  else if (U == 1 && UR == 1 && L == 0 && DL == 0) {
+    tmp_merge_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[up_index2].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[upright_index].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[upright_index].inter_pred;
+  }
+  else if (U == 0 && UR == 0 && L == 1 && DL == 0) {
+    tmp_merge_candidates[0] = deblock_data[left_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[left_index1].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[left_index2].inter_pred;
+  }
+  else if (U == 1 && UR == 0 && L == 1 && DL == 0) {
+    tmp_merge_candidates[0] = deblock_data[upleft_index].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[up_index2].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[up_index0].inter_pred;
+  }
+  else if (U == 1 && UR == 1 && L == 1 && DL == 0) {
+    tmp_merge_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[upright_index].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[left_index0].inter_pred;
+  }
+  else if (U == 0 && UR == 0 && L == 1 && DL == 1) {
+    tmp_merge_candidates[0] = deblock_data[left_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[left_index2].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[downleft_index].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[downleft_index].inter_pred;
+  }
+  else if (U == 1 && UR == 0 && L == 1 && DL == 1) {
+    tmp_merge_candidates[0] = deblock_data[up_index2].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[left_index0].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[downleft_index].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[up_index0].inter_pred;
+  }
+  else if (U == 1 && UR == 1 && L == 1 && DL == 1) {
+    tmp_merge_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_merge_candidates[1] = deblock_data[upright_index].inter_pred;
+    tmp_merge_candidates[2] = deblock_data[left_index0].inter_pred;
+    tmp_merge_candidates[3] = deblock_data[downleft_index].inter_pred;
+  }
+  else {
+    printf("Error in merge vector definition\n");
+  }
+#endif
+
+  /* Remove duplicates */
+  num_merge_vec = 1;
+  merge_candidates[0] = tmp_merge_candidates[0];
+  for (i = 1; i<MAX_NUM_SKIP; i++) {
+    duplicate = 0;
+    for (idx = 0; idx<num_merge_vec; idx++) {
+      if (tmp_merge_candidates[i].mv0.x == merge_candidates[idx].mv0.x && tmp_merge_candidates[i].mv0.y == merge_candidates[idx].mv0.y &&
+        tmp_merge_candidates[i].ref_idx0 == merge_candidates[idx].ref_idx0 &&
+        tmp_merge_candidates[i].mv1.x == merge_candidates[idx].mv1.x && tmp_merge_candidates[i].mv1.y == merge_candidates[idx].mv1.y &&
+        tmp_merge_candidates[i].ref_idx1 == merge_candidates[idx].ref_idx1 &&
+        (tmp_merge_candidates[i].bipred_flag == merge_candidates[idx].bipred_flag || tmp_merge_candidates[i].bipred_flag == -1)) duplicate = 1; //TODO: proper handling fo dir for intra
+
+    }
+    if (duplicate == 0) {
+      merge_candidates[num_merge_vec] = tmp_merge_candidates[i];
+      num_merge_vec++;
+    }
+  }
+  return num_merge_vec;
+}
+
+int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates, int bipred_copy)
 {
   int num_skip_vec=0;
-  int idx,duplicate;
-#if LIMITED_SKIP
-  mvb_t tmb_skip[4];
-#else
-  mvb_t tmb_skip[MAX_NUM_SKIP];
+  int i,idx,duplicate;
+  inter_pred_t zero_pred;
+  inter_pred_t tmp_skip_candidates[MAX_NUM_SKIP];
+
+  /* Initialize zero unipred structure */
+  zero_pred.mv0.x = 0;
+  zero_pred.mv0.y = 0;
+  zero_pred.ref_idx0 = 0;
+  zero_pred.mv1.x = 0;
+  zero_pred.mv1.y = 0;
+  zero_pred.ref_idx1 = 0;
+  zero_pred.bipred_flag = 0;
+
+#if NO_SUBBLOCK_SKIP
+  if (size<MAX_BLOCK_SIZE) {
+    skip_candidates[0] = zero_pred;
+    if (bipred_copy) {
+      skip_candidates[0].ref_idx1 = 1;
+      skip_candidates[0].bipred_flag = 2;
+    }
+    num_skip_vec = 1;
+    return num_skip_vec;
+  }
 #endif
-  mvb_t zerovecb;
-  zerovecb.dir = 0;
-  zerovecb.x0 = 0;
-  zerovecb.y0 = 0;
-  zerovecb.ref_idx0 = 0;
-  zerovecb.x1 = 0;
-  zerovecb.y1 = 0;
-  zerovecb.ref_idx1 = 0;
 
   /* Parameters values measured in units of 4 pixels */
   int block_size = size/MIN_PB_SIZE;
@@ -519,29 +541,48 @@ int get_mv_skip(int yposY,int xposY,int width,int height,int size,deblock_data_t
 
   /* Block positions in units of 8x8 pixels */
   int up_index0 = block_index - block_stride;
-  int up_index1 = block_index - block_stride + (block_size - 1)/2;
   int up_index2 = block_index - block_stride + block_size - 1;
   int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*(block_size-1)/2 - 1;
   int left_index2 = block_index + block_stride*(block_size-1) - 1;
   int upright_index = block_index - block_stride + block_size;
-  int upleft_index = block_index - block_stride - 1;
-  int downleft_index = block_index + block_stride*block_size - 1;
-
-
-  /* Special case for rectangular skip blocks at frame boundaries */
-  if (yposY+size > height){
-    left_index1 = left_index2 = left_index0;
-  }
-  if (xposY+size > width){
-    up_index1 = up_index2 = up_index0;
-  }
 
   /* Determine availability */
   int up_available = get_up_available(yposY,xposY,size,width);
   int left_available = get_left_available(yposY,xposY,size,width);
   int upright_available = get_upright_available(yposY,xposY,size,width);
-  int downleft_available = get_downleft_available(yposY,xposY,size,height);
+
+#if LIMITED_SKIP
+  /* Special case for rectangular skip blocks at frame boundaries */
+  if (yposY + size > height) {
+    left_index2 = left_index0;
+  }
+  if (xposY + size > width) {
+    up_index2 = up_index0;
+  }
+  if (left_available)
+    tmp_skip_candidates[0] = deblock_data[left_index2].inter_pred;
+  else
+    tmp_skip_candidates[0] = zero_pred;
+  if (upright_available)
+     tmp_skip_candidates[1] = deblock_data[upright_index].inter_pred;
+  else if (up_available)
+    tmp_skip_candidates[1] = deblock_data[up_index2].inter_pred;
+  else
+    tmp_skip_candidates[1] = zero_pred;
+#else
+  int up_index1 = block_index - block_stride + (block_size - 1) / 2;
+  int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
+  int upleft_index = block_index - block_stride - 1;
+  int downleft_index = block_index + block_stride*block_size - 1;
+  int downleft_available = get_downleft_available(yposY, xposY, size, height);
+
+  /* Special case for rectangular skip blocks at frame boundaries */
+  if (yposY + size > height) {
+    left_index1 = left_index2 = left_index0;
+  }
+  if (xposY + size > width) {
+    up_index1 = up_index2 = up_index0;
+  }
 
   int U = up_available;
   int UR = upright_available;
@@ -549,115 +590,81 @@ int get_mv_skip(int yposY,int xposY,int width,int height,int size,deblock_data_t
   int DL = downleft_available;
 
   if (U==0 && UR==0 && L==0 && DL==0){
-    tmb_skip[0] = zerovecb;
-    tmb_skip[1] = zerovecb;
-    tmb_skip[2] = zerovecb;
-    tmb_skip[3] = zerovecb;
+    tmp_skip_candidates[0] = zero_pred;
+    tmp_skip_candidates[1] = zero_pred;
+    tmp_skip_candidates[2] = zero_pred;
+    tmp_skip_candidates[3] = zero_pred;
   }
-  else if (U==1 && UR==0 && L==0 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[up_index1].mvb;
-    tmb_skip[2] = deblock_data[up_index2].mvb;
-    tmb_skip[3] = deblock_data[up_index2].mvb;
+  else if (U == 1 && UR == 0 && L == 0 && DL == 0) {
+    tmp_skip_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[up_index1].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[up_index2].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[up_index2].inter_pred;
   }
   else if (U==1 && UR==1 && L==0 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-    tmb_skip[2] = deblock_data[upright_index].mvb;
-    tmb_skip[3] = deblock_data[upright_index].mvb;
+    tmp_skip_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[up_index2].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[upright_index].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[upright_index].inter_pred;
   }
   else if (U==0 && UR==0 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[left_index0].mvb;
-    tmb_skip[1] = deblock_data[left_index1].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[left_index2].mvb;
+    tmp_skip_candidates[0] = deblock_data[left_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[left_index1].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[left_index2].inter_pred;
   }
   else if (U==1 && UR==0 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[upleft_index].mvb;
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[up_index0].mvb;
+    tmp_skip_candidates[0] = deblock_data[upleft_index].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[up_index2].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[up_index0].inter_pred;
   }
   else if (U==1 && UR==1 && L==1 && DL==0){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-    tmb_skip[2] = deblock_data[left_index2].mvb;
-    tmb_skip[3] = deblock_data[left_index0].mvb;
+    tmp_skip_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[upright_index].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[left_index2].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[left_index0].inter_pred;
   }
   else if (U==0 && UR==0 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[left_index0].mvb;
-    tmb_skip[1] = deblock_data[left_index2].mvb;
-    tmb_skip[2] = deblock_data[downleft_index].mvb;
-    tmb_skip[3] = deblock_data[downleft_index].mvb;
+   tmp_skip_candidates[0] = deblock_data[left_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[left_index2].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[downleft_index].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[downleft_index].inter_pred;
   }
   else if (U==1 && UR==0 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[up_index2].mvb;
-    tmb_skip[1] = deblock_data[left_index0].mvb;
-    tmb_skip[2] = deblock_data[downleft_index].mvb;
-    tmb_skip[3] = deblock_data[up_index0].mvb;
+    tmp_skip_candidates[0] = deblock_data[up_index2].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[left_index0].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[downleft_index].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[up_index0].inter_pred;
   }
   else if (U==1 && UR==1 && L==1 && DL==1){
-    tmb_skip[0] = deblock_data[up_index0].mvb;
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-    tmb_skip[2] = deblock_data[left_index0].mvb;
-    tmb_skip[3] = deblock_data[downleft_index].mvb;
+    tmp_skip_candidates[0] = deblock_data[up_index0].inter_pred;
+    tmp_skip_candidates[1] = deblock_data[upright_index].inter_pred;
+    tmp_skip_candidates[2] = deblock_data[left_index0].inter_pred;
+    tmp_skip_candidates[3] = deblock_data[downleft_index].inter_pred;
   }
   else{
     printf("Error in skip vector definition\n");
   }
-
-#if LIMITED_SKIP
-  if (left_available)
-    tmb_skip[0] = deblock_data[left_index2].mvb;
-  else
-    tmb_skip[0] = zerovecb;
-  if (upright_available)
-    tmb_skip[1] = deblock_data[upright_index].mvb;
-  else if (up_available)
-    tmb_skip[1] = deblock_data[up_index2].mvb;
-  else
-    tmb_skip[1] = zerovecb;
 #endif
 
-  int i;
   /* Remove duplicates */
   num_skip_vec = 1;
-#if ENABLE_SKIP_BIPRED
-#else
-  for (i=0;i<MAX_NUM_SKIP;i++){
-    tmb_skip[i].dir = 0;
-    tmb_skip[i].x1 =  tmb_skip[i].x0;
-    tmb_skip[i].y1 =  tmb_skip[i].y0;
-    tmb_skip[i].ref_idx1 = tmb_skip[i].ref_idx0;
-  }
-#endif
-  mvb_skip[0] = tmb_skip[0];
-
+  skip_candidates[0] = tmp_skip_candidates[0];
   for (i=1;i<MAX_NUM_SKIP;i++){
     duplicate = 0;
     for (idx=0; idx<num_skip_vec; idx++){
-      if (tmb_skip[i].x0 == mvb_skip[idx].x0 && tmb_skip[i].y0 == mvb_skip[idx].y0 && tmb_skip[i].ref_idx0 == mvb_skip[idx].ref_idx0 &&
-          tmb_skip[i].x1 == mvb_skip[idx].x1 && tmb_skip[i].y1 == mvb_skip[idx].y1 && tmb_skip[i].ref_idx1 == mvb_skip[idx].ref_idx1 &&
-          (tmb_skip[i].dir == mvb_skip[idx].dir || tmb_skip[i].dir == -1)) duplicate = 1; //TODO: proper handling fo dir for intra
+      if (tmp_skip_candidates[i].mv0.x == skip_candidates[idx].mv0.x && tmp_skip_candidates[i].mv0.y == skip_candidates[idx].mv0.y &&
+          tmp_skip_candidates[i].ref_idx0 == skip_candidates[idx].ref_idx0 &&
+          tmp_skip_candidates[i].mv1.x == skip_candidates[idx].mv1.x && tmp_skip_candidates[i].mv1.y == skip_candidates[idx].mv1.y &&
+          tmp_skip_candidates[i].ref_idx1 == skip_candidates[idx].ref_idx1 &&
+          (tmp_skip_candidates[i].bipred_flag == skip_candidates[idx].bipred_flag || tmp_skip_candidates[i].bipred_flag == -1)) duplicate = 1; //TODO: proper handling fo dir for intra
+
     }
     if (duplicate==0){
-      mvb_skip[num_skip_vec++] = tmb_skip[i];
+      skip_candidates[num_skip_vec] = tmp_skip_candidates[i];
+      num_skip_vec++;
     }
   }
-
-#if NO_SUBBLOCK_SKIP
-  if (size<MAX_BLOCK_SIZE){
-    tmb_skip[0].dir = 0;
-    tmb_skip[0].x0 = 0;
-    tmb_skip[0].y0 = 0;
-    tmb_skip[0].ref_idx0 = 0;
-    tmb_skip[0].x1 = 0;
-    tmb_skip[0].y1 = 0;
-    tmb_skip[0].ref_idx1 = 0;
-    mvb_skip[0] = tmb_skip[0];
-    num_skip_vec = 1;
-  }
-#endif
-
   return num_skip_vec;
 }

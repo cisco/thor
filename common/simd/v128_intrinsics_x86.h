@@ -46,12 +46,12 @@ SIMD_INLINE v64 v128_high_v64(v128 a) {
   return _mm_srli_si128(a, 8);
 }
 
-SIMD_INLINE v128 v128_from_64(uint64_t a, uint64_t b) {
-  return _mm_set_epi64(_mm_cvtsi64_m64(a), _mm_cvtsi64_m64(b));
-}
-
 SIMD_INLINE v128 v128_from_v64(v64 a, v64 b) {
   return _mm_unpacklo_epi64(b, a);
+}
+
+SIMD_INLINE v128 v128_from_64(uint64_t a, uint64_t b) {
+  return v128_from_v64(v64_from_64(a), v64_from_64(b));
 }
 
 SIMD_INLINE v128 v128_from_32(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
@@ -79,6 +79,23 @@ SIMD_INLINE void v128_store_aligned(void *p, v128 a) {
 SIMD_INLINE void v128_store_unaligned(void *p, v128 a) {
   _mm_storeu_si128((__m128i*)p, a);
 }
+
+
+#if defined(__OPTIMIZE__)
+#if defined (__SSSE3__)
+SIMD_INLINE v128 v128_align(v128 a, v128 b, const unsigned int c) {
+  return c ? _mm_alignr_epi8(a, b, c) : b;
+}
+#else
+#define v128_align(a, b, c) ((c) ? _mm_or_si128(_mm_srli_si128(b, c), _mm_slli_si128(a, 16 - (c))) : (b))
+#endif
+#else
+#if defined (__SSSE3__)
+#define v128_align(a, b, c) ((c) ? _mm_alignr_epi8(a, b, c) : (b))
+#else
+#define v128_align(a, b, c) ((c) ? _mm_or_si128(_mm_srli_si128(b, c), _mm_slli_si128(a, 16 - (c))) : (b))
+#endif
+#endif
 
 
 SIMD_INLINE v128  v128_zero() {
@@ -448,12 +465,20 @@ SIMD_INLINE v128 v128_cmpgt_s8(v128 a, v128 b) {
   return _mm_cmpgt_epi8(a, b);
 }
 
+SIMD_INLINE v128 v128_cmplt_s8(v128 a, v128 b) {
+  return _mm_cmplt_epi8(a, b);
+}
+
 SIMD_INLINE v128 v128_cmpeq_8(v128 a, v128 b) {
   return _mm_cmpeq_epi8(a, b);
 }
 
 SIMD_INLINE v128 v128_cmpgt_s16(v128 a, v128 b) {
   return _mm_cmpgt_epi16(a, b);
+}
+
+SIMD_INLINE v128 v128_cmplt_s16(v128 a, v128 b) {
+  return _mm_cmplt_epi16(a, b);
 }
 
 SIMD_INLINE v128 v128_cmpeq_16(v128 a, v128 b) {
@@ -504,28 +529,13 @@ SIMD_INLINE v128 v128_shr_s32(v128 a, unsigned int c) {
   return _mm_sra_epi32(a, _mm_cvtsi32_si128(c));
 }
 
-/* These intrinsics require immediate values,
-   so we must use #defines to enforce that. */
-#if defined (__SSSE3__)
-# define v128_align(a, b, c) c ? \
-   _mm_alignr_epi8(a, b, c) : b
-#else
-# define v128_align(a, b, c) c ? \
-   _mm_or_si128(_mm_srli_si128(b, c), \
-   _mm_slli_si128(a, 16 - c)) : b
-#endif
+/* These intrinsics require immediate values, so we must use #defines
+   to enforce that. */
 #define v128_shl_n_byte(a, c) _mm_slli_si128(a, c)
 #define v128_shr_n_byte(a, c) _mm_srli_si128(a, c)
-#define _v128_shl_n_8(a, c) _mm_packus_epi16( _mm_srli_epi16(_mm_sll_epi16( \
- _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)), 8), \
- _mm_srli_epi16(_mm_sll_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), \
- (a)), (c)), 8) )
-#define _v128_shr_n_u8(a, c) _mm_packus_epi16( _mm_srl_epi16( \
- _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)+8), \
- _mm_srl_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), (a)), (c)+8) )
-#define _v128_shr_n_s8(a, c) _mm_packs_epi16( _mm_sra_epi16( \
- _mm_unpacklo_epi8(_mm_setzero_si128(), (a)), (c)+8), \
- _mm_sra_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), (a)), (c)+8) )
+#define v128_shl_n_8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_slli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c), 8), _mm_srli_epi16(_mm_slli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c), 8))
+#define v128_shr_n_u8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8), _mm_srli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8))
+#define v128_shr_n_s8(a, c) _mm_packs_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8), _mm_srai_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8))
 #define v128_shl_n_16(a, c) _mm_slli_epi16(a, c)
 #define v128_shr_n_u16(a, c) _mm_srli_epi16(a, c)
 #define v128_shr_n_s16(a, c) _mm_srai_epi16(a, c)

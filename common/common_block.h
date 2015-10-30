@@ -40,6 +40,6 @@ void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, 
 
 void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
 
-void clpf_block(uint8_t *rec,int x0, int x1, int y0, int y1,int stride);
+void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height);
 
 #endif

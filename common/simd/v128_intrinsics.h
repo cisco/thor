@@ -141,8 +141,10 @@ SIMD_INLINE v128 v128_shuffle_8(v128 a, v128 pattern) { return c_v128_shuffle_8(
 
 
 SIMD_INLINE v128 v128_cmpgt_s8(v128 a, v128 b) { return c_v128_cmpgt_s8(a, b); }
+SIMD_INLINE v128 v128_cmplt_s8(v128 a, v128 b) { return c_v128_cmplt_s8(a, b); }
 SIMD_INLINE v128 v128_cmpeq_8(v128 a, v128 b) { return c_v128_cmpeq_8(a, b); }
 SIMD_INLINE v128 v128_cmpgt_s16(v128 a, v128 b) { return c_v128_cmpgt_s16(a, b); }
+SIMD_INLINE v128 v128_cmplt_s16(v128 a, v128 b) { return c_v128_cmplt_s16(a, b); }
 SIMD_INLINE v128 v128_cmpeq_16(v128 a, v128 b) { return c_v128_cmpeq_16(a, b); }
 
 

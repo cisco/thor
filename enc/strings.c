@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include "global.h"
 #include "strings.h"
+#include "simd.h"
 
 #define MAX_PARAMS 200
 
@@ -298,22 +299,37 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-lambda_coeffI",       "1.0", ARG_FLOAT,    &params->lambda_coeffI);
   add_param_to_list(&list, "-lambda_coeffP",       "1.0", ARG_FLOAT,    &params->lambda_coeffP);
   add_param_to_list(&list, "-lambda_coeffB",       "1.0", ARG_FLOAT,    &params->lambda_coeffB);
+  add_param_to_list(&list, "-lambda_coeffB0",      "1.0", ARG_FLOAT,    &params->lambda_coeffB0);
+  add_param_to_list(&list, "-lambda_coeffB1",      "1.0", ARG_FLOAT,    &params->lambda_coeffB1);
+  add_param_to_list(&list, "-lambda_coeffB2",      "1.0", ARG_FLOAT,    &params->lambda_coeffB2);
+  add_param_to_list(&list, "-lambda_coeffB3",      "1.0", ARG_FLOAT,    &params->lambda_coeffB3);
   add_param_to_list(&list, "-early_skip_thr",      "0.0", ARG_FLOAT,    &params->early_skip_thr);
   add_param_to_list(&list, "-enable_tb_split",       "0", ARG_INTEGER,  &params->enable_tb_split);
   add_param_to_list(&list, "-enable_pb_split",       "0", ARG_INTEGER,  &params->enable_pb_split);
   add_param_to_list(&list, "-max_num_ref",           "1", ARG_INTEGER,  &params->max_num_ref);
   add_param_to_list(&list, "-HQperiod",              "1", ARG_INTEGER,  &params->HQperiod);
   add_param_to_list(&list, "-num_reorder_pics",      "0", ARG_INTEGER,  &params->num_reorder_pics);
+  add_param_to_list(&list, "-dyadic_coding",         "1", ARG_INTEGER,  &params->dyadic_coding);
+  add_param_to_list(&list, "-interp_ref",            "0", ARG_INTEGER,  &params->interp_ref);
   add_param_to_list(&list, "-dqpP",                  "0", ARG_INTEGER,  &params->dqpP);
   add_param_to_list(&list, "-dqpB",                  "0", ARG_INTEGER,  &params->dqpB);
+  add_param_to_list(&list, "-dqpB0",                 "0", ARG_INTEGER,  &params->dqpB0);
+  add_param_to_list(&list, "-dqpB1",                 "0", ARG_INTEGER,  &params->dqpB1);
+  add_param_to_list(&list, "-dqpB2",                 "0", ARG_INTEGER,  &params->dqpB2);
+  add_param_to_list(&list, "-dqpB3",                 "0", ARG_INTEGER,  &params->dqpB3);
   add_param_to_list(&list, "-mqpP",                "1.0", ARG_FLOAT,    &params->mqpP);
   add_param_to_list(&list, "-mqpB",                "1.0", ARG_FLOAT,    &params->mqpB);
+  add_param_to_list(&list, "-mqpB0",               "1.0", ARG_FLOAT,    &params->mqpB0);
+  add_param_to_list(&list, "-mqpB1",               "1.0", ARG_FLOAT,    &params->mqpB1);
+  add_param_to_list(&list, "-mqpB2",               "1.0", ARG_FLOAT,    &params->mqpB2);
+  add_param_to_list(&list, "-mqpB3",               "1.0", ARG_FLOAT,    &params->mqpB3);
   add_param_to_list(&list, "-dqpI",                  "0", ARG_INTEGER,  &params->dqpI);
   add_param_to_list(&list, "-intra_period",          "0", ARG_INTEGER,  &params->intra_period);
   add_param_to_list(&list, "-intra_rdo",             "0", ARG_INTEGER,  &params->intra_rdo);
   add_param_to_list(&list, "-rdoq",                  "0", ARG_INTEGER,  &params->rdoq);
   add_param_to_list(&list, "-max_delta_qp",          "0", ARG_INTEGER,  &params->max_delta_qp);
   add_param_to_list(&list, "-encoder_speed",         "0", ARG_INTEGER,  &params->encoder_speed);
+  add_param_to_list(&list, "-sync",                  "0", ARG_INTEGER,  &params->sync);
   add_param_to_list(&list, "-deblocking",            "1", ARG_INTEGER,  &params->deblocking);
   add_param_to_list(&list, "-clpf",                  "1", ARG_INTEGER,  &params->clpf);
   add_param_to_list(&list, "-snrcalc",               "1", ARG_INTEGER,  &params->snrcalc);
@@ -337,21 +353,6 @@ enc_params *parse_config_params(int argc, char **argv)
   /* Parse parameters from command line and config files */
   if (parse_params(argc, argv, params, &list) < 0)
     return NULL;
-
-  if (params->num_reorder_pics > 0 && params->HQperiod > 1) {
-    fprintf(stderr, "Reordered pictures only supported with HQperiod=1.\n");
-    return NULL;
-  }
-
-  if (params->num_reorder_pics > 0 && params->max_num_ref < 2) {
-    fprintf(stderr, "More than one reference frame required for reordered pictures.\n");
-    return NULL;
-  }
-
-  if (params->intra_period % (params->num_reorder_pics+1)) {
-    fprintf(stderr, "Intra period must be a multiple of the subgroup size (num_reorder_pics+1).\n");
-    return NULL;
-  }
 
   /* Check if input file is y4m and if so use its geometry */
   if ((infile = fopen(params->infilestr, "rb"))) {
@@ -451,4 +452,25 @@ void check_parameters(enc_params *params)
   {
     fatalerror("HQperiod too large");
   }
+
+  if (params->num_reorder_pics > 0 && params->HQperiod > 1 && (params->HQperiod % (params->num_reorder_pics+1))!=0) {
+    fatalerror("Subgop length (num_reorder_pics+1) must divide HQperiod.\n");
+  }
+
+  if (params->dyadic_coding) {
+    int nrp1 = params->num_reorder_pics+1;
+    if (nrp1 != (1<<(log2i(nrp1)))) {
+      fatalerror("num_reorder_pics+1 must be a power of 2 with dyadic coding.\n");
+    }
+  }
+
+  if (params->num_reorder_pics > 0 && params->max_num_ref < 2) {
+    fatalerror("More than one reference frame required for reordered pictures.\n");
+  }
+
+  if (params->intra_period % (params->num_reorder_pics+1)) {
+    fatalerror("Intra period must be a multiple of the subgroup size (num_reorder_pics+1).\n");
+  }
+
+
 }

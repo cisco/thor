@@ -9,7 +9,6 @@
 -qp                 32                                            ; Quantization parameter
 -HQperiod           1                                             ; Period of high quality frames
 -num_reorder_pics   7                                             ; GOPsize - 1
--intra_period       64
 
 ;
 ; Lambda and QP modifiers
@@ -32,13 +31,13 @@
 -lambda_coeffB2     1.2                                           ; Multiplier for lambda - B frames - level 2
 
 ;
-;Low complexity operating point
+;Medium complexity operating point
 ;
--intra_rdo          0                                             ; Use RDO for choosing intra mode
+-intra_rdo          1                                             ; Use RDO for choosing intra mode
 -enable_tb_split    0                                             ; Enable splitting of a block in 4 transform blocks
 -enable_pb_split    0                                             ; Enable splitting of an inter block in 4 prediction blocks
--early_skip_thr     1.0                                           ; Early skip threshold
+-early_skip_thr     0.8                                           ; Early skip threshold
 -max_num_ref        2                                             ; Number of reference frames
 -use_block_contexts 1                                             ; Use block contexts
--enable_bipred      0                                             ; Enable biprediction
--encoder_speed      2                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)
+-enable_bipred      1                                             ; Enable biprediction
+-encoder_speed 	    1                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)

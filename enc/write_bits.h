@@ -46,3 +46,4 @@ void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp);
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type);
 int write_block(stream_t *stream,write_data_t *write_data);
 int find_code(int run, int level, int maxrun, int type,int eob);
+void write_super_mode(stream_t *stream, write_data_t *write_data, int split_flag);

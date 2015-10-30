@@ -157,7 +157,7 @@ void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, 
 
 void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable){
 
-  if (ypos >= MIN_BLOCK_SIZE && xpos >= MIN_BLOCK_SIZE && ypos+size < height && xpos+size < width && enable){
+  if (ypos >= MIN_BLOCK_SIZE && xpos >= MIN_BLOCK_SIZE && ypos + size < height && xpos + size < width && enable && size <= MAX_TR_SIZE) {
     int by = ypos/MIN_PB_SIZE;
     int bx = xpos/MIN_PB_SIZE;
     int bs = width/MIN_PB_SIZE;
@@ -166,13 +166,9 @@ void find_block_contexts(int ypos, int xpos, int height, int width, int size, de
     int cbp1;
     cbp1 = (deblock_data[bindex-bs].cbp.y > 0) + (deblock_data[bindex-1].cbp.y > 0);
     block_context->cbp = cbp1;
-#if NEW_BLOCK_STRUCTURE
-    block_context->index = -1;
-#else
     int cbp2 = (deblock_data[bindex-bs].cbp.y > 0 || deblock_data[bindex-bs].cbp.u > 0 || deblock_data[bindex-bs].cbp.v > 0) +
            (deblock_data[bindex-1].cbp.y > 0 || deblock_data[bindex-1].cbp.u > 0 || deblock_data[bindex-1].cbp.v > 0);
     block_context->index = 3*block_context->split + cbp2;
-#endif
   }
   else{
     block_context->split = -1;
@@ -181,28 +177,21 @@ void find_block_contexts(int ypos, int xpos, int height, int width, int size, de
   }
 }
 
-void clpf_block(uint8_t *rec,int x0, int x1, int y0, int y1,int stride){
+void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height) {
+  int left = x0 & ~(dstride-1);
+  int top = y0 & ~(dstride-1);
+  int right = min(width-1, left + dstride-1);
+  int bottom = min(height-1, top + dstride-1);
 
-  int y,x,A,B,C,D,X,Xprime,delta,sum,sign;
-  uint8_t tmp_block[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
-
-  for (y=y0;y<y1;y++){
-    for (x=x0;x<x1;x++){
-      A = rec[(y-1)*stride + x+0];
-      B = rec[(y+0)*stride + x-1];
-      X = rec[(y+0)*stride + x+0];
-      C = rec[(y+0)*stride + x+1];
-      D = rec[(y+1)*stride + x+0];
-      sum = A+B+C+D-4*X;
-      sign = sum < 0 ? -1 : 1;
-      delta = sign*min(1,((abs(sum)+2)>>2));
-      Xprime = clip255(X + delta);
-      tmp_block[(y-y0)*MAX_BLOCK_SIZE + x-x0] = Xprime;
-    }
-  }
-  for (y=y0;y<y1;y++){
-    for (x=x0;x<x1;x++){
-      rec[y*stride + x] = tmp_block[(y-y0)*MAX_BLOCK_SIZE + x-x0];
+  for (int y=y0;y<y0+size;y++){
+    for (int x=x0;x<x0+size;x++) {
+      int X = src[(y+0)*sstride + x+0];
+      int A = y == top ? X : src[(y-1)*sstride + x+0];
+      int B = x == left ? X : src[(y+0)*sstride + x-1];
+      int C = x == right ? X : src[(y+0)*sstride + x+1];
+      int D = y == bottom ? X : src[(y+1)*sstride + x+0];
+      int delta = ((A>X)+(B>X)+(C>X)+(D>X) > 2) - ((A<X)+(B<X)+(C<X)+(D<X) > 2);
+      dst[(y-top)*dstride + x-left] = X + delta;
     }
   }
 }

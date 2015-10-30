@@ -89,14 +89,14 @@ static const int dc8[8+1] = {-8,4,2,5,1,6,3,7,0};
 static const int dc16[16+1] = {-16,8,4,9,2,10,5,11,1,12,6,13,3,14,7,15,0};
 //static const int* dyadic_reorder_display_to_code[5] = {dc1,dc2,dc4,dc8,dc16}; //Not used in decoder?
 
-static int reorder_frame_offset(int idx, int sub_gop)
+static int reorder_frame_offset(int idx, int sub_gop, int dyadic)
 {
-#if DYADIC_CODING
-  return dyadic_reorder_code_to_display[log2i(sub_gop)][idx]-sub_gop+1;
-#else
-  if (idx==0) return 0;
-  else return idx-sub_gop;
-#endif
+  if (dyadic && sub_gop>1) {
+    return dyadic_reorder_code_to_display[log2i(sub_gop)][idx]-sub_gop+1;
+  } else {
+    if (idx==0) return 0;
+    else return idx-sub_gop;
+  }
 }
 
 unsigned int leading_zeros(unsigned int code)
@@ -161,8 +161,12 @@ int main(int argc, char** argv)
     printf("tb_split_enable=%1d\n",decoder_info.tb_split_enable);
 
     decoder_info.max_num_ref = getbits(&stream,2) + 1;
+    fprintf(stderr,"num refs is %d\n",decoder_info.max_num_ref);
 
     decoder_info.num_reorder_pics = getbits(&stream,4);
+    if (decoder_info.num_reorder_pics>0)
+      decoder_info.dyadic_coding = getbits(&stream,1);
+    decoder_info.interp_ref = getbits(&stream,1);
     sub_gop = 1+decoder_info.num_reorder_pics;
 
     decoder_info.max_delta_qp = getbits(&stream,2);
@@ -181,16 +185,22 @@ int main(int argc, char** argv)
       create_yuv_frame(&ref[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
       decoder_info.ref[r] = &ref[r];
     }
+    if (decoder_info.interp_ref) {
+      for (r=0;r<MAX_SKIP_FRAMES;r++){
+        decoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
+        create_yuv_frame(decoder_info.interp_frames[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+      }
+    }
+
     decoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
     while (stream.bitcnt < 8*input_file_size - 8)
     {
       decoder_info.frame_info.decode_order_frame_num = decode_frame_num;
-      decoder_info.frame_info.display_frame_num = (frame_count/sub_gop)*sub_gop+reorder_frame_offset(frame_count % sub_gop, sub_gop);
+      decoder_info.frame_info.display_frame_num = (frame_count/sub_gop)*sub_gop+reorder_frame_offset(frame_count % sub_gop, sub_gop,decoder_info.dyadic_coding);
       if (decoder_info.frame_info.display_frame_num>=0) {
         rec_buffer_idx = decoder_info.frame_info.display_frame_num%MAX_REORDER_BUFFER;
         decoder_info.rec = &rec[rec_buffer_idx];
-        decoder_info.frame_info.num_ref = min(decode_frame_num,decoder_info.max_num_ref);
         decoder_info.rec->frame_num = decoder_info.frame_info.display_frame_num;
         decode_frame(&decoder_info);
         rec_available[rec_buffer_idx]=1;
@@ -218,9 +228,9 @@ int main(int argc, char** argv)
     }
 
     bit_count_t bit_count = decoder_info.bit_count;
-    uint32_t tot_bits[2] = {0};
+    uint32_t tot_bits[NUM_FRAME_TYPES] = {0};
 
-    for (i=0;i<2;i++){
+    for (i=0;i<NUM_FRAME_TYPES;i++){
       tot_bits[i] = bit_count.frame_header[i] +
                     bit_count.super_mode[i] +
                     bit_count.intra_mode[i] +
@@ -235,506 +245,120 @@ int main(int argc, char** argv)
     tot_bits[0] += bit_count.sequence_header;
     int ni = bit_count.frame_type[0];
     int np = bit_count.frame_type[1];
-
+    int nb = bit_count.frame_type[2];
     if (np==0) np = (1<<30); //Hack to avoid division by zero if there are no P frames
+    if (nb==0) nb = (1<<30); //Hack to avoid division by zero if there are no B frames
 
     printf("\n\nBIT STATISTICS:\n");
     printf("Sequence header: %4d\n",bit_count.sequence_header);
-    printf("                           I pictures:           P pictures:\n");
-    printf("                           total    average      total    average\n");
-    printf("Frame header:          %9d  %9d  %9d  %9d\n",bit_count.frame_header[0],bit_count.frame_header[0]/ni,bit_count.frame_header[1],bit_count.frame_header[1]/np);
-    printf("Super mode:            %9d  %9d  %9d  %9d\n",bit_count.super_mode[0],bit_count.super_mode[0]/ni,bit_count.super_mode[1],bit_count.super_mode[1]/np);
-    printf("Intra mode:            %9d  %9d  %9d  %9d\n",bit_count.intra_mode[0],bit_count.intra_mode[0]/ni,bit_count.intra_mode[1],bit_count.intra_mode[1]/np);
-    printf("MV:                    %9d  %9d  %9d  %9d\n",bit_count.mv[0],bit_count.mv[0],bit_count.mv[1],bit_count.mv[1]/np);
-    printf("Skip idx:              %9d  %9d  %9d  %9d\n",bit_count.skip_idx[0],bit_count.skip_idx[0],bit_count.skip_idx[1],bit_count.skip_idx[1]/np);
-    printf("Coeff_y:               %9d  %9d  %9d  %9d\n",bit_count.coeff_y[0],bit_count.coeff_y[0]/ni,bit_count.coeff_y[1],bit_count.coeff_y[1]/np);
-    printf("Coeff_u:               %9d  %9d  %9d  %9d\n",bit_count.coeff_u[0],bit_count.coeff_u[0]/ni,bit_count.coeff_u[1],bit_count.coeff_u[1]/np);
-    printf("Coeff_v:               %9d  %9d  %9d  %9d\n",bit_count.coeff_v[0],bit_count.coeff_v[0]/ni,bit_count.coeff_v[1],bit_count.coeff_v[1]/np);
-    printf("CBP (TU-split):        %9d  %9d  %9d  %9d\n",bit_count.cbp[0],bit_count.cbp[0]/ni,bit_count.cbp[1],bit_count.cbp[1]/np);
-    printf("CLPF:                  %9d  %9d  %9d  %9d\n",bit_count.clpf[0],bit_count.clpf[0]/ni,bit_count.clpf[1],bit_count.clpf[1]/np);
-    printf("Total:                 %9d  %9d  %9d  %9d\n",tot_bits[0],tot_bits[0],tot_bits[1],tot_bits[1]/np);
-    printf("-----------------------------------------------------------------\n\n");
+    printf("                           I pictures:           P pictures:           B pictures:\n");
+    printf("                           total    average      total    average      total    average\n");
+    printf("Frame header:          %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.frame_header[0],bit_count.frame_header[0]/ni,bit_count.frame_header[1],bit_count.frame_header[1]/np,bit_count.frame_header[2],bit_count.frame_header[2]/nb);
+    printf("Super mode:            %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.super_mode[0],bit_count.super_mode[0]/ni,bit_count.super_mode[1],bit_count.super_mode[1]/np,bit_count.super_mode[2],bit_count.super_mode[2]/nb);
+    printf("Intra mode:            %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.intra_mode[0],bit_count.intra_mode[0]/ni,bit_count.intra_mode[1],bit_count.intra_mode[1]/np, bit_count.intra_mode[2],bit_count.intra_mode[2]/nb);
+    printf("MV:                    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mv[0],bit_count.mv[0],bit_count.mv[1],bit_count.mv[1]/np, bit_count.mv[2],bit_count.mv[2]/nb);
+    printf("Skip idx:              %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.skip_idx[0],bit_count.skip_idx[0],bit_count.skip_idx[1],bit_count.skip_idx[1]/np,bit_count.skip_idx[2],bit_count.skip_idx[2]/nb);
+    printf("Coeff_y:               %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.coeff_y[0],bit_count.coeff_y[0]/ni,bit_count.coeff_y[1],bit_count.coeff_y[1]/np,bit_count.coeff_y[2],bit_count.coeff_y[2]/nb);
+    printf("Coeff_u:               %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.coeff_u[0],bit_count.coeff_u[0]/ni,bit_count.coeff_u[1],bit_count.coeff_u[1]/np,bit_count.coeff_u[2],bit_count.coeff_u[2]/nb);
+    printf("Coeff_v:               %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.coeff_v[0],bit_count.coeff_v[0]/ni,bit_count.coeff_v[1],bit_count.coeff_v[1]/np,bit_count.coeff_v[2],bit_count.coeff_v[2]/nb);
+    printf("CBP (TU-split):        %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.cbp[0],bit_count.cbp[0]/ni,bit_count.cbp[1],bit_count.cbp[1]/np,bit_count.cbp[2],bit_count.cbp[2]/nb);
+    printf("CLPF:                  %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.clpf[0],bit_count.clpf[0]/ni,bit_count.clpf[1],bit_count.clpf[1]/np,bit_count.clpf[2],bit_count.clpf[2]/nb);
+    printf("Total:                 %9d  %9d  %9d  %9d  %9d  %9d\n",tot_bits[0],tot_bits[0],tot_bits[1],tot_bits[1]/np,tot_bits[2],tot_bits[2]/nb);
+    printf("---------------------------------------------------------------------------------------\n\n");
 
     printf("PARAMETER STATISTICS:\n");
-    printf("                           I pictures:           P pictures:\n");
-    printf("                           total    average      total    average\n");
-    printf("Skip-blocks (8x8):     %9d  %9d  %9d  %9d\n",bit_count.mode[0][0],bit_count.mode[0][0]/ni,bit_count.mode[1][0],bit_count.mode[1][0]/np);
-    printf("Intra-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.mode[0][1],bit_count.mode[0][1]/ni,bit_count.mode[1][1],bit_count.mode[1][1]/np);
-    printf("Inter-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.mode[0][2],bit_count.mode[0][2]/ni,bit_count.mode[1][2],bit_count.mode[1][2]/np);
-    printf("Bipred-blocks (8x8):   %9d  %9d  %9d  %9d\n",bit_count.mode[0][3],bit_count.mode[0][3]/ni,bit_count.mode[1][3],bit_count.mode[1][3]/np);
+    printf("                           I pictures:           P pictures:           B pictures:\n");
+    printf("                           total    average      total    average      total    average\n");
+    printf("Skip-blocks (8x8):     %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mode[0][0],bit_count.mode[0][0]/ni,bit_count.mode[1][0],bit_count.mode[1][0]/np,bit_count.mode[2][0],bit_count.mode[2][0]/nb);
+    printf("Intra-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mode[0][1],bit_count.mode[0][1]/ni,bit_count.mode[1][1],bit_count.mode[1][1]/np,bit_count.mode[2][1],bit_count.mode[2][1]/nb);
+    printf("Inter-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mode[0][2],bit_count.mode[0][2]/ni,bit_count.mode[1][2],bit_count.mode[1][2]/np,bit_count.mode[2][2],bit_count.mode[2][2]/nb);
+    printf("Bipred-blocks (8x8):   %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mode[0][3],bit_count.mode[0][3]/ni,bit_count.mode[1][3],bit_count.mode[1][3]/np,bit_count.mode[2][3],bit_count.mode[2][3]/nb);
+    printf("Merge-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.mode[0][4],bit_count.mode[0][4]/ni,bit_count.mode[1][4],bit_count.mode[1][4]/np,bit_count.mode[2][4],bit_count.mode[2][4]/nb);
 
     printf("\n");
-    printf("8x8-blocks (8x8):      %9d  %9d  %9d  %9d\n",bit_count.size[0][0],bit_count.size[0][0]/ni,bit_count.size[1][0],bit_count.size[1][0]/np);
-    printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size[0][1],bit_count.size[0][1]/ni,bit_count.size[1][1],bit_count.size[1][1]/np);
-    printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size[0][2],bit_count.size[0][2]/ni,bit_count.size[1][2],bit_count.size[1][2]/np);
-    printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size[0][3],bit_count.size[0][3]/ni,bit_count.size[1][3],bit_count.size[1][3]/np);
+    printf("8x8-blocks (8x8):      %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][0],bit_count.size[0][0]/ni,bit_count.size[1][0],bit_count.size[1][0]/np,bit_count.size[2][0],bit_count.size[2][0]/nb);
+    printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][1],bit_count.size[0][1]/ni,bit_count.size[1][1],bit_count.size[1][1]/np,bit_count.size[2][1],bit_count.size[2][1]/nb);
+    printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][2],bit_count.size[0][2]/ni,bit_count.size[1][2],bit_count.size[1][2]/np,bit_count.size[2][2],bit_count.size[2][2]/nb);
+    printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][3],bit_count.size[0][3]/ni,bit_count.size[1][3],bit_count.size[1][3]/np,bit_count.size[2][3],bit_count.size[2][3]/nb);
 
     printf("\n");
-    printf("Mode and size distribution for P- pictures:\n");
-    printf("                            SKIP      INTRA      INTER     BIPRED\n");
-    printf("8x8-blocks (8x8):      %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[0][0],bit_count.size_and_mode[0][1],bit_count.size_and_mode[0][2],bit_count.size_and_mode[0][3]);
-    printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[1][0],bit_count.size_and_mode[1][1],bit_count.size_and_mode[1][2],bit_count.size_and_mode[1][3]);
-    printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[2][0],bit_count.size_and_mode[2][1],bit_count.size_and_mode[2][2],bit_count.size_and_mode[2][3]);
-    printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[3][0],bit_count.size_and_mode[3][1],bit_count.size_and_mode[3][2],bit_count.size_and_mode[3][3]);
-
-/*
-    for (i=0;i<4;i++){
-      double prob;
-      int sum = 0;
-      size = 1<<(i+3);
-      printf("%2d x %2d-blocks: ",size,size);
-      for (j=0;j<max_num_ref;j++){
-        sum += bit_count.size_and_ref_idx[i][j];
-      }
-      for (j=0;j<max_num_ref;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_ref_idx[i][j]/(double)sum : 0.0;
-        printf("%6.3f",prob);
-      }
-      printf("\n");
-    }
-
-    for (i=0;i<4;i++){
-      double prob,entropy;
-      int sum = 0;
-      size = 1<<(i+3);
-      printf("%2d x %2d-blocks: ",size,size);
-      for (j=0;j<max_num_ref;j++){
-        sum += bit_count.size_and_ref_idx[i][j];
-      }
-      for (j=0;j<max_num_ref;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_ref_idx[i][j]/(double)sum : 0.0;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-    }
-*/
-#if 1//STAT
-    int idx;//,sum;
-    //double prob,entropy;
-    int num=9;
-    printf("\nSuper-mode distribution for P pictures:\n");
-    int index;
-    for (index=0;index<1;index++){
-      //printf("index=%4d:\n",index);
-      //printf("index=%4d:  ",index);
-      //for (idx=0;idx<4;idx++){
-      for (idx=0;idx<4;idx++){
-        int size = 8<<idx;
-        //printf("block-size: %2d x %2d\n",size,size);
-        printf("%2d x %2d-blocks (8x8): ",size,size);
-        //sum = 0;
-        //printf("count:           ");
-        //int divide = (size*size)/(MIN_BLOCK_SIZE*MIN_BLOCK_SIZE);
-        for (i=0;i<num;i++){
-          //sum += bit_count.super_mode_stat[index][idx][i];
-          printf("%8d",bit_count.super_mode_stat[index][idx][i]/1);
-        }
-        printf("\n");
-        /*
-        printf("probability:     ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.super_mode_stat[index][idx][i]/(double)sum;
-          printf("%7.2f",prob);
-        }
-        printf("\n");
-
-        printf("entropy:         ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.super_mode_stat[index][idx][i]/(double)sum;
-          entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-          printf("%7.2f",entropy);
-        }
-        printf("\n");
-        */
-      }
-    }
-#endif
+    printf("Mode and size distribution for P pictures:\n");
+    printf("                            SKIP      INTRA      INTER     BIPRED      MERGE\n");
+    printf("8x8-blocks (8x8):      %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][0][0],bit_count.size_and_mode[P_FRAME][0][1],bit_count.size_and_mode[P_FRAME][0][2],bit_count.size_and_mode[P_FRAME][0][3],bit_count.size_and_mode[P_FRAME][0][4]);
+    printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][1][0],bit_count.size_and_mode[P_FRAME][1][1],bit_count.size_and_mode[P_FRAME][1][2],bit_count.size_and_mode[P_FRAME][1][3],bit_count.size_and_mode[P_FRAME][1][4]);
+    printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][2][0],bit_count.size_and_mode[P_FRAME][2][1],bit_count.size_and_mode[P_FRAME][2][2],bit_count.size_and_mode[P_FRAME][2][3],bit_count.size_and_mode[P_FRAME][2][4]);
+    printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][3][0],bit_count.size_and_mode[P_FRAME][3][1],bit_count.size_and_mode[P_FRAME][3][2],bit_count.size_and_mode[P_FRAME][3][3],bit_count.size_and_mode[P_FRAME][3][4]);
 
     printf("\n");
-    printf("Ref_idx and size distribution for P pictures:\n");
-    int size;
-    int max_num_ref = 4;
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d-blocks: ",size,size);
-      for (j=0;j<max_num_ref;j++){
-        printf("%6d",bit_count.size_and_ref_idx[i][j]);
-      }
-      printf("\n");
-    }
-
-    {
-      int sum = 0;
-      printf("\nbi-ref:  ");
-      for (j=0;j<max_num_ref*max_num_ref;j++){
-        sum += bit_count.bi_ref[j];
-        printf("%7d",bit_count.bi_ref[j]);
-      }
-      printf("\n");
-    }
-
-#if STAT
-    int ft,mode,idx,sum,num;
-    //double prob,entropy;
-
-    int index;
-    for (index=0;index<3;index++){
-      printf("index=%4d:\n",index);
-      num = 9; //Including tb_split
-      printf("I-frames:\n");
-      ft = I_FRAME;
-      mode = MODE_INTRA - 1;
-      for (idx=0;idx<4;idx++){
-        sum = 0;
-        printf("size=%4d count:           ",8<<idx);
-        for (i=0;i<num;i++){
-          sum += bit_count.cbp2_stat[index][ft][mode][idx][i];
-          printf("%6d",bit_count.cbp2_stat[index][ft][mode][idx][i]);
-        }
-        printf("\n");
-  /*
-        printf("probability:     ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          printf("%6.1f",prob);
-        }
-        printf("\n");
-
-        printf("entropy:         ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-          printf("%6.1f",entropy);
-        }
-        printf("\n");
-        */
-      }
-
-      printf("P-frames-intra:\n");
-      ft = P_FRAME;
-      mode = MODE_INTRA - 1;
-      for (idx=0;idx<4;idx++){
-        sum = 0;
-        printf("size=%4d count:           ",8<<idx);
-        for (i=0;i<num;i++){
-          sum += bit_count.cbp2_stat[index][ft][mode][idx][i];
-          printf("%6d",bit_count.cbp2_stat[index][ft][mode][idx][i]);
-        }
-        printf("\n");
-  /*
-        printf("probability:     ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          printf("%6.1f",prob);
-        }
-        printf("\n");
-
-        printf("entropy:         ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-          printf("%6.1f",entropy);
-        }
-        printf("\n");
-        */
-      }
-
-      printf("P-frames-inter:\n");
-      ft = P_FRAME;
-      mode = MODE_INTER - 1;
-      for (idx=0;idx<4;idx++){
-        sum = 0;
-        printf("size=%4d count:           ",8<<idx);
-        for (i=0;i<num;i++){
-          sum += bit_count.cbp2_stat[index][ft][mode][idx][i];
-          printf("%6d",bit_count.cbp2_stat[index][ft][mode][idx][i]);
-        }
-        printf("\n");
-  /*
-        printf("probability:     ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          printf("%6.1f",prob);
-        }
-        printf("\n");
-
-        printf("entropy:         ");
-        for (i=0;i<num;i++){
-          prob = (double)bit_count.cbp2_stat[ft][mode][idx][i]/(double)sum;
-          entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-          printf("%6.1f",entropy);
-        }
-        printf("\n");
-        */
-      }
-    } //for index
-#endif
-
-#if STAT
-    int size,sum;
-    double prob,entropy;
-    printf("\n");
-
-    printf("Intra mode and size distribution for I frames (total):\n");
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      for (j=0;j<10;j++){
-        printf("%6d",bit_count.size_and_intra_mode[0][i][j]);
-      }
-      printf("\n");
-    }
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      sum = 0;
-      for (j=0;j<10;j++){
-        sum += bit_count.size_and_intra_mode[0][i][j];
-      }
-      for (j=0;j<10;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_intra_mode[0][i][j]/(double)sum : 0.0;
-        printf("%6.3f",prob);
-      }
-      printf("\n");
-    }
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      sum = 0;
-      for (j=0;j<10;j++){
-        sum += bit_count.size_and_intra_mode[0][i][j];
-      }
-      for (j=0;j<10;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_intra_mode[0][i][j]/(double)sum : 0.0;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-    }
-
-    printf("Intra mode and size distribution for P frames (total):\n");
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      for (j=0;j<10;j++){
-        printf("%6d",bit_count.size_and_intra_mode[1][i][j]);
-      }
-      printf("\n");
-    }
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      sum = 0;
-      for (j=0;j<10;j++){
-        sum += bit_count.size_and_intra_mode[1][i][j];
-      }
-      for (j=0;j<10;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_intra_mode[1][i][j]/(double)sum : 0.0;
-        printf("%6.3f",prob);
-      }
-      printf("\n");
-    }
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      sum = 0;
-      for (j=0;j<10;j++){
-        sum += bit_count.size_and_intra_mode[1][i][j];
-      }
-      for (j=0;j<10;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_intra_mode[1][i][j]/(double)sum : 0.0;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-    }
-
-    printf("pred_info and size distribution:\n");
-    for (i=0;i<4;i++){
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      for (j=0;j<8;j++){
-        printf("%6d",bit_count.size_and_pred_info[i][j]);
-      }
-      printf("\n");
-    }
-
-    for (i=0;i<4;i++){
-      double prob;
-      int sum = 0;
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      for (j=0;j<8;j++){
-        sum += bit_count.size_and_pred_info[i][j];
-      }
-      for (j=0;j<8;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_pred_info[i][j]/(double)sum : 0.0;
-        printf("%6.3f",prob);
-      }
-      printf("\n");
-    }
-
-    for (i=0;i<4;i++){
-      double prob,entropy;
-      int sum = 0;
-      size = 1<<(i+3);
-      printf("%2d x %2d - blocks: ",size,size);
-      for (j=0;j<8;j++){
-        sum += bit_count.size_and_pred_info[i][j];
-      }
-      for (j=0;j<8;j++){
-        prob = sum > 0 ? (double)bit_count.size_and_pred_info[i][j]/(double)sum : 0.0;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-    }
-
+    printf("Mode and size distribution for B pictures:\n");
+    printf("                            SKIP      INTRA      INTER     BIPRED      MERGE\n");
+    printf("8x8-blocks (8x8):      %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][0][0], bit_count.size_and_mode[B_FRAME][0][1], bit_count.size_and_mode[B_FRAME][0][2], bit_count.size_and_mode[B_FRAME][0][3], bit_count.size_and_mode[B_FRAME][0][4]);
+    printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][1][0], bit_count.size_and_mode[B_FRAME][1][1], bit_count.size_and_mode[B_FRAME][1][2], bit_count.size_and_mode[B_FRAME][1][3], bit_count.size_and_mode[B_FRAME][1][4]);
+    printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][2][0], bit_count.size_and_mode[B_FRAME][2][1], bit_count.size_and_mode[B_FRAME][2][2], bit_count.size_and_mode[B_FRAME][2][3], bit_count.size_and_mode[B_FRAME][2][4]);
+    printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][3][0], bit_count.size_and_mode[B_FRAME][3][1], bit_count.size_and_mode[B_FRAME][3][2], bit_count.size_and_mode[B_FRAME][3][3], bit_count.size_and_mode[B_FRAME][3][4]);
 
     int idx;
-    int bit,totbit,allbits;
-    int ft;
-    for (ft=0;ft<2;ft++){
-      if (ft==0)
-        printf("\nSuper-mode for intra:\n");
-      else
-        printf("\nSuper-mode for inter:\n");
-      for (idx=0;idx<4;idx++){
-        int size = 8<<idx;
-        printf("block-size: %2d x %2d\n",size,size);
-        sum = 0;
-        printf("count:           ");
-        for (i=0;i<20;i++){
-          sum += bit_count.super_mode_stat[ft][idx][i];
-          printf("%7d",bit_count.super_mode_stat[ft][idx][i]);
-        }
-        printf("\n");
-
-        printf("probability:     ");
-        for (i=0;i<20;i++){
-          prob = (double)bit_count.super_mode_stat[ft][idx][i]/(double)sum;
-          printf("%7.1f",prob);
-        }
-        printf("\n");
-
-        printf("entropy:         ");
-        for (i=0;i<20;i++){
-          prob = (double)bit_count.super_mode_stat[ft][idx][i]/(double)sum;
-          entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-          printf("%7.1f",entropy);
-        }
-        printf("\n");
-
-        printf("bits:            ");
-        for (i=0;i<20;i++){
-          bit = i < 2 ? i + 1 : i/2 + 3;
-          printf("%7d",bit);
-        }
-        printf("\n");
-
-        printf("totbits:         ");
-        allbits = 0;
-        for (i=0;i<20;i++){
-          bit = i < 2 ? i + 1 : i/2 + 3;
-          totbit = bit * bit_count.super_mode_stat[ft][idx][i];
-          allbits += totbit;
-          printf("%7d",totbit);
-        }
-        printf("   %10d\n",allbits);
+    int num = 5 + decoder_info.max_num_ref;
+    printf("\nSuper-mode distribution for P pictures:\n");
+    printf("                    SKIP   SPLIT INTERr0   MERGE   BIPRED  INTRA ");
+    for (i = 1; i < decoder_info.max_num_ref; i++) printf("INTERr%1d ", i);
+    printf("\n");
+    for (idx=0;idx<NUM_BLOCK_SIZES;idx++){
+      int size = 8<<idx;
+      printf("%2d x %2d-blocks: ",size,size);
+      for (i=0;i<num;i++){
+        printf("%8d",bit_count.super_mode_stat[P_FRAME][idx][i]);
       }
+      printf("\n");
+    }
+   
+    printf("\nSuper-mode distribution for B pictures:\n");
+    printf("                    SKIP   SPLIT INTERr0   MERGE   BIPRED  INTRA ");
+    for (i = 1; i < decoder_info.max_num_ref; i++) printf("INTERr%1d ", i);
+    printf("\n");
+    for (idx = 0; idx<NUM_BLOCK_SIZES; idx++) {
+      int size = 8 << idx;
+      printf("%2d x %2d-blocks: ", size, size);
+      for (i = 0; i<num; i++) {
+        printf("%8d", bit_count.super_mode_stat[B_FRAME][idx][i]);
+      }
+      printf("\n");
     }
 
-
-    int sum0 = 0;
-    for (i=0;i<8;i++){
-      sum0 += bit_count.cbp_stat[0][i];
+    int size;
+    int max_num_ref = 4;
+    printf("\n");
+    printf("Ref_idx and size distribution for P pictures:\n");
+    for (i=0;i<NUM_BLOCK_SIZES;i++){
+      size = 1<<(i+3);
+      printf("%2d x %2d-blocks: ",size,size);
+      for (j=0;j<decoder_info.max_num_ref;j++){
+        printf("%6d",bit_count.size_and_ref_idx[P_FRAME][i][j]);
+      }
+      printf("\n");
     }
-    for (i=0;i<8;i++){
-      sum0 += bit_count.cbp_stat[0][i];
+
+    printf("\n");
+    printf("Ref_idx and size distribution for B pictures:\n");
+    for (i = 0; i<NUM_BLOCK_SIZES; i++) {
+      size = 1 << (i + 3);
+      printf("%2d x %2d-blocks: ", size, size);
+      for (j = 0; j<decoder_info.max_num_ref; j++) {
+        printf("%6d", bit_count.size_and_ref_idx[B_FRAME][i][j]);
+      }
+      printf("\n");
     }
-
-    if (sum0){
-      /* CBP stat */
-      printf("\nCBP for intra:\n");
-      idx = 0;
-      sum = 0;
-      printf("count:           ");
-      for (i=0;i<8;i++){
-        sum += bit_count.cbp_stat[idx][i];
-        printf("%6d",bit_count.cbp_stat[idx][i]);
-      }
-      printf("\n");
-
-      printf("probability:     ");
-      for (i=0;i<8;i++){
-        prob = (double)bit_count.cbp_stat[idx][i]/(double)sum;
-        printf("%6.1f",prob);
-      }
-      printf("\n");
-
-      printf("entropy:         ");
-      for (i=0;i<8;i++){
-        prob = (double)bit_count.cbp_stat[idx][i]/(double)sum;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-
-      printf("\nCBP for inter :\n");
-      idx = 1;
-      sum = 0;
-      printf("count:           ");
-      for (i=0;i<8;i++){
-        sum += bit_count.cbp_stat[idx][i];
-        printf("%6d",bit_count.cbp_stat[idx][i]);
-      }
-      printf("\n");
-
-      printf("probability:     ");
-      for (i=0;i<8;i++){
-        prob = (double)bit_count.cbp_stat[idx][i]/(double)sum;
-        printf("%6.1f",prob);
-      }
-      printf("\n");
-
-      printf("entropy:         ");
-      for (i=0;i<8;i++){
-        prob = (double)bit_count.cbp_stat[idx][i]/(double)sum;
-        entropy = prob > 0.0 ? -log(prob)/log(2.0) : 0.0;
-        printf("%6.1f",entropy);
-      }
-      printf("\n");
-
-      printf("bits:            ");
-      for (i=0;i<8;i++){
-        //bit = 1 + 2*leading_zeros(i+1)
-        if (i==0)
-          bit = 2;
-        else if (i==1)
-          bit = 1;
-        else
-          bit = 5;
-        printf("%6d",bit);
-      }
-      printf("\n");
-
-      printf("totbits:         ");
-      allbits = 0;
-      for (i=0;i<8;i++){
-        if (i==0)
-          bit = 2;
-        else if (i==1)
-          bit = 1;
-        else
-          bit = 5;
-        totbit = bit * bit_count.cbp_stat[idx][i];
-        allbits += totbit;
-        printf("%6d",totbit);
-      }
-      printf("   %10d\n",allbits);
+    printf("\n");
+    printf("bi-ref-P:  ");
+    for (j=0;j<max_num_ref*max_num_ref;j++){
+      printf("%7d",bit_count.bi_ref[P_FRAME][j]);
     }
-#endif
+    printf("\n");
+    printf("bi-ref-B:  ");
+    for (j = 0; j<max_num_ref*max_num_ref; j++) {
+      printf("%7d", bit_count.bi_ref[B_FRAME][j]);
+    }
+    printf("\n");
     printf("-----------------------------------------------------------------\n");
     for (r=0;r<MAX_REORDER_BUFFER;r++){
       close_yuv_frame(&rec[r]);
@@ -742,7 +366,14 @@ int main(int argc, char** argv)
     for (r=0;r<MAX_REF_FRAMES;r++){
       close_yuv_frame(&ref[r]);
     }
+    if (decoder_info.interp_ref) {
+      for (r=0;r<MAX_SKIP_FRAMES;r++){
+        close_yuv_frame(decoder_info.interp_frames[r]);
+        free(decoder_info.interp_frames[r]);
+      }
+    }
+
     free(decoder_info.deblock_data);
 
     return 0;
-} 
+}

@@ -105,6 +105,13 @@ SIMD_INLINE void v64_store_unaligned(void *p, v64 a) {
   _mm_storel_epi64((__m128i*)p, a);
 }
 
+#if __OPTIMIZE__
+#define v64_align(a, b, c) (c) ? \
+ _mm_srli_si128(_mm_unpacklo_epi64(b, a), (c)) : b;
+#else
+#define v64_align(a, b, c) ((c) ? v64_from_64((v64_u64(b) >> (c)*8) | (v64_u64(a) << (8-(c))*8)) : (b))
+#endif
+
 
 SIMD_INLINE v64 v64_zero() {
   return _mm_setzero_si128();
@@ -434,12 +441,20 @@ SIMD_INLINE v64 v64_cmpgt_s8(v64 a, v64 b) {
   return _mm_cmpgt_epi8(a, b);
 }
 
+SIMD_INLINE v64 v64_cmplt_s8(v64 a, v64 b) {
+  return _mm_cmplt_epi8(a, b);
+}
+
 SIMD_INLINE v64 v64_cmpeq_8(v64 a, v64 b) {
   return _mm_cmpeq_epi8(a, b);
 }
 
 SIMD_INLINE v64 v64_cmpgt_s16(v64 a, v64 b) {
   return _mm_cmpgt_epi16(a, b);
+}
+
+SIMD_INLINE v64 v64_cmplt_s16(v64 a, v64 b) {
+  return _mm_cmplt_epi16(a, b);
 }
 
 SIMD_INLINE v64 v64_cmpeq_16(v64 a, v64 b) {
@@ -491,8 +506,6 @@ SIMD_INLINE v64 v64_shr_s32(v64 a, unsigned int c) {
 
 /* These intrinsics require immediate values, so we must use #defines
    to enforce that. */
-#define v64_align(a, b, c) c ? \
- _mm_srli_si128(_mm_unpacklo_epi64(b, a), c) : b;
 #define v64_shl_n_byte(a, c) _mm_slli_si128(a, c)
 #define v64_shr_n_byte(a, c) _mm_srli_si128(_mm_unpacklo_epi64(a, a), c + 8)
 #define v64_shl_n_8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_sll_epi16( \

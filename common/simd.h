@@ -35,25 +35,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef SIMD_INLINE
 #ifdef __GNUC__
 #define SIMD_INLINE static inline __attribute__((always_inline))
-#include <stdint.h>
 #elif __STDC_VERSION__ >= 199901L
 #define SIMD_INLINE static inline
-#include <stdint.h>
 #else
 #define SIMD_INLINE static
-typedef unsigned char uint8_t;
-typedef signed char int8_t;
-typedef unsigned short uint16_t;
-typedef short int16_t;
-typedef unsigned int uint32_t;
-typedef int int32_t;
-typedef unsigned long long uint64_t;
-typedef long long int64_t;
-typedef unsigned long long intptr_t;
 #endif
 #endif
 
-#ifdef __INTEL_COMPILER
+#include <stdint.h>
+
+#if defined(__INTEL_COMPILER) || defined (VS_2015)
 #define ALIGN(c) __declspec(align(c))
 #elif __arm__
 #define ALIGN(c) __attribute__((aligned(c)))
@@ -65,7 +56,7 @@ typedef unsigned long long intptr_t;
 #define ALIGN(c)
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32)
 #include <intrin.h>
 
 SIMD_INLINE unsigned int log2i(uint32_t x)
@@ -77,9 +68,15 @@ SIMD_INLINE unsigned int log2i(uint32_t x)
 
 SIMD_INLINE void *thor_alloc(size_t size, uintptr_t align)
 {
-  return (void*)((((uintptr_t)_alloca(size + align)) + align - 1) & ~(align - 1));
+  void *m = malloc(size + sizeof(void*) + align);
+  void **r = (void**)((((uintptr_t)m) + sizeof(void*) + align - 1) & ~(align - 1));
+  r[-1] = m;
+  return r;
 }
-SIMD_INLINE void thor_free(void *p) {}
+SIMD_INLINE void thor_free(void *p)
+{
+  free(((void**)p)[-1]);
+}
 
 #elif __GNUC__
 
@@ -96,7 +93,7 @@ SIMD_INLINE void thor_free(void *p) {}
 
 #else
 
-SIMD INLINE unsigned int log2i(uint32_t n)
+SIMD_INLINE unsigned int log2i(uint32_t n)
 {
   assert(n > 0);
   int c = 0;
@@ -126,7 +123,7 @@ static const int simd_check = 1;
 #if defined(__ARM_NEON__) && defined(ALIGN)
 static const int simd_available = 1;
 #include "simd/v128_intrinsics_arm.h"
-#elif defined(__SSE2__) && defined(ALIGN)
+#elif (defined(__SSE2__) || _M_IX86_FP==2) && defined(ALIGN)
 static const int simd_available = 1;
 #include "simd/v128_intrinsics_x86.h"
 #else

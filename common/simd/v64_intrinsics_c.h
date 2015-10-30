@@ -89,15 +89,15 @@ SIMD_INLINE uint64_t c_v64_u64(c_v64 x) {
 SIMD_INLINE c_v64 c_v64_from_16(uint16_t a, uint16_t b, uint16_t c, uint16_t d) {
   c_v64 t;
   if (big_endian()) {
-    t.u16[3] = a;
-    t.u16[2] = b;
-    t.u16[1] = c;
-    t.u16[0] = d;
-  } else {
     t.u16[0] = a;
     t.u16[1] = b;
     t.u16[2] = c;
     t.u16[3] = d;
+  } else {
+    t.u16[3] = a;
+    t.u16[2] = b;
+    t.u16[1] = c;
+    t.u16[0] = d;
   }
   return t;
 }
@@ -719,6 +719,14 @@ SIMD_INLINE c_v64 c_v64_cmpgt_s8(c_v64 a, c_v64 b) {
   return t;
 }
 
+SIMD_INLINE c_v64 c_v64_cmplt_s8(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 8; c++)
+    t.s8[c] = -(a.s8[c] < b.s8[c]);
+  return t;
+}
+
 SIMD_INLINE c_v64 c_v64_cmpeq_8(c_v64 a, c_v64 b) {
   c_v64 t;
   int c;
@@ -732,6 +740,14 @@ SIMD_INLINE c_v64 c_v64_cmpgt_s16(c_v64 a, c_v64 b) {
   int c;
   for (c = 0; c < 4; c++)
     t.s16[c] = -(a.s16[c] > b.s16[c]);
+  return t;
+}
+
+SIMD_INLINE c_v64 c_v64_cmplt_s16(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 4; c++)
+    t.s16[c] = -(a.s16[c] < b.s16[c]);
   return t;
 }
 

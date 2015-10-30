@@ -139,8 +139,10 @@ SIMD_INLINE v64 v64_max_s16(v64 a, v64 b) { return c_v64_max_s16(a, b); }
 
 
 SIMD_INLINE v64 v64_cmpgt_s8(v64 a, v64 b) { return c_v64_cmpgt_s8(a, b); }
+SIMD_INLINE v64 v64_cmplt_s8(v64 a, v64 b) { return c_v64_cmplt_s8(a, b); }
 SIMD_INLINE v64 v64_cmpeq_8(v64 a, v64 b) { return c_v64_cmpeq_8(a, b); }
 SIMD_INLINE v64 v64_cmpgt_s16(v64 a, v64 b) { return c_v64_cmpgt_s16(a, b); }
+SIMD_INLINE v64 v64_cmplt_s16(v64 a, v64 b) { return c_v64_cmplt_s16(a, b); }
 SIMD_INLINE v64 v64_cmpeq_16(v64 a, v64 b) { return c_v64_cmpeq_16(a, b); }
 
 

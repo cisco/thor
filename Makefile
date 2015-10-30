@@ -25,7 +25,8 @@ COMMON_SOURCES = \
 	common/inter_prediction.c \
 	common/common_kernels.c \
 	common/snr.c \
-	common/simd.c
+	common/simd.c \
+        common/temporal_interp.c
 
 ENCODER_SOURCES = \
 	enc/encode_block.c \

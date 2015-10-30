@@ -31,5 +31,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height);
 int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size);
+void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1);
+unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int astride, int bstride, int width, int height, int *x, int *y);
+unsigned int sad_calc_fastquarter_simd(const uint8_t *o, const uint8_t *r, int os, int rs, int width, int height, int *x, int *y);
+unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height, int *x);
 
 #endif

@@ -41,6 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "putbits.h"
 #include "putvlc.h"
 #include "transform.h"
+#include "temporal_interp.h"
 #include "../common/simd.h"
 
 // Coding order to display order
@@ -59,14 +60,14 @@ static const int dc8[8+1] = {-8,4,2,5,1,6,3,7,0};
 static const int dc16[16+1] = {-16,8,4,9,2,10,5,11,1,12,6,13,3,14,7,15,0};
 static const int* dyadic_reorder_display_to_code[5] = {dc1,dc2,dc4,dc8,dc16};
 
-static int reorder_frame_offset(int idx, int sub_gop)
+static int reorder_frame_offset(int idx, int sub_gop, int dyadic)
 {
-#if DYADIC_CODING
-  return dyadic_reorder_code_to_display[log2i(sub_gop)][idx]-sub_gop+1;
-#else
-  if (idx==0) return 0;
-  else return idx-sub_gop;
-#endif
+  if (dyadic && sub_gop>1) {
+    return dyadic_reorder_code_to_display[log2i(sub_gop)][idx]-sub_gop+1;
+  } else {
+    if (idx==0) return 0;
+    else return idx-sub_gop;
+  }
 }
 
 int main(int argc, char **argv)
@@ -84,7 +85,9 @@ int main(int argc, char **argv)
   int frame_num,frame_num0,k,r;
   int frame_offset;
   int ysize,csize,frame_size;
-  int width,height,input_stride_y,input_stride_c;
+  int width,height;
+  int min_interp_depth;
+  int last_intra_frame_num = 0;
   uint32_t acc_num_bits;
   snrvals psnr;
   snrvals accsnr;
@@ -147,8 +150,6 @@ int main(int argc, char **argv)
 
   height = params->height;
   width = params->width;
-  input_stride_y = width;
-  input_stride_c = width/2;
   ysize = height * width;
   csize = ysize / 4;
   frame_size = ysize + 2*csize;
@@ -160,6 +161,12 @@ int main(int argc, char **argv)
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
     create_yuv_frame(&ref[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+  }
+  if (params->interp_ref) {
+    for (r=0;r<MAX_SKIP_FRAMES;r++){
+      encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
+      create_yuv_frame(encoder_info.interp_frames[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+    }
   }
 
   /* Initialize main bit stream */
@@ -191,6 +198,9 @@ int main(int argc, char **argv)
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
   putbits(4,params->num_reorder_pics,&stream);// Max 15 reordered pictures
+  if (params->num_reorder_pics>0)
+    putbits(1,params->dyadic_coding,&stream);
+  putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
   putbits(2,params->max_delta_qp,&stream);
   putbits(1,params->deblocking,&stream);
   putbits(1,params->clpf,&stream);
@@ -205,12 +215,16 @@ int main(int argc, char **argv)
   /* Start encoding sequence */
   num_encoded_frames = 0;
   sub_gop = max(1,params->num_reorder_pics+1);
+
+  min_interp_depth = log2i(params->num_reorder_pics+1)-2;
+  if (params->frame_rate > 30) min_interp_depth--;
+
   for (frame_num0 = params->skip; frame_num0 < (params->skip + params->num_frames) && (frame_num0+sub_gop)*frame_size <= input_file_size; frame_num0+=sub_gop)
   {
     for (k=0; k<sub_gop; k++) {
       int r,r0,r1,r2,r3;
       /* Initialize frame info */
-      frame_offset = reorder_frame_offset(k,sub_gop);
+      frame_offset = reorder_frame_offset(k,sub_gop,params->dyadic_coding);
       frame_num = frame_num0 + frame_offset;
       // If there is an initial I frame and reordering need to jump to the next P frame
       if (frame_num<params->skip) continue;
@@ -235,9 +249,11 @@ int main(int argc, char **argv)
 
       int coded_phase = (num_encoded_frames + sub_gop - 2) % sub_gop + 1;
       int b_level = log2i(coded_phase);
+      encoder_info.frame_info.b_level = b_level;
 
       if (encoder_info.frame_info.frame_type == I_FRAME){
         encoder_info.frame_info.qp = params->qp + params->dqpI;
+        last_intra_frame_num = encoder_info.frame_info.frame_num;
       }
       else if (params->num_reorder_pics==0) {
         if (num_encoded_frames % params->HQperiod)
@@ -245,137 +261,251 @@ int main(int argc, char **argv)
         else
           encoder_info.frame_info.qp = params->qp;
       } else {
-        if (encoder_info.frame_info.frame_num % sub_gop){
-          float mqpB = params->mqpB;
-#if DYADIC_CODING
-          mqpB = 1.0+(b_level+1)*((mqpB-1.0)/2.0);
-#endif
-          encoder_info.frame_info.qp = (int)(mqpB*(float)params->qp) + params->dqpB;
-        }  else
-          encoder_info.frame_info.qp = params->qp;
-      }
-
-      encoder_info.frame_info.num_ref = min(num_encoded_frames,params->max_num_ref);
-      if (params->num_reorder_pics > 0) {
-#if DYADIC_CODING
-        /* if we have a P frame then use the previous P frame as a reference */
-        if ((num_encoded_frames-1) % sub_gop == 0) {
-          if (num_encoded_frames==1)
-            encoder_info.frame_info.ref_array[0] = 0;
-          else
-            encoder_info.frame_info.ref_array[0] = sub_gop-1;
-          if (encoder_info.frame_info.num_ref>1 )
-            encoder_info.frame_info.ref_array[1] = min(MAX_REF_FRAMES-1,min(num_encoded_frames-1,2*sub_gop-1));
-
-          for (r=2;r<encoder_info.frame_info.num_ref;r++){
-            encoder_info.frame_info.ref_array[r] = r-1;
-          }
-
-        } else {
-          int display_phase =  (encoder_info.frame_info.frame_num-1) % sub_gop;
-          int ref_offset=sub_gop>>(b_level+1);
-
-           encoder_info.frame_info.ref_array[0]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase-ref_offset+1]-1);
-           encoder_info.frame_info.ref_array[1]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase+ref_offset+1]-1);
-          /* use most recent frames for the last ref(s)*/
-          for (r=2;r<encoder_info.frame_info.num_ref;r++){
-            encoder_info.frame_info.ref_array[r] = r-2;
-          }
-        }
-#else
-        /* if we have a P frame then use the previous P frame as a reference */
-        if ((num_encoded_frames-1) % sub_gop == 0) {
-          if (num_encoded_frames==1)
-            encoder_info.frame_info.ref_array[0] = 0;
-          else
-            encoder_info.frame_info.ref_array[0] = sub_gop-1;
-          if (encoder_info.frame_info.num_ref>1 )
-            encoder_info.frame_info.ref_array[1] = min(MAX_REF_FRAMES-1,min(num_encoded_frames-1,2*sub_gop-1));
-
-          for (r=2;r<encoder_info.frame_info.num_ref;r++){
-            encoder_info.frame_info.ref_array[r] = r-1;
-          }
-
-        } else {
-          // Use the last encoded frame as the first ref
-          if (encoder_info.frame_info.num_ref>0) {
-            encoder_info.frame_info.ref_array[0] = 0;
-          }
-          /* Use the subsequent P frame as the 2nd ref */
-          int phase = (num_encoded_frames + sub_gop - 2) % sub_gop;
-          if (encoder_info.frame_info.num_ref>1) {
-            if (phase==0)
-              encoder_info.frame_info.ref_array[1] = min(sub_gop, num_encoded_frames-1);
+        if (encoder_info.frame_info.frame_num % sub_gop) {
+          if (params->dyadic_coding){
+            if (b_level == 0)
+              encoder_info.frame_info.qp = (int)(params->mqpB0*(float)params->qp) + params->dqpB0;
+            else if (b_level == 1)
+              encoder_info.frame_info.qp = (int)(params->mqpB1*(float)params->qp) + params->dqpB1;
+            else if (b_level == 2)
+              encoder_info.frame_info.qp = (int)(params->mqpB2*(float)params->qp) + params->dqpB2;
+            else if (b_level == 3)
+              encoder_info.frame_info.qp = (int)(params->mqpB3*(float)params->qp) + params->dqpB3;
             else
-              encoder_info.frame_info.ref_array[1] = min(phase, num_encoded_frames-1);
+              encoder_info.frame_info.qp = (int)(params->mqpB*(float)params->qp) + params->dqpB;
           }
-          /* Use the prior P frame as the 3rd ref */
-          if (encoder_info.frame_info.num_ref>2) {
-            encoder_info.frame_info.ref_array[2] = min(phase ? phase + sub_gop : 2*sub_gop, num_encoded_frames-1);
+          else {
+            encoder_info.frame_info.qp = (int)(params->mqpB*(float)params->qp) + params->dqpB;
           }
-          /* use most recent frames for the last ref(s)*/
-          for (r=3;r<encoder_info.frame_info.num_ref;r++){
-            encoder_info.frame_info.ref_array[r] = r-3+1;
-          }
+        }  else {
+          if (encoder_info.frame_info.frame_num % params->HQperiod) {
+            encoder_info.frame_info.qp = (int)(params->mqpP*(float)params->qp) + params->dqpP;
+          } else
+            encoder_info.frame_info.qp = params->qp;
         }
+      }
+      encoder_info.frame_info.qp = clip(encoder_info.frame_info.qp, 0, MAX_QP);
 
-#endif
-      } else {
-        if (encoder_info.frame_info.num_ref==1){
-          /* If num_ref==1 always use most recent frame */
-          encoder_info.frame_info.ref_array[0] = 0;
-        }
-        else if (encoder_info.frame_info.num_ref==2){
-          /* If num_ref==2 use most recent LQ frame and most recent HQ frame */
-          r0 = 0;
-          r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
-          encoder_info.frame_info.ref_array[0] = r0;
-          encoder_info.frame_info.ref_array[1] = r1;
-        }
-        else if (encoder_info.frame_info.num_ref==3){
-          r0 = 0;
-          r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
-          r2 = r1==1 ? 2 : 1;
-          encoder_info.frame_info.ref_array[0] = r0;
-          encoder_info.frame_info.ref_array[1] = r1;
-          encoder_info.frame_info.ref_array[2] = r2;
-        }
-        else if (encoder_info.frame_info.num_ref==4){
-          r0 = 0;
-          r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
-          r2 = r1==1 ? 2 : 1;
-          r3 = r2+1;
-          if (r3==r1) r3 += 1;
-          encoder_info.frame_info.ref_array[0] = r0;
-          encoder_info.frame_info.ref_array[1] = r1;
-          encoder_info.frame_info.ref_array[2] = r2;
-          encoder_info.frame_info.ref_array[3] = r3;
-        }
-        else{
-          for (r=0;r<encoder_info.frame_info.num_ref;r++){
-            encoder_info.frame_info.ref_array[r] = r;
+      encoder_info.frame_info.num_ref = encoder_info.frame_info.frame_type == I_FRAME ? 0 : min(num_encoded_frames,params->max_num_ref);
+      encoder_info.frame_info.interp_ref = 0;
+
+      if (encoder_info.frame_info.num_ref > 0) {
+        if (params->num_reorder_pics > 0) {
+          if (params->dyadic_coding) {
+            /* if we have a P frame then use the previous P frame as a reference */
+            if ((num_encoded_frames-1) % sub_gop == 0) {
+              if (num_encoded_frames==1)
+                encoder_info.frame_info.ref_array[0] = 0;
+              else
+                encoder_info.frame_info.ref_array[0] = sub_gop-1;
+              if (encoder_info.frame_info.num_ref>1 )
+                encoder_info.frame_info.ref_array[1] = min(MAX_REF_FRAMES-1,min(num_encoded_frames-1,2*sub_gop-1));
+
+              for (r=2;r<encoder_info.frame_info.num_ref;r++){
+                encoder_info.frame_info.ref_array[r] = r-2;
+              }
+
+            } else if (encoder_info.frame_info.num_ref>0){
+
+              int display_phase =  (encoder_info.frame_info.frame_num-1) % sub_gop;
+              int ref_offset=sub_gop>>(b_level+1);
+
+              if (b_level >= min_interp_depth && params->interp_ref) {
+
+                // Need to add another reference if we are at the beginning
+                if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
+
+                encoder_info.frame_info.interp_ref = 1;
+
+                encoder_info.frame_info.ref_array[1]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase-ref_offset+1]-1);
+                encoder_info.frame_info.ref_array[2]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase+ref_offset+1]-1);
+
+                // Interpolate these two reference frames to make a new frame
+                encoder_info.frame_info.ref_array[0]=-1;
+                // Add this interpolated frame to the reference buffer and use it as the first reference
+                yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
+                yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
+                interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, 2, 1);
+                pad_yuv_frame(encoder_info.interp_frames[0]);
+                encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
+                /* use most recent frames for the last ref(s)*/
+                for (r=3;r<encoder_info.frame_info.num_ref;r++){
+                  encoder_info.frame_info.ref_array[r] = r-3;
+                }
+              } else {
+                encoder_info.frame_info.ref_array[0]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase-ref_offset+1]-1);
+                encoder_info.frame_info.ref_array[1]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase+ref_offset+1]-1);
+
+                /* use most recent frames for the last ref(s)*/
+                for (r=2;r<encoder_info.frame_info.num_ref;r++){
+                  encoder_info.frame_info.ref_array[r] = r-2;
+                }
+
+              }
+            }
+          } else {
+            /* if we have a P frame then use the previous P frame as a reference */
+            if ((num_encoded_frames-1) % sub_gop == 0) {
+              if (num_encoded_frames==1)
+                encoder_info.frame_info.ref_array[0] = 0;
+              else
+                encoder_info.frame_info.ref_array[0] = sub_gop-1;
+              if (encoder_info.frame_info.num_ref>1 )
+                encoder_info.frame_info.ref_array[1] = min(MAX_REF_FRAMES-1,min(num_encoded_frames-1,2*sub_gop-1));
+
+              for (r=2;r<encoder_info.frame_info.num_ref;r++){
+                encoder_info.frame_info.ref_array[r] = r-1;
+              }
+
+            } else {
+              if (params->interp_ref && encoder_info.frame_info.num_ref>0) {
+
+                // Need to add another reference if we are at the beginning
+                if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
+
+                encoder_info.frame_info.interp_ref = 1;
+
+                // Use the last encoded frame as the first true ref
+                if (encoder_info.frame_info.num_ref>0) {
+                  encoder_info.frame_info.ref_array[1] = 0;
+                }
+                /* Use the subsequent P frame as the 2nd ref */
+                int phase = (num_encoded_frames + sub_gop - 2) % sub_gop;
+                if (encoder_info.frame_info.num_ref>1) {
+                  if (phase==0)
+                    encoder_info.frame_info.ref_array[2] = min(sub_gop, num_encoded_frames-1);
+                  else
+                    encoder_info.frame_info.ref_array[2] = min(phase, num_encoded_frames-1);
+                }
+                // Interpolate these two reference frames to make a new frame
+                encoder_info.frame_info.ref_array[0]=-1;
+                // Add this interpolated frame to the reference buffer and use it as the first reference
+                yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
+                yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
+                interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, sub_gop-phase,phase!=0 ? 1 : sub_gop-phase-1);
+                pad_yuv_frame(encoder_info.interp_frames[0]);
+                encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
+
+                /* Use the prior P frame as the 4th ref */
+                if (encoder_info.frame_info.num_ref>2) {
+                  encoder_info.frame_info.ref_array[3] = min(phase ? phase + sub_gop : 2*sub_gop, num_encoded_frames-1);
+                }
+                /* use most recent frames for the last ref(s)*/
+                for (r=4;r<encoder_info.frame_info.num_ref;r++){
+                  encoder_info.frame_info.ref_array[r] = r-4+1;
+                }
+
+
+              } else {
+                // Use the last encoded frame as the first ref
+                if (encoder_info.frame_info.num_ref>0) {
+                  encoder_info.frame_info.ref_array[0] = 0;
+                }
+                /* Use the subsequent P frame as the 2nd ref */
+                int phase = (num_encoded_frames + sub_gop - 2) % sub_gop;
+                if (encoder_info.frame_info.num_ref>1) {
+                  if (phase==0)
+                    encoder_info.frame_info.ref_array[1] = min(sub_gop, num_encoded_frames-1);
+                  else
+                    encoder_info.frame_info.ref_array[1] = min(phase, num_encoded_frames-1);
+                }
+                /* Use the prior P frame as the 3rd ref */
+                if (encoder_info.frame_info.num_ref>2) {
+                  encoder_info.frame_info.ref_array[2] = min(phase ? phase + sub_gop : 2*sub_gop, num_encoded_frames-1);
+                }
+                /* use most recent frames for the last ref(s)*/
+                for (r=3;r<encoder_info.frame_info.num_ref;r++){
+                  encoder_info.frame_info.ref_array[r] = r-3+1;
+                }
+              }
+            }
+          }
+        } else {
+          if (encoder_info.frame_info.num_ref==1){
+            /* If num_ref==1 always use most recent frame */
+            encoder_info.frame_info.ref_array[0] = 0;
+          }
+          else if (encoder_info.frame_info.num_ref==2){
+            /* If num_ref==2 use most recent LQ frame and most recent HQ frame */
+            r0 = 0;
+            r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
+            encoder_info.frame_info.ref_array[0] = r0;
+            encoder_info.frame_info.ref_array[1] = r1;
+          }
+          else if (encoder_info.frame_info.num_ref==3){
+            r0 = 0;
+            r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
+            r2 = r1==1 ? 2 : 1;
+            encoder_info.frame_info.ref_array[0] = r0;
+            encoder_info.frame_info.ref_array[1] = r1;
+            encoder_info.frame_info.ref_array[2] = r2;
+          }
+          else if (encoder_info.frame_info.num_ref==4){
+            r0 = 0;
+            r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
+            r2 = r1==1 ? 2 : 1;
+            r3 = r2+1;
+            if (r3==r1) r3 += 1;
+            encoder_info.frame_info.ref_array[0] = r0;
+            encoder_info.frame_info.ref_array[1] = r1;
+            encoder_info.frame_info.ref_array[2] = r2;
+            encoder_info.frame_info.ref_array[3] = r3;
+          }
+          else{
+            for (r=0;r<encoder_info.frame_info.num_ref;r++){
+              encoder_info.frame_info.ref_array[r] = r;
+            }
           }
         }
       }
 
-      if (params->intra_rdo){
-        if (encoder_info.frame_info.frame_type == I_FRAME){
-          encoder_info.frame_info.num_intra_modes = 10;
-        }
-        else{
-          encoder_info.frame_info.num_intra_modes = params->encoder_speed > 0 ? 4 : 10;
+      // Remove duplicate reference frames
+      for (r=encoder_info.frame_info.num_ref-1; r>0; --r){
+        for (int k=r-1; k>=0; --k) {
+          if (encoder_info.frame_info.ref_array[k] == encoder_info.frame_info.ref_array[r]) {
+            // remove rth element
+            for (int s=r; s<encoder_info.frame_info.num_ref-1; ++s) {
+              encoder_info.frame_info.ref_array[s]=encoder_info.frame_info.ref_array[s+1];
+            }
+            encoder_info.frame_info.num_ref--;
+            break;
+          }
+
         }
       }
-      else{
+
+      // Remove reference frames which break random access
+      if (encoder_info.frame_info.frame_num > last_intra_frame_num) {
+        for (r=encoder_info.frame_info.num_ref-1; r>=0; --r){
+          if (encoder_info.frame_info.ref_array[r]>=0) {
+            int ref_frame_num=encoder_info.ref[encoder_info.frame_info.ref_array[r]]->frame_num;
+            if (ref_frame_num < last_intra_frame_num) {
+              // remove this reference
+              for (int s=r; s<encoder_info.frame_info.num_ref-1; ++s) {
+                encoder_info.frame_info.ref_array[s]=encoder_info.frame_info.ref_array[s+1];
+              }
+              encoder_info.frame_info.num_ref--;
+            }
+          }
+        }
+      }
+
+      if (params->intra_rdo == 0 || (encoder_info.frame_info.frame_type != I_FRAME &&
+                                     (params->encoder_speed > 0 || params->sync)))
         encoder_info.frame_info.num_intra_modes = 4;
-      }
+      else
+#if LIMIT_INTRA_MODES
+        encoder_info.frame_info.num_intra_modes = 8;
+#else
+        encoder_info.frame_info.num_intra_modes = MAX_NUM_INTRA_MODES;
+#endif
 
 #if 0
       /* To test sliding window operation */
       int offsetx = 500;
       int offsety = 200;
-      int offset_rec = encoder_info.rec->offset_y + offsety * encoder_info.rec->stride_y +  offsetx;
-      int offset_ref = encoder_info.ref[0]->offset_y + offsety * encoder_info.ref[0]->stride_y +  offsetx;
+      int offset_rec = offsety * encoder_info.rec->stride_y +  offsetx;
+      int offset_ref = offsety * encoder_info.ref[0]->stride_y +  offsetx;
       if (encoder_info.frame_info.num_ref==2){
         int r0 = encoder_info.frame_info.ref_array[0];
         int r1 = encoder_info.frame_info.ref_array[1];
@@ -401,7 +531,7 @@ int main(int argc, char **argv)
 
       /* Compute SNR */
       if (params->snrcalc){
-        snr_yuv(&psnr,&orig,&rec[rec_buffer_idx],height,width,input_stride_y,input_stride_c);
+        snr_yuv(&psnr,&orig,&rec[rec_buffer_idx],height,width);
       }
       else{
         psnr.y =  psnr.u = psnr.v = 0.0;
@@ -419,8 +549,21 @@ int main(int argc, char **argv)
       else 
         fprintf(stdout,"%4d B %4d %10d %10.4f %8.4f %8.4f ",frame_num,encoder_info.frame_info.qp,num_bits,psnr.y,psnr.u,psnr.v);
 
-      for (r=0;r<encoder_info.frame_info.num_ref;r++){
-        fprintf(stdout,"%3d",encoder_info.frame_info.ref_array[r]);
+      int ref_idx;
+      for (ref_idx=0; ref_idx<encoder_info.frame_info.num_ref; ref_idx++){
+        encoder_info.frame_info.ref_array[ref_idx]==-1 ? fprintf(stdout,"I(%d,%d) ",encoder_info.frame_info.ref_array[ref_idx+1],encoder_info.frame_info.ref_array[ref_idx+2])
+          : fprintf(stdout,"%3d",encoder_info.frame_info.ref_array[ref_idx]);
+      }
+
+      for (ref_idx = encoder_info.frame_info.num_ref; ref_idx < encoder_info.params->max_num_ref; ref_idx++) {
+        fprintf(stdout, "   ");
+      }
+      fprintf(stdout, " | ");
+      for (ref_idx = 0; ref_idx<encoder_info.frame_info.num_ref; ref_idx++) {
+        int r0 = encoder_info.frame_info.ref_array[ref_idx+0];
+        int r1 = encoder_info.frame_info.ref_array[ref_idx+1];
+        int r2 = encoder_info.frame_info.ref_array[ref_idx+2];
+        r0 == -1 ? fprintf(stdout, "I(%d,%d)", encoder_info.ref[r1 + 1]->frame_num, encoder_info.ref[r2 + 1]->frame_num) : fprintf(stdout, "%3d", encoder_info.ref[r0 + 1]->frame_num);
       }
       fprintf(stdout,"\n");
       fflush(stdout);
@@ -495,6 +638,12 @@ int main(int argc, char **argv)
   }
   for (r=0;r<MAX_REF_FRAMES;r++){
     close_yuv_frame(&ref[r]);
+  }
+  if (params->interp_ref) {
+    for (r=0;r<MAX_SKIP_FRAMES;r++){
+      close_yuv_frame(encoder_info.interp_frames[r]);
+      free(encoder_info.interp_frames[r]);
+    }
   }
   fclose(infile);
   fclose(strfile);

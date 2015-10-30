@@ -36,28 +36,120 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 
 
-void get_dc_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
+static void filter_121(uint8_t* in, uint8_t* out, int len)
+{
+  int j;
+  /* Calculate filtered 1D arrays */
+  out[0] = (uint8_t)((in[0] + 2*in[0] + in[1] + 2)>>2);
+  for (j=1;j<len-1;j++){
+    out[j] = (uint8_t)((in[j-1] + 2*in[j] + in[j+1] + 2)>>2);
+  }
+  out[len-1] = (uint8_t)((in[len-2] + 2*in[len-1] + in[len-1] + 2)>>2);
+}
+
+static void filter_121_all(uint8_t* left_in, uint8_t* left_out, uint8_t* top_in, uint8_t* top_out, int len, uint8_t tl_in, uint8_t* tl_out)
+{
+  filter_121(left_in,left_out,len);
+  filter_121(top_in,top_out,len);
+  *tl_out = (2*tl_in+left_in[0]+top_in[0]+2)>>2;
+}
+
+void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* rec_frame, int fstride, uint8_t* rblock, int rbstride, int i, int j,
+    int ypos, int xpos, int size, int cb_upright_available, int cb_downleft_available, int tb_split)
+{
+  // xpos, ypos are CB coords; j,i are coords within the CB
+  // Assuming *raster* scan of TUs
+  // Padding by a single extra pixel in case up-right or down-left are available
+  uint8_t val;
+  int len = 2*size;
+  int toplen, leftlen;
+  int downleft_available,upright_available;
+
+  if (!tb_split) {
+    assert(i==0 && j==0);
+    downleft_available = cb_downleft_available;
+    leftlen = downleft_available ? (size+1) : size;
+
+    upright_available = cb_upright_available;
+    toplen = upright_available ? (size+1) : size;
+
+    if (ypos==0) {
+      memset(&top[0], 128, len*sizeof(uint8_t));
+      *top_left = 128;
+    } else {
+      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(uint8_t));
+      val = top[toplen-1];
+      memset(&top[size],val,size*sizeof(uint8_t));
+
+      *top_left = xpos > 0 ? rec_frame[-fstride+j-1] : top[0];
+    }
+
+    if (xpos==0) {
+      memset(&left[0], 128, len*sizeof(uint8_t));
+    } else {
+      for (int k=0; k<leftlen; ++k){
+        left[k] = rec_frame[k*fstride-1];
+      }
+      val = left[leftlen-1];
+      memset(&left[size],val,size*sizeof(uint8_t));
+    }
+
+    if (ypos==0)
+      *top_left = left[0];
+  }
+  else
+  {
+    downleft_available = (j==0 && (i==0 || cb_downleft_available)) ? 1 : 0;
+    leftlen = downleft_available ? (size+1) : size;
+
+    upright_available = (j==0 || (i==0 && cb_upright_available)) ? 1 : 0;
+    toplen = upright_available ? (size+1) : size;
+
+    if (ypos+i==0) {
+      memset(&top[0], 128, len*sizeof(uint8_t));
+      *top_left = 128;
+    } else if (i==0){
+      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(uint8_t));
+      val = top[toplen-1];
+      memset(&top[size],val,size*sizeof(uint8_t));
+      *top_left = xpos > 0 ? rec_frame[-fstride+j-1] : top[0];
+    } else {
+      memcpy(&top[0],&rblock[-rbstride],toplen*sizeof(uint8_t));
+      val = top[toplen-1];
+      memset(&top[size],val,size*sizeof(uint8_t));
+      *top_left = xpos > 0 ? (j>0 ? rblock[-rbstride-1] : rec_frame[(i-1)*fstride-1]) : top[0];
+    }
+
+    if (xpos+j==0) {
+      memset(&left[0], 128, len*sizeof(uint8_t));
+    } else if (j==0){
+      for (int k=0; k<leftlen; ++k){
+        left[k] = rec_frame[(i+k)*fstride-1];
+      }
+      val = left[leftlen-1];
+      memset(&left[size],val,size*sizeof(uint8_t));
+
+    } else {
+      for (int k=0; k<leftlen; ++k){
+        left[k] = rblock[k*rbstride-1];
+      }
+      val = left[leftlen-1];
+      memset(&left[size],val,size*sizeof(uint8_t));
+    }
+
+    if (ypos+i==0)
+      *top_left = left[0];
+  }
+}
+
+void get_dc_pred(uint8_t* left, uint8_t* top, int size,uint8_t *pblock){
   int i,j,dc=128,sum;
 
-  if (ypos>0 && xpos>0){
-    sum = 0;
-    for (j=0;j<size;j++) sum += rec[(ypos-1)*stride+xpos+j];
-    for (i=0;i<size;i++) sum += rec[(ypos+i)*stride+xpos-1];
-    dc = (sum + size)/(2*size);
-  }
-  else if(ypos>0 && xpos==0){
-    sum = 0;
-    for (j=0;j<size;j++) sum += rec[(ypos-1)*stride+xpos+j];
-    dc = (sum + size/2)/size;
-  }
-  else if(ypos==0 && xpos>0){
-    sum = 0;
-    for (i=0;i<size;i++) sum += rec[(ypos+i)*stride+xpos-1];
-    dc = (sum + size/2)/size;
-  }
-  else if(ypos==0 && xpos==0){
-    dc = 128;
-  }
+  sum = 0;
+  for (j=0;j<size;j++) sum += top[j];
+  for (i=0;i<size;i++) sum += left[i];
+  dc = (sum + size)/(2*size);
+
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       pblock[i*size+j] = dc;
@@ -65,529 +157,233 @@ void get_dc_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pbl
   }
 }
 
-void get_hor_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
-  int i,j,val;
 
-
-#if FILTER_HOR_AND_VER
-  if (xpos>0){
-    uint16_t hor[MAX_TR_SIZE];
-    uint8_t horF[MAX_TR_SIZE];
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-    horF[0] = (uint8_t)((hor[0] + 14*hor[0] + hor[1] + 8)>>4);
-    for (j=1;j<size-1;j++){
-      horF[j] = (uint8_t)((hor[j-1] + 14*hor[j] + hor[j+1] + 8)>>4);
-    }
-    horF[size-1] = (uint8_t)((hor[size-2] + 14*hor[size-1] + hor[size-1] + 8)>>4);
-    for (i=0;i<size;i++){
-      val = horF[i];
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = val;
-      }
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = 128;
-      }
-    }
-  }
-#else
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      val = rec[(ypos+i)*stride+xpos-1];
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = val;
-      }
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = 128;
-      }
-    }
-  }
-#endif
-}
-
-void get_ver_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
+void get_hor_pred(uint8_t* left, int size,uint8_t *pblock){
   int i,j;
-
-#if FILTER_HOR_AND_VER
-  if (ypos>0){
-    uint16_t ver[MAX_TR_SIZE];
-    uint8_t verF[MAX_TR_SIZE];
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-    verF[0] = (uint8_t)((ver[0] + 14*ver[0] + ver[1] + 8)>>4);
-    for (j=1;j<size-1;j++){
-      verF[j] = (uint8_t)((ver[j-1] + 14*ver[j] + ver[j+1] + 8)>>4);
-    }
-    verF[size-1] = (uint8_t)((ver[size-2] + 14*ver[size-1] + ver[size-1] + 8)>>4);
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = verF[j];
-      }
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = 128;
-      }
-    }
-  }
-#else
-
-  if (ypos>0){
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = rec[(ypos-1)*stride+xpos+j];
-      }
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      for (j=0;j<size;j++){
-        pblock[i*size+j] = 128;
-      }
-    }
-  }
-
-#endif
-
-}
-
-void get_planar_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
-  int i,j;
-
-  uint8_t ver[MAX_TR_SIZE];
-  uint8_t hor[MAX_TR_SIZE];
-  uint8_t up_left;
-
-  if (ypos>0){
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-  }
-  else{
-    for (j=0;j<size;j++){
-      ver[j] = 128;
-    }
-  }
-
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      hor[i] = 128;
-    }
-  }
-
-  if (xpos>0 && ypos>0){
-    up_left = rec[(ypos-1)*stride+xpos-1];
-  }
-  else{
-    up_left = 128;
-  }
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*size+j] = clip255(hor[i] + ver[j] - up_left);
+      pblock[i*size+j] = left[i];
     }
   }
 }
 
-void get_upleft_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
-  int i,j,diag;
 
-  uint16_t ver[MAX_TR_SIZE];
-  uint16_t hor[MAX_TR_SIZE];
-  uint16_t up_left;
+void get_ver_pred(uint8_t* top, int size,uint8_t *pblock){
+  int i,j;
 
-  uint8_t verF[MAX_TR_SIZE];
-  uint8_t horF[MAX_TR_SIZE];
-  uint8_t up_leftF;
-
-  /* Define unfiltered arrays */
-  if (ypos>0){
+  for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
+      pblock[i*size+j] = top[j];
     }
   }
-  else{
-    for (j=0;j<size;j++){
-      ver[j] = 128;
-    }
-  }
+}
 
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      hor[i] = 128;
-    }
-  }
+void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left,int size,uint8_t *pblock){
+  int i,j;
 
-  if (xpos>0 && ypos>0){
-    up_left = rec[(ypos-1)*stride+xpos-1];
-  }
-  else{
-    up_left = 128;
-  }
+  int16_t topF[MAX_TR_SIZE];
+  int16_t leftF[MAX_TR_SIZE];
+  int16_t top_leftF;
 
   /* Calculate filtered 1D arrays */
-  verF[0] = (uint8_t)((ver[0] + 2*ver[0] + ver[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    verF[j] = (uint8_t)((ver[j-1] + 2*ver[j] + ver[j+1] + 2)>>2);
+  topF[0] = top[0] + 2* top[0] + 2*top[0] + 2* top[1] +top[2];
+  topF[1] = top[0] + 2* top[0] + 2*top[1] + 2* top[2] +top[3];
+  for (j=2;j<size-2;j++){
+    topF[j] = top[j-2] + 2*top[j-1] + 2*top[j] + 2*top[j+1] + top[j+2];
   }
-  verF[size-1] = (uint8_t)((ver[size-2] + 2*ver[size-1] + ver[size-1] + 2)>>2);
+  topF[size-2] = top[size-4]+ 2*top[size-3] + 2*top[size-2] + 2* top[size-1] + top[size-1];
+  topF[size-1] = top[size-3]+ 2*top[size-2] + 2*top[size-1] + 2* top[size-1] + top[size-1];
 
-  horF[0] = (uint8_t)((hor[0] + 2*hor[0] + hor[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    horF[j] = (uint8_t)((hor[j-1] + 2*hor[j] + hor[j+1] + 2)>>2);
+  leftF[0] = left[0] + 2* left[0] + 2*left[0] + 2* left[1] +left[2];
+  leftF[1] = left[0] + 2* left[0] + 2*left[1] + 2* left[2] +left[3];
+  for (j=2;j<size-2;j++){
+    leftF[j] = left[j-2] + 2*left[j-1] + 2*left[j] + 2*left[j+1] + left[j+2];
   }
-  horF[size-1] = (uint8_t)((hor[size-2] + 2*hor[size-1] + hor[size-1] + 2)>>2);
+  leftF[size-2] = left[size-4]+ 2*left[size-3] + 2*left[size-2] + 2* left[size-1] + left[size-1];
+  leftF[size-1] = left[size-3]+ 2*left[size-2] + 2*left[size-1] + 2* left[size-1] + left[size-1];
 
-  up_leftF = (uint8_t)((hor[0] + 2*up_left + ver[0] + 2)>>2);
+
+  top_leftF = left[1] + 2*left[0] + 2*top_left + 2*top[0]+top[1];
+
+  for (i=0;i<size;i++){
+    for (j=0;j<size;j++){
+      pblock[i*size+j] = clip255((leftF[i] + topF[j] - top_leftF + 4) / 8);
+    }
+  }
+}
+
+void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock){
+  int i,j,diag;
+
+  uint8_t topF[MAX_TR_SIZE];
+  uint8_t leftF[MAX_TR_SIZE];
+  uint8_t top_leftF;
+
+  filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = i-j;
       if (diag > 0){
-        pblock[i*size+j] = horF[diag-1];
+        pblock[i*size+j] = leftF[diag-1];
         if (diag-1 < 0) printf("error\n");
       }
       else if (diag==0)
-        pblock[i*size+j] = up_leftF;
+        pblock[i*size+j] = top_leftF;
       else{
-        pblock[i*size+j] = verF[-diag-1];
+        pblock[i*size+j] = topF[-diag-1];
         if (-diag-1 < 0) printf("error\n");
       }
     }
   }
 }
 
-void get_upright_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,int width,uint8_t *pblock,int upright_available){
+void get_upright_pred(uint8_t *top, int size, uint8_t *pblock){
   int i,j,diag;
 
   //int upright_available;
-  uint16_t ver[2*MAX_TR_SIZE];
-  uint8_t verF[2*MAX_TR_SIZE];
+  uint8_t topF[2*MAX_TR_SIZE];
 
-  //upright_available = get_upright_available(ypos,xpos,size,width);
-
-  /* Generate unfiltered 1D array */
-  if (ypos>0){
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-    if (upright_available){
-      for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+j];
-      }
-    }
-    else{
-      for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+size-1];
-      }
-    }
-  }
-  else{
-    for (j=0;j<2*size;j++){
-      ver[j] = 128;
-    }
-  }
-
-  /* Generate filtered 1D array */
-  for (j=1;j<2*size-1;j++){
-    verF[j] = (uint8_t)((ver[j-1] + 2*ver[j] + ver[j+1] + 2)>>2);
-  }
-  verF[2*size-1] = (uint8_t)((ver[2*size-2] + 2*ver[2*size-1] + ver[2*size-1] + 2)>>2);
+  filter_121(top,topF,2*size);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = i+j;
-      pblock[i*size+j] = verF[diag+1];
+      pblock[i*size+j] = topF[diag+1];
     }
   }
 }
 
-void get_upupright_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,int width,uint8_t *pblock,int upright_available){
+void get_upupright_pred(uint8_t *top,int size,uint8_t *pblock){
   int i,j,diag;
 
-  //int upright_available;
-  uint16_t ver[2*MAX_TR_SIZE];
-  uint8_t verF[2*MAX_TR_SIZE];
+  uint8_t topF[2*MAX_TR_SIZE];
 
-  //upright_available = get_upright_available(ypos,xpos,size,width);
-
-  /* Generate unfiltered 1D array */
-  if (ypos>0){
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-    if (upright_available){
-      for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+j];
-      }
-    }
-    else{
-      for (j=size;j<2*size;j++){
-        ver[j] = rec[(ypos-1)*stride+xpos+size-1];
-      }
-    }
-  }
-  else{
-    for (j=0;j<2*size;j++){
-      ver[j] = 128;
-    }
-  }
-
-  /* Generate filtered 1D array */
-  verF[0] = (uint8_t)((ver[0] + 2*ver[0] + ver[1] + 2)>>2);
-  for (j=1;j<2*size-1;j++){
-    verF[j] = (uint8_t)((ver[j-1] + 2*ver[j] + ver[j+1] + 2)>>2);
-  }
-  verF[2*size-1] = (uint8_t)((ver[2*size-2] + 2*ver[2*size-1] + ver[2*size-1] + 2)>>2);
+  filter_121(top,topF,2*size);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = i+2*j;
       if (diag&1){
-        pblock[i*size+j] = verF[(diag+1)/2];
+        pblock[i*size+j] = topF[(diag+1)/2];
       }
       else{
-        pblock[i*size+j] = (verF[diag/2] + verF[diag/2 + 1])>>1;
+        pblock[i*size+j] = (topF[diag/2] + topF[diag/2 + 1])>>1;
       }
     }
   }
 }
 
-void get_upupleft_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
+void get_upupleft_pred(uint8_t *left,uint8_t * top, uint8_t top_left, int size,uint8_t *pblock){
   int i,j,diag;
 
-  uint16_t ver[MAX_TR_SIZE];
-  uint16_t hor[MAX_TR_SIZE];
-  uint16_t up_left;
+  uint8_t topF[MAX_TR_SIZE];
+  uint8_t leftF[MAX_TR_SIZE];
+  uint8_t top_leftF;
 
-  uint8_t verF[MAX_TR_SIZE];
-  uint8_t horF[MAX_TR_SIZE];
-  uint8_t up_leftF;
-
-  /* Define unfiltered arrays */
-  if (ypos>0){
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-  }
-  else{
-    for (j=0;j<size;j++){
-      ver[j] = 128;
-    }
-  }
-
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      hor[i] = 128;
-    }
-  }
-
-  if (xpos>0 && ypos>0){
-    up_left = rec[(ypos-1)*stride+xpos-1];
-  }
-  else{
-    up_left = 128;
-  }
-
-  /* Calculate filtered 1D arrays */
-  verF[0] = (uint8_t)((ver[0] + 2*ver[0] + ver[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    verF[j] = (uint8_t)((ver[j-1] + 2*ver[j] + ver[j+1] + 2)>>2);
-  }
-  verF[size-1] = (uint8_t)((ver[size-2] + 2*ver[size-1] + ver[size-1] + 2)>>2);
-
-  horF[0] = (uint8_t)((hor[0] + 2*hor[0] + hor[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    horF[j] = (uint8_t)((hor[j-1] + 2*hor[j] + hor[j+1] + 2)>>2);
-  }
-  horF[size-1] = (uint8_t)((hor[size-2] + 2*hor[size-1] + hor[size-1] + 2)>>2);
-
-  up_leftF = (uint8_t)((hor[0] + 2*up_left + ver[0] + 2)>>2);
+  filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = i-2*j;
       if (diag > 1){
-        pblock[i*size+j] = horF[diag-2];
+        pblock[i*size+j] = leftF[diag-2];
       }
       else if (diag == 1)
-        pblock[i*size+j] = up_leftF;
+        pblock[i*size+j] = top_leftF;
       else if (diag == 0)
-        pblock[i*size+j] = (up_leftF + verF[0])>>1;
+        pblock[i*size+j] = (top_leftF + topF[0])>>1;
       else{
+        assert((-diag)/2 < size);
         if (diag&1)
-          pblock[i*size+j] = verF[(-diag)/2];
+          pblock[i*size+j] = topF[(-diag)/2];
         else
-          pblock[i*size+j] = (verF[(-diag)/2] + verF[((-diag)/2) - 1])>>1;
+          pblock[i*size+j] = (topF[(-diag)/2] + topF[((-diag)/2) - 1])>>1;
       }
     }
   }
 }
 
-void get_upleftleft_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
+void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock){
   int i,j,diag;
 
-  uint16_t ver[MAX_TR_SIZE];
-  uint16_t hor[MAX_TR_SIZE];
-  uint16_t up_left;
+  uint8_t topF[MAX_TR_SIZE];
+  uint8_t leftF[MAX_TR_SIZE];
+  uint8_t top_leftF;
 
-  uint8_t verF[MAX_TR_SIZE];
-  uint8_t horF[MAX_TR_SIZE];
-  uint8_t up_leftF;
-
-  /* Define unfiltered arrays */
-  if (ypos>0){
-    for (j=0;j<size;j++){
-      ver[j] = rec[(ypos-1)*stride+xpos+j];
-    }
-  }
-  else{
-    for (j=0;j<size;j++){
-      ver[j] = 128;
-    }
-  }
-
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      hor[i] = 128;
-    }
-  }
-
-  if (xpos>0 && ypos>0){
-    up_left = rec[(ypos-1)*stride+xpos-1];
-  }
-  else{
-    up_left = 128;
-  }
-
-  /* Calculate filtered 1D arrays */
-  verF[0] = (uint8_t)((ver[0] + 2*ver[0] + ver[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    verF[j] = (uint8_t)((ver[j-1] + 2*ver[j] + ver[j+1] + 2)>>2);
-  }
-  verF[size-1] = (uint8_t)((ver[size-2] + 2*ver[size-1] + ver[size-1] + 2)>>2);
-
-  horF[0] = (uint8_t)((hor[0] + 2*hor[0] + hor[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    horF[j] = (uint8_t)((hor[j-1] + 2*hor[j] + hor[j+1] + 2)>>2);
-  }
-  horF[size-1] = (uint8_t)((hor[size-2] + 2*hor[size-1] + hor[size-1] + 2)>>2);
-
-  up_leftF = (uint8_t)((hor[0] + 2*up_left + ver[0] + 2)>>2);
+  filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = 2*i-j;
       if (diag < -1){
-        pblock[i*size+j] = verF[-diag-2];
+        pblock[i*size+j] = topF[-diag-2];
       }
       else if (diag == -1)
-        pblock[i*size+j] = up_leftF;
+        pblock[i*size+j] = top_leftF;
       else if (diag == 0)
-        pblock[i*size+j] = (up_leftF + horF[0])>>1;
+        pblock[i*size+j] = (top_leftF + leftF[0])>>1;
       else{
+        assert(diag/2 < size);
         if (diag&1)
-          pblock[i*size+j] = horF[diag/2];
+          pblock[i*size+j] = leftF[diag/2];
         else
-          pblock[i*size+j] = (horF[diag/2] + horF[diag/2 - 1])>>1;
+          pblock[i*size+j] = (leftF[diag/2] + leftF[diag/2 - 1])>>1;
       }
     }
   }
 }
 
-void get_downleftleft_pred(uint8_t *rec,int ypos,int xpos,int stride,int size,uint8_t *pblock){
+void get_downleftleft_pred(uint8_t *left,int size,uint8_t *pblock){
   int i,j,diag;
 
-  uint16_t hor[MAX_TR_SIZE];
-  uint8_t horF[2*MAX_TR_SIZE];
-  if (xpos>0){
-    for (i=0;i<size;i++){
-      hor[i] = rec[(ypos+i)*stride+xpos-1];
-    }
-  }
-  else{
-    for (i=0;i<size;i++){
-      hor[i] = 128;
-    }
-  }
-  horF[0] = (uint8_t)((hor[0] + 2*hor[0] + hor[1] + 2)>>2);
-  for (j=1;j<size-1;j++){
-    horF[j] = (uint8_t)((hor[j-1] + 2*hor[j] + hor[j+1] + 2)>>2);
-  }
-  horF[size-1] = (uint8_t)((hor[size-2] + 2*hor[size-1] + hor[size-1] + 2)>>2);
-  for (j=size;j<2*size-1;j++){
-    horF[j] = horF[size-1];
-  }
+  uint8_t leftF[2*MAX_TR_SIZE];
+
+  filter_121(left,leftF,2*size);
 
   /* Perform prediction */
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = 2*i+j;
-      if (diag&1)
-        pblock[i*size+j] = horF[(diag+1)/2];
-      else
-        pblock[i*size+j] = (horF[diag/2] + horF[diag/2 + 1])>>1;
+      if (diag&1) {
+        pblock[i*size+j] = leftF[(diag+1)/2];
+      } else {
+        pblock[i*size+j] = (leftF[diag/2] + leftF[diag/2 + 1])>>1;
+      }
     }
   }
 }
 
-void get_intra_prediction(uint8_t *rec,int ypos,int xpos,int stride,int size,int width,uint8_t *pblock,intra_mode_t intra_mode,int upright_available)
+void get_intra_prediction(uint8_t* left, uint8_t* top, uint8_t top_left, int ypos,int xpos,
+    int size, uint8_t *pblock,intra_mode_t intra_mode)
 {
   if (intra_mode == MODE_DC)
-    get_dc_pred(rec,ypos,xpos,stride,size,pblock);
+    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left ,size,pblock);
   else if (intra_mode == MODE_HOR)
-    get_hor_pred(rec,ypos,xpos,stride,size,pblock);
+    get_hor_pred(left,size,pblock);
   else if (intra_mode == MODE_VER)
-    get_ver_pred(rec,ypos,xpos,stride,size,pblock);
+    get_ver_pred(top,size,pblock);
   else if (intra_mode == MODE_PLANAR)
-    get_planar_pred(rec,ypos,xpos,stride,size,pblock);
+    get_planar_pred(left,top,top_left,size,pblock);
   else if (intra_mode == MODE_UPLEFT)
-    get_upleft_pred(rec,ypos,xpos,stride,size,pblock);
+    get_upleft_pred(left,top,top_left,size,pblock);
   else if (intra_mode == MODE_UPRIGHT)
-    get_upright_pred(rec,ypos,xpos,stride,size,width,pblock,upright_available);
+    get_upright_pred(top,size,pblock);
   else if (intra_mode == MODE_UPUPRIGHT)
-    get_upupright_pred(rec,ypos,xpos,stride,size,width,pblock,upright_available);
+    get_upupright_pred(top,size,pblock);
   else if (intra_mode == MODE_UPUPLEFT)
-    get_upupleft_pred(rec,ypos,xpos,stride,size,pblock);
+    get_upupleft_pred(left,top,top_left,size,pblock);
   else if (intra_mode == MODE_UPLEFTLEFT)
-    get_upleftleft_pred(rec,ypos,xpos,stride,size,pblock);
+    get_upleftleft_pred(left,top,top_left,size,pblock);
   else if (intra_mode == MODE_DOWNLEFTLEFT)
-    get_downleftleft_pred(rec,ypos,xpos,stride,size,pblock);
+    get_downleftleft_pred(left,size,pblock);
+  else
+    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left ,size,pblock);
 }
+

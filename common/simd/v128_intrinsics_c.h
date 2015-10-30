@@ -535,12 +535,20 @@ SIMD_INLINE c_v128 c_v128_cmpgt_s8(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_cmpgt_s8(a.v64[1], b.v64[1]), c_v64_cmpgt_s8(a.v64[0], b.v64[0]));
 }
 
+SIMD_INLINE c_v128 c_v128_cmplt_s8(c_v128 a, c_v128 b) {
+  return c_v128_from_v64(c_v64_cmplt_s8(a.v64[1], b.v64[1]), c_v64_cmplt_s8(a.v64[0], b.v64[0]));
+}
+
 SIMD_INLINE c_v128 c_v128_cmpeq_8(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_cmpeq_8(a.v64[1], b.v64[1]), c_v64_cmpeq_8(a.v64[0], b.v64[0]));
 }
 
 SIMD_INLINE c_v128 c_v128_cmpgt_s16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_cmpgt_s16(a.v64[1], b.v64[1]), c_v64_cmpgt_s16(a.v64[0], b.v64[0]));
+}
+
+SIMD_INLINE c_v128 c_v128_cmplt_s16(c_v128 a, c_v128 b) {
+  return c_v128_from_v64(c_v64_cmplt_s16(a.v64[1], b.v64[1]), c_v64_cmplt_s16(a.v64[0], b.v64[0]));
 }
 
 SIMD_INLINE c_v128 c_v128_cmpeq_16(c_v128 a, c_v128 b) {

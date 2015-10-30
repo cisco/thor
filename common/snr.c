@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <math.h>
 #include "snr.h"
 
-int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,int stride_y,int stride_c)
+int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width)
 {
     unsigned int ydim,ydim_chr;
     unsigned int i,j,xdim,xdim_chr;
@@ -42,13 +42,18 @@ int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,i
     ydim = height;
     ydim_chr = ydim >> 1;
 
+    int s1y = f1->stride_y;
+    int s2y = f2->stride_y;
+    int s1c = f1->stride_c;
+    int s2c = f2->stride_c;
+
     /* Calculate psnr for Y */
     sumsqr = 0;
     for (i = 0; i < ydim; i++)
     {
       for (j = 0; j < xdim; j++)
       {
-        ival = abs(f1->y[i*stride_y+j] - f2->y[i*stride_y+j]);
+        ival = abs(f1->y[i*s1y+j] - f2->y[i*s2y+j]);
         sumsqr += (float)(ival * ival);
       }
     }
@@ -61,7 +66,7 @@ int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,i
     {
       for (j = 0; j < xdim_chr; j++)
       {
-        ival = abs(f1->u[i*stride_c+j] - f2->u[i*stride_c+j]);
+        ival = abs(f1->u[i*s1c+j] - f2->u[i*s2c+j]);
         sumsqr += (ival * ival);
       }
     }
@@ -74,7 +79,7 @@ int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,i
     {
       for (j = 0; j < xdim_chr; j++)
       {
-        ival = abs(f1->v[i*stride_c+j] - f2->v[i*stride_c+j]);
+        ival = abs(f1->v[i*s1c+j] - f2->v[i*s2c+j]);
         sumsqr += (ival * ival);
       }
     }

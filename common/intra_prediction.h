@@ -28,15 +28,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _INTRA_PREDICTION_H_
 #include "types.h"
 
-void get_dc_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_hor_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_ver_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_planar_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_upleft_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_upright_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,int width,uint8_t *pblock,int upright_available);
-void get_upupright_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,int width,uint8_t *pblock,int upright_available);
-void get_upupleft_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_upleftleft_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_downleftleft_pred(uint8_t *rec,int yposY,int xposY,int stride,int size,uint8_t *pblock);
-void get_intra_prediction(uint8_t *rec,int yposY,int xposY,int stride,int size,int width,uint8_t *pblock,intra_mode_t intra_mode,int upright_available);
+void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* rec_frame, int fstride, uint8_t* rblock, int rbstride, int i, int j,
+    int ypos, int xpos, int size, int upright_available,int downleft_available, int tb_split);
+void get_dc_pred(uint8_t* left, uint8_t* top, int size,uint8_t *pblock);
+void get_hor_pred(uint8_t* left, int size,uint8_t *pblock);
+void get_ver_pred(uint8_t* top, int size,uint8_t *pblock);
+void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left,int size,uint8_t *pblock);
+void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock);
+void get_upright_pred(uint8_t *top, int size, uint8_t *pblock);
+void get_upupright_pred(uint8_t *top,int size,uint8_t *pblock);
+void get_upupleft_pred(uint8_t *left,uint8_t * top, uint8_t top_left, int size,uint8_t *pblock);
+void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock);
+void get_downleftleft_pred(uint8_t *left,int size,uint8_t *pblock);
+
+void get_intra_prediction(uint8_t* left, uint8_t* top, uint8_t top_left, int ypos,int xpos,
+    int size, uint8_t *pblock,intra_mode_t intra_mode);
 #endif

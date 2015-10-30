@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "encode_block.h"
 #include "common_block.h"
 #include "common_frame.h"
-
+#include "enc_kernels.h"
 
 extern int chroma_qp[52];
 const double squared_lambda_QP [52] = {
@@ -43,57 +43,24 @@ const double squared_lambda_QP [52] = {
     1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
 };
 
-void clpf_frame(encoder_info_t *encoder_info){
-
-  /* Constrained low-pass filter (CLPF) */
-  stream_t *stream = encoder_info->stream;
-  int width = encoder_info->width;
-  int height = encoder_info->height;
-  int xpos,ypos,index,filter_flag,filter;
-  int k,l,x0,x1,y0,y1;
-  uint8_t *recY = encoder_info->rec->y;
-  uint8_t *recU = encoder_info->rec->u;
-  uint8_t *recV = encoder_info->rec->v;
-  uint8_t *orgY = encoder_info->orig->y;
-  int stride_y = encoder_info->rec->stride_y;
-  int stride_c = encoder_info->rec->stride_c;
-  int num_sb_hor = width/MAX_BLOCK_SIZE;
-  int num_sb_ver = height/MAX_BLOCK_SIZE;
-  for (k=0;k<num_sb_ver;k++){
-    for (l=0;l<num_sb_hor;l++){
-      xpos = l*MAX_BLOCK_SIZE;
-      ypos = k*MAX_BLOCK_SIZE;
-      index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-      filter_flag = encoder_info->deblock_data[index].size < 64 ||
-                    encoder_info->deblock_data[index].mode != MODE_SKIP ||
-                    encoder_info->deblock_data[index].mvb.x0 != 0 ||
-                    encoder_info->deblock_data[index].mvb.y0 != 0;
-      if (filter_flag){
-        x0 = max(1,xpos);
-        x1 = min(width-1,xpos+MAX_BLOCK_SIZE);
-        y0 = max(1,ypos);
-        y1 = min(height-1,ypos+MAX_BLOCK_SIZE);
-        filter = detect_clpf(orgY,recY,x0,x1,y0,y1,stride_y);
-        putbits(1,filter,stream);
-
-        if (filter){
-
-          /* Y */
-          clpf_block(recY,x0,x1,y0,y1,stride_y);
-
-          /* C */
-          x0 = max(1,xpos/2);
-          x1 = min(width/2-1,(xpos+MAX_BLOCK_SIZE)/2);
-          y0 = max(1,ypos/2);
-          y1 = min(height/2-1,(ypos+MAX_BLOCK_SIZE)/2);
-          clpf_block(recU,x0,x1,y0,y1,stride_c);
-          clpf_block(recV,x0,x1,y0,y1,stride_c);
-        }
-      }
-    }
-  }
+static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream) {
+  return 1;
 }
 
+static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream) {
+    int sum0 = 0, sum1 = 0;
+  for (int m=0;m<MAX_BLOCK_SIZE/block_size;m++){
+    for (int n=0;n<MAX_BLOCK_SIZE/block_size;n++){
+      int xpos = l*MAX_BLOCK_SIZE + n*block_size;
+      int ypos = k*MAX_BLOCK_SIZE + m*block_size;
+      int index = (ypos/MIN_PB_SIZE)*(rec->width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
+      if (deblock_data[index].cbp.y && deblock_data[index].mode != MODE_BIPRED)
+        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y,org->y,xpos,ypos,rec->width,rec->height,org->stride_y,rec->stride_y,&sum0,&sum1);
+    }
+  }
+  putbits(1, sum1 < sum0, (stream_t*)stream);
+  return sum1 < sum0;
+}
 
 void encode_frame(encoder_info_t *encoder_info)
 {
@@ -104,9 +71,26 @@ void encode_frame(encoder_info_t *encoder_info)
   int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
   stream_t *stream = encoder_info->stream;
 
+  memset(encoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
+
   frame_info_t *frame_info = &(encoder_info->frame_info);
-  double lambda_coeff = frame_info->frame_type==I_FRAME ? encoder_info->params->lambda_coeffI :
-    (frame_info->frame_type==P_FRAME ? encoder_info->params->lambda_coeffP : encoder_info->params->lambda_coeffB);
+  double lambda_coeff;
+  if (frame_info->frame_type == I_FRAME)
+    lambda_coeff = encoder_info->params->lambda_coeffI;
+  else if(frame_info->frame_type == P_FRAME)
+    lambda_coeff = encoder_info->params->lambda_coeffP;
+  else{
+    if (frame_info->b_level==0)
+      lambda_coeff = encoder_info->params->lambda_coeffB0;
+    else if(frame_info->b_level == 1)
+      lambda_coeff = encoder_info->params->lambda_coeffB1;
+    else if (frame_info->b_level == 2)
+      lambda_coeff = encoder_info->params->lambda_coeffB2;
+    else if (frame_info->b_level == 3)
+      lambda_coeff = encoder_info->params->lambda_coeffB3;
+    else
+      lambda_coeff = encoder_info->params->lambda_coeffB;
+  }
   frame_info->lambda = lambda_coeff*squared_lambda_QP[frame_info->qp];
 
   putbits(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
@@ -114,15 +98,25 @@ void encode_frame(encoder_info_t *encoder_info)
   putbits(8,(int)qp,stream);
   putbits(4,(int)encoder_info->frame_info.num_intra_modes,stream);
 
+  // Signal actual number of reference frames
+  if (frame_info->frame_type!=I_FRAME)
+    putbits(2,encoder_info->frame_info.num_ref-1,stream);
+
   int r;
   for (r=0;r<encoder_info->frame_info.num_ref;r++){
-    putbits(4,encoder_info->frame_info.ref_array[r],stream);
+    putbits(6,encoder_info->frame_info.ref_array[r]+1,stream);
   }
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
       int xposY = l*MAX_BLOCK_SIZE;
       int yposY = k*MAX_BLOCK_SIZE;
+
+      for (int ref_idx = 0; ref_idx <= frame_info->num_ref - 1; ref_idx++){
+        frame_info->mvcand_num[ref_idx] = 0;
+        frame_info->mvcand_mask[ref_idx] = 0;
+      }
+      frame_info->best_ref = -1;
 
       int max_delta_qp = encoder_info->params->max_delta_qp;
       if (max_delta_qp){
@@ -146,26 +140,6 @@ void encode_frame(encoder_info_t *encoder_info)
         process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,best_qp);
       }
       else{
-#if NEW_BLOCK_STRUCTURE
-        int depth;
-        int best_depth;
-        uint32_t cost,min_cost;
-        stream_pos_t stream_pos_ref;
-        read_stream_pos(&stream_pos_ref,stream);
-        best_depth = 0;
-        min_cost = (1<<30);
-        int max_depth = frame_info->frame_type==I_FRAME || yposY + MAX_BLOCK_SIZE > height || xposY + MAX_BLOCK_SIZE > width ? 4 : 3;
-        for (depth=0;depth<max_depth;depth++){
-          encoder_info->depth = depth;
-          cost = process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp);
-          if (cost < min_cost){
-            min_cost = cost;
-            best_depth = depth;
-          }
-        }
-        write_stream_pos(stream,&stream_pos_ref);
-        encoder_info->depth = best_depth;
-#endif
         process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp);
       }
     }
@@ -177,10 +151,13 @@ void encode_frame(encoder_info_t *encoder_info)
     deblock_frame_uv(encoder_info->rec, encoder_info->deblock_data, width, height, qpc);
   }
 
+  int sb_signal = 1;
+
   if (encoder_info->params->clpf){
-    if ((frame_info->frame_num%CLPF_PERIOD)==0){
-      clpf_frame(encoder_info);
-    }
+    putbits(1, 1, stream);
+    putbits(1, !sb_signal, stream);
+    clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream,
+               sb_signal ? clpf_decision : clpf_true);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */
@@ -201,8 +178,8 @@ void encode_frame(encoder_info_t *encoder_info)
   /* To test sliding window operation */
   int offsetx = 500;
   int offsety = 200;
-  int offset_rec = encoder_info->rec->offset_y + offsety * encoder_info->rec->stride_y +  offsetx;
-  int offset_ref = encoder_info->ref[0]->offset_y + offsety * encoder_info->ref[0]->stride_y +  offsetx;
+  int offset_rec = offsety * encoder_info->rec->stride_y +  offsetx;
+  int offset_ref = offsety * encoder_info->ref[0]->stride_y +  offsetx;
   printf("rec: %3d ",encoder_info->rec->y[offset_rec]);
   printf("ref: ");
   for (r=0;r<MAX_REF_FRAMES;r++){

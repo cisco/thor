@@ -30,109 +30,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include "putbits.h"
 
-static unsigned int mask[33] = {
-    0x00000000,0x00000001,0x00000003,0x00000007,
-    0x0000000f,0x0000001f,0x0000003f,0x0000007f,
-    0x000000ff,0x000001ff,0x000003ff,0x000007ff,
-    0x00000fff,0x00001fff,0x00003fff,0x00007fff,
-    0x0000ffff,0x0001ffff,0x0003ffff,0x0007ffff,
-    0x000fffff,0x001fffff,0x003fffff,0x007fffff,
-    0x00ffffff,0x01ffffff,0x03ffffff,0x07ffffff,
-    0x0fffffff,0x1fffffff,0x3fffffff,0x7fffffff,
-    0xffffffff};
-
-void flush_bytebuf(stream_t *str, FILE *outfile)
-{
-  if (outfile)
-  {
-    if (fwrite(str->bitstream,sizeof(unsigned char),str->bytepos,outfile) != str->bytepos)
-    {
-      fatalerror("Problem writing bitstream to file.");
-    }
-  }
-  str->bytepos = 0;
-}
-
-
 void flush_all_bits(stream_t *str, FILE *outfile)
 {
+  unsigned char *buf;
+  uint32_t frame_bytes;
   int i;
-  int bytes = 4 - str->bitrest/8;
-
-  printf("final flush: bytes=%4d\n",bytes);
-  if ((str->bytepos+bytes) > str->bytesize)
-  {
-    flush_bytebuf(str,outfile);
-  }
-  for (i = 0; i < bytes; i++)
-  {
-    str->bitstream[str->bytepos++] = (str->bitbuf >> (24-i*8)) & 0xff;
-  }
-
+  buf = od_ec_enc_done(str, &frame_bytes);
   if (outfile)
   {
-    if (fwrite(str->bitstream,sizeof(unsigned char),str->bytepos,outfile) != str->bytepos)
+    uint8_t frame_bytes_buf[4];
+    for (i = 0; i < 4; i++)
+    {
+      frame_bytes_buf[i] = (uint8_t)(frame_bytes >> (24 - i*8));
+    }
+    if (fwrite(frame_bytes_buf, sizeof(frame_bytes_buf), 1, outfile) != 1
+     || fwrite(buf, sizeof(*buf), frame_bytes, outfile) != frame_bytes)
     {
       fatalerror("Problem writing bitstream to file.");
     }
   }
-  str->bytepos = 0;
-}    
-                    
-
-void flush_bitbuf(stream_t *str)
-{
-  if ((str->bytepos+4) > str->bytesize)
-  {
-    fatalerror("Run out of bits in stream buffer.");
-  }
-  str->bitstream[str->bytepos++] = (str->bitbuf >> 24) & 0xff;
-  str->bitstream[str->bytepos++] = (str->bitbuf >> 16) & 0xff;
-  str->bitstream[str->bytepos++] = (str->bitbuf >> 8) & 0xff;
-  str->bitstream[str->bytepos++] = str->bitbuf & 0xff;
-  str->bitbuf = 0;
-  str->bitrest = 32;
-}
-
-void putbits(unsigned int n, unsigned int val, stream_t *str)
-{
-  unsigned int rest;
-
-  if (n <= str->bitrest)
-  {
-    str->bitbuf |= ((val & mask[n]) << (str->bitrest-n));
-    str->bitrest -= n;
-  }
-  else
-  {
-    rest = n-str->bitrest;
-    str->bitbuf |= (val >> rest) & mask[n-rest];
-    flush_bitbuf(str);
-    str->bitbuf |= (val & mask[rest]) << (32-rest);
-    str->bitrest -= rest;
-  }
-}
-
-int get_bit_pos(stream_t *str){
-  int bitpos = 8*str->bytepos + (32 - str->bitrest);
-  return bitpos; 
-}
-
-void write_stream_pos(stream_t *stream, stream_pos_t *stream_pos){
-  stream->bitrest = stream_pos->bitrest;
-  stream->bytepos = stream_pos->bytepos;
-  stream->bitbuf = stream_pos->bitbuf;
-}
-
-void read_stream_pos(stream_pos_t *stream_pos, stream_t *stream){
-  stream_pos->bitrest = stream->bitrest;
-  stream_pos->bytepos = stream->bytepos;
-  stream_pos->bitbuf = stream->bitbuf;
-}
-
-void copy_stream(stream_t *str1, stream_t *str2){
-  str1->bitrest = str2->bitrest;
-  str1->bytepos = str2->bytepos;
-  str1->bitbuf = str2->bitbuf;
-  memcpy(&(str1->bitstream[0]),&(str2->bitstream[0]),str2->bytepos*sizeof(uint8_t));
+  od_ec_enc_reset(str);
 }

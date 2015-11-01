@@ -171,11 +171,7 @@ int main(int argc, char **argv)
 
   /* Initialize main bit stream */
   stream_t stream;
-  stream.bitstream = (uint8_t *)malloc(MAX_BUFFER_SIZE * sizeof(uint8_t));
-  stream.bitbuf = 0;
-  stream.bitrest = 32;
-  stream.bytepos = 0;
-  stream.bytesize = MAX_BUFFER_SIZE;
+  od_ec_enc_init(&stream, MAX_BUFFER_SIZE);
 
   /* Configure encoder */
   encoder_info.params = params;
@@ -569,7 +565,7 @@ int main(int argc, char **argv)
       fflush(stdout);
 
       /* Write compressed bits for this frame to file */
-      flush_bytebuf(&stream, strfile);
+      flush_all_bits(&stream, strfile);
 
       if (reconfile){
         /* Write output frame */
@@ -601,7 +597,6 @@ int main(int argc, char **argv)
   }
 
 
-  flush_all_bits(&stream, strfile);
   bit_rate_in_kbps = 0.001*params->frame_rate*(double)acc_num_bits/num_encoded_frames;
 
   /* Finised encoding sequence */
@@ -651,7 +646,7 @@ int main(int argc, char **argv)
   {
     fclose(reconfile);
   }
-  free(stream.bitstream);
+  od_ec_enc_clear(&stream);
   free(encoder_info.deblock_data);
   delete_config_params(params);
   return 0;

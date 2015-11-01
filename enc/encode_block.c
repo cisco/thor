@@ -2942,6 +2942,9 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       write_data.size = size;
       write_data.block_context = block_info.block_context;
       write_data.frame_type = frame_type;
+      // We can't use encode_rectangular_size here directly, because it is
+      // never true for I frames. !encode_this_size is what we actually want.
+      write_data.encode_rectangular_size = !encode_this_size;
       write_super_mode(stream, &write_data, split_flag);
     }
     else{

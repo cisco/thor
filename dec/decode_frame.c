@@ -52,7 +52,7 @@ void decode_frame(decoder_info_t *decoder_info)
   stream_t *stream = decoder_info->stream;
   memset(decoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
-  int bit_start = stream->bitcnt;
+  int bit_start = od_ec_dec_tell(&stream->ec);
 
   decoder_info->frame_info.frame_type = getbits(stream,1);
   int qp = getbits(stream,8);
@@ -92,7 +92,8 @@ void decode_frame(decoder_info_t *decoder_info)
   decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
   if (decoder_info->frame_info.frame_type != I_FRAME && decoder_info->num_reorder_pics > 0 && decoder_info->frame_info.display_frame_num%(decoder_info->num_reorder_pics+1)) 
       decoder_info->bit_count.stat_frame_type = B_FRAME;
-  decoder_info->bit_count.frame_header[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);
+  decoder_info->bit_count.frame_header[decoder_info->bit_count.stat_frame_type] +=
+   (od_ec_dec_tell(&stream->ec) - bit_start);
   decoder_info->bit_count.frame_type[decoder_info->bit_count.stat_frame_type] += 1;
   decoder_info->frame_info.qp = qp;
   decoder_info->frame_info.qpb = qp;

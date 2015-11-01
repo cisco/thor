@@ -24,123 +24,80 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "global.h"
 #include "getbits.h"
 
-
-/* to mask the n least significant bits of an integer */
-static const unsigned int msk[33] =
-{
-  0x00000000,0x00000001,0x00000003,0x00000007,
-  0x0000000f,0x0000001f,0x0000003f,0x0000007f,
-  0x000000ff,0x000001ff,0x000003ff,0x000007ff,
-  0x00000fff,0x00001fff,0x00003fff,0x00007fff,
-  0x0000ffff,0x0001ffff,0x0003ffff,0x0007ffff,
-  0x000fffff,0x001fffff,0x003fffff,0x007fffff,
-  0x00ffffff,0x01ffffff,0x03ffffff,0x07ffffff,
-  0x0fffffff,0x1fffffff,0x3fffffff,0x7fffffff,
-  0xffffffff
-};
-
 int initbits_dec(FILE *infile, stream_t *str)
 {
-  fpos_t fpos[1];
-  long pos1,pos2;
-
-  str->incnt = 0;
-  str->rdptr = str->rdbfr + 2048;
-  str->bitcnt = 0;
+  uint8_t frame_bytes_buf[4];
+  uint32_t length;
+  int ret;
   str->infile = infile;
-
-  fgetpos(str->infile,fpos);
-  pos1 = ftell(str->infile);
-  fseek(str->infile,0,SEEK_END);
-  pos2 = ftell(str->infile);
-  fsetpos(str->infile,fpos);
-  str->length = pos2 - pos1;
-  return 0;
-}
-
-int fillbfr(stream_t *str)
-{
-    //int l;
-
-  while (str->incnt <= 24 && (str->rdptr < str->rdbfr + 2048))
+  length = 0;
+  ret = fread(frame_bytes_buf, sizeof(frame_bytes_buf), 1, infile) != 1;
+  if (!ret)
   {
-    str->inbfr = (str->inbfr << 8) | *str->rdptr++;
-    str->incnt += 8;
-  }
-
-  if (str->rdptr >= str->rdbfr + 2048)
-  {
-    //l = (int)fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
-    fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
-    str->rdptr = str->rdbfr;
-
-    while (str->incnt <= 24 && (str->rdptr < str->rdbfr + 2048))
+    unsigned char *buf;
+    length = frame_bytes_buf[0] << 24 | frame_bytes_buf[1] << 16
+     | frame_bytes_buf[2] << 8 | frame_bytes_buf[3];
+    buf = realloc(str->buf, sizeof(*buf)*length);
+    ret = buf == NULL;
+    if (!ret)
     {
-      str->inbfr = (str->inbfr << 8) | *str->rdptr++;
-      str->incnt += 8;
+      ret = fread(buf, sizeof(*buf), length, str->infile) != length;
+      if (!ret)
+      {
+        od_ec_dec_init(&str->ec, buf, length);
+      }
     }
   }
-
-  return 0;
+  return ret;
 }
 
-unsigned int getbits(stream_t *str, int n)
-{
-
-  if (str->incnt < n)
-  {
-    fillbfr(str);
-    if (str->incnt < n)
-    {
-      unsigned int l = str->inbfr;
-      unsigned int k = *str->rdptr++;
-      int shift = n-str->incnt;
-      str->inbfr = (str->inbfr << 8) | k;
-      str->incnt = str->incnt - n + 8;
-      str->bitcnt += n;
-      return (((l << shift) | (k >> (8-shift))) & msk[n]);
-    }
-  }
-
-  str->incnt -= n;
-  str->bitcnt += n;
-  return ((str->inbfr >> str->incnt) & msk[n]);
-}
-
-unsigned int getbits1(stream_t *str)
-{
-  if (str->incnt < 1)
-  {
-    fillbfr(str);
-  }
-  str->incnt--;
-  str->bitcnt++;
-  return ((str->inbfr >> str->incnt) & 1);
-}
+/*This is meant to be a large, positive constant that can still be efficiently
+   loaded as an immediate (on platforms like ARM, for example).
+  Even relatively modest values like 100 would work fine.*/
+#define OD_EC_LOTS_OF_BITS (0x4000)
 
 unsigned int showbits(stream_t *str, int n)
 {
-  if (str->incnt < n)
-  {
-    fillbfr(str);
-    if (str->incnt < n)
-    {
-      int shift = n-str->incnt;
-      return (((str->inbfr << shift) | (str->rdptr[0] >> (8-shift))) & msk[n]);
+  od_ec_window window;
+  int available;
+  uint32_t ret;
+  OD_ASSERT(n <= 25);
+  window = str->ec.end_window;
+  available = str->ec.nend_bits;
+  if ((unsigned)available < n) {
+    const unsigned char *buf;
+    const unsigned char *eptr;
+    buf = str->ec.buf;
+    eptr = str->ec.eptr;
+    OD_ASSERT(available <= OD_EC_WINDOW_SIZE - 8);
+    do {
+      if (eptr <= buf) {
+        str->ec.tell_offs += OD_EC_LOTS_OF_BITS - available;
+        available = OD_EC_LOTS_OF_BITS;
+        break;
+      }
+      window |= (od_ec_window)*--eptr << available;
+      available += 8;
     }
+    while (available <= OD_EC_WINDOW_SIZE - 8);
+    str->ec.eptr = eptr;
+    str->ec.end_window = window;
+    str->ec.nend_bits = available;
   }
-
-  return ((str->inbfr >> (str->incnt-n)) & msk[n]);
+  ret = (uint32_t)window & (((uint32_t)1 << n) - 1);
+  OD_ASSERT(n > 0);
+  return bitreverse(ret << (32 - n));
 }
 
-int flushbits(stream_t *str, int n)
+void flushbits(stream_t *str, int n)
 {
-  str->incnt -= n;
-  str->bitcnt += n;
-  return 0;
+  OD_ASSERT(str->ec.nend_bits >= n);
+  str->ec.end_window >>= n;
+  str->ec.nend_bits -= n;
 }

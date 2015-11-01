@@ -126,6 +126,7 @@ int main(int argc, char** argv)
     int decode_frame_num = 0;
     int frame_count = 0;
     int last_frame_output = -1;
+    int done = 0;
     int width;
     int height;
     int r;
@@ -139,13 +140,14 @@ int main(int argc, char** argv)
 	  int input_file_size = ftell(infile);
 	  fseek(infile, 0, SEEK_SET);
     
+    memset(&stream, 0, sizeof(stream));
     initbits_dec(infile, &stream);
 
     decoder_info.stream = &stream;
 
     memset(&decoder_info.bit_count,0,sizeof(bit_count_t));
 
-    int bit_start = stream.bitcnt;
+    int bit_start = od_ec_dec_tell(&stream.ec);
     /* Read sequence header */
     width = getbits(&stream,16);
     height = getbits(&stream,16);
@@ -176,7 +178,8 @@ int main(int argc, char** argv)
     decoder_info.use_block_contexts = getbits(&stream,1);
     decoder_info.bipred = getbits(&stream,1);
 
-    decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
+    decoder_info.bit_count.sequence_header +=
+     (od_ec_dec_tell(&stream.ec) - bit_start);
 
     for (r=0;r<MAX_REORDER_BUFFER;r++){
       create_yuv_frame(&rec[r],width,height,0,0,0,0);
@@ -194,7 +197,7 @@ int main(int argc, char** argv)
 
     decoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
-    while (stream.bitcnt < 8*input_file_size - 8)
+    do
     {
       decoder_info.frame_info.decode_order_frame_num = decode_frame_num;
       decoder_info.frame_info.display_frame_num = (frame_count/sub_gop)*sub_gop+reorder_frame_offset(frame_count % sub_gop, sub_gop,decoder_info.dyadic_coding);
@@ -203,6 +206,7 @@ int main(int argc, char** argv)
         decoder_info.rec = &rec[rec_buffer_idx];
         decoder_info.rec->frame_num = decoder_info.frame_info.display_frame_num;
         decode_frame(&decoder_info);
+        done = initbits_dec(infile, &stream);
         rec_available[rec_buffer_idx]=1;
 
         rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
@@ -212,11 +216,12 @@ int main(int argc, char** argv)
           rec_available[rec_buffer_idx] = 0;
         }
         printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
-            decode_frame_num,decoder_info.frame_info.display_frame_num,input_file_size,stream.bitcnt);
+            decode_frame_num,decoder_info.frame_info.display_frame_num,input_file_size,od_ec_dec_tell(&stream.ec));
         decode_frame_num++;
       }
       frame_count++;
     }
+    while (!done);
     // Output the tail
     int i,j;
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {

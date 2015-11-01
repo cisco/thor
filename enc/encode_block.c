@@ -1423,8 +1423,9 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
   int div = split + 1;
   int bwidth = block_info->block_pos.bwidth/div;
   int bheight = block_info->block_pos.bheight/div;
-  int pstride = block_info->block_pos.bwidth;
-  int rstride = ref->stride_y;
+  int pstride = block_info->block_pos.size;
+  int rstride_y = ref->stride_y;
+  int rstride_c = ref->stride_c;
   int index;
   int yposY = block_info->block_pos.ypos;
   int xposY = block_info->block_pos.xpos;
@@ -1442,13 +1443,13 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     int idy = (index >> 1) & 1;
     int offsetpY = idy*bheight*pstride + idx*bwidth;
     int offsetpC = idy*bheight*pstride/4 + idx*bwidth/2;
-    int offsetrY = idy*bheight*rstride + idx*bwidth;
-    int offsetrC = idy*bheight*rstride/4 + idx*bwidth/2;
+    int offsetrY = idy*bheight*rstride_y + idx*bwidth;
+    int offsetrC = idy*bheight*rstride_c/2 + idx*bwidth/2;
     mv = mv_arr[index];
     clip_mv(&mv, yposY, xposY, width, height, size, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride, pstride, &mv, sign, enable_bipred);
-    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride/2, pstride/2, &mv, sign);
-    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride/2, pstride/2, &mv, sign);
+    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred);
+    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign);
+    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign);
   }
 }
 

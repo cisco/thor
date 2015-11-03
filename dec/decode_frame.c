@@ -42,7 +42,7 @@ static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_
   return getbits((stream_t*)stream, 1);
 }
 
-void decode_frame(decoder_info_t *decoder_info)
+void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 {
   int height = decoder_info->height;
   int width = decoder_info->width;
@@ -53,6 +53,7 @@ void decode_frame(decoder_info_t *decoder_info)
   memset(decoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
   int bit_start = stream->bitcnt;
+  int rec_buffer_idx;
 
   decoder_info->frame_info.frame_type = getbits(stream,1);
   int qp = getbits(stream,8);
@@ -73,6 +74,10 @@ void decode_frame(decoder_info_t *decoder_info)
   } else {
     decoder_info->frame_info.num_ref = 0;
   }
+  decoder_info->frame_info.display_frame_num = getbits(stream,16);
+  rec_buffer_idx = decoder_info->frame_info.display_frame_num%MAX_REORDER_BUFFER;
+  decoder_info->rec = &rec_buffer[rec_buffer_idx];
+  decoder_info->rec->frame_num = decoder_info->frame_info.display_frame_num;
 
   if (decoder_info->frame_info.num_ref>2 && decoder_info->frame_info.ref_array[0]==-1) {
     // interpolate from the other references

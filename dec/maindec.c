@@ -123,6 +123,7 @@ int main(int argc, char** argv)
     yuv_frame_t ref[MAX_REF_FRAMES];
     int rec_available[MAX_REORDER_BUFFER]={0};
     int rec_buffer_idx;
+    int op_rec_buffer_idx;
     int decode_frame_num = 0;
     int frame_count = 0;
     int last_frame_output = -1;
@@ -199,17 +200,15 @@ int main(int argc, char** argv)
       decoder_info.frame_info.decode_order_frame_num = decode_frame_num;
       decoder_info.frame_info.display_frame_num = (frame_count/sub_gop)*sub_gop+reorder_frame_offset(frame_count % sub_gop, sub_gop,decoder_info.dyadic_coding);
       if (decoder_info.frame_info.display_frame_num>=0) {
+        decode_frame(&decoder_info,rec);
         rec_buffer_idx = decoder_info.frame_info.display_frame_num%MAX_REORDER_BUFFER;
-        decoder_info.rec = &rec[rec_buffer_idx];
-        decoder_info.rec->frame_num = decoder_info.frame_info.display_frame_num;
-        decode_frame(&decoder_info);
         rec_available[rec_buffer_idx]=1;
 
-        rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
-        if (rec_available[rec_buffer_idx]) {
+        op_rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
+        if (rec_available[op_rec_buffer_idx]) {
           last_frame_output++;
-          write_yuv_frame(&rec[rec_buffer_idx],width,height,outfile);
-          rec_available[rec_buffer_idx] = 0;
+          write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
+          rec_available[op_rec_buffer_idx] = 0;
         }
         printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
             decode_frame_num,decoder_info.frame_info.display_frame_num,input_file_size,stream.bitcnt);
@@ -220,9 +219,9 @@ int main(int argc, char** argv)
     // Output the tail
     int i,j;
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {
-      rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
-      if (rec_available[rec_buffer_idx])
-        write_yuv_frame(&rec[rec_buffer_idx],width,height,outfile);
+      op_rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
+      if (rec_available[op_rec_buffer_idx])
+        write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
       else
         break;
     }

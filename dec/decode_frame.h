@@ -29,6 +29,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "maindec.h"
 
-void decode_frame(decoder_info_t *encoder_info);
+void decode_frame(decoder_info_t *encoder_info,yuv_frame_t* rec_buffer);
 
 #endif

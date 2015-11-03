@@ -106,6 +106,8 @@ void encode_frame(encoder_info_t *encoder_info)
   for (r=0;r<encoder_info->frame_info.num_ref;r++){
     putbits(6,encoder_info->frame_info.ref_array[r]+1,stream);
   }
+  // 16 bit frame number for now
+  putbits(16,encoder_info->frame_info.frame_num,stream);
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){

@@ -95,6 +95,8 @@ int main(int argc, char **argv)
   enc_params *params;
   encoder_info_t encoder_info;
   int y4m_output;
+  // Keep track of last P frame for using the right references for the tail of a sequence in re-ordered modes
+  int last_PorI_frame;
 
   init_use_simd();
 
@@ -219,10 +221,11 @@ int main(int argc, char **argv)
   min_interp_depth = log2i(params->num_reorder_pics+1)-2;
   if (params->frame_rate > 30) min_interp_depth--;
 
-  for (frame_num0 = params->skip; frame_num0 < (params->skip + params->num_frames) && (frame_num0+sub_gop)*frame_size <= input_file_size; frame_num0+=sub_gop)
+  last_PorI_frame = -1;
+  for (frame_num0 = params->skip; frame_num0 < (params->skip + params->num_frames) && (frame_num0+1)*frame_size <= input_file_size; frame_num0+=sub_gop)
   {
     for (k=0; k<sub_gop; k++) {
-      int r,r0,r1,r2,r3;
+      int r,r1,r2,r3;
       /* Initialize frame info */
       frame_offset = reorder_frame_offset(k,sub_gop,params->dyadic_coding);
       frame_num = frame_num0 + frame_offset;
@@ -421,38 +424,33 @@ int main(int argc, char **argv)
             }
           }
         } else {
-          if (encoder_info.frame_info.num_ref==1){
+          if (encoder_info.frame_info.num_ref>=1){
             /* If num_ref==1 always use most recent frame */
-            encoder_info.frame_info.ref_array[0] = 0;
+            encoder_info.frame_info.ref_array[0] = last_PorI_frame;
           }
-          else if (encoder_info.frame_info.num_ref==2){
+
+          if (encoder_info.frame_info.num_ref==2){
             /* If num_ref==2 use most recent LQ frame and most recent HQ frame */
-            r0 = 0;
             r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
-            encoder_info.frame_info.ref_array[0] = r0;
             encoder_info.frame_info.ref_array[1] = r1;
           }
           else if (encoder_info.frame_info.num_ref==3){
-            r0 = 0;
             r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
             r2 = r1==1 ? 2 : 1;
-            encoder_info.frame_info.ref_array[0] = r0;
             encoder_info.frame_info.ref_array[1] = r1;
             encoder_info.frame_info.ref_array[2] = r2;
           }
           else if (encoder_info.frame_info.num_ref==4){
-            r0 = 0;
             r1 = ((num_encoded_frames + params->HQperiod - 2) % params->HQperiod) + 1;
             r2 = r1==1 ? 2 : 1;
             r3 = r2+1;
             if (r3==r1) r3 += 1;
-            encoder_info.frame_info.ref_array[0] = r0;
             encoder_info.frame_info.ref_array[1] = r1;
             encoder_info.frame_info.ref_array[2] = r2;
             encoder_info.frame_info.ref_array[3] = r3;
           }
           else{
-            for (r=0;r<encoder_info.frame_info.num_ref;r++){
+            for (r=1;r<encoder_info.frame_info.num_ref;r++){
               encoder_info.frame_info.ref_array[r] = r;
             }
           }
@@ -584,7 +582,20 @@ int main(int argc, char **argv)
           rec_available[rec_buffer_idx]=0;
         }
       }
+
+      // Keep track of when the last anchor frame was in the sliding window
+      last_PorI_frame = (encoder_info.frame_info.frame_type != B_FRAME ? 0 : last_PorI_frame+1);
     }
+
+    /* Revert to PPP coding if our subgop does not fit in. Keeping track of the last anchor frame
+       should mean that the first reference is correct when we do, although subsequent references
+       may not be ideal.
+     */
+    if (((frame_num0+sub_gop+1)*frame_size > input_file_size || frame_num0+sub_gop >= params->skip+params->num_frames )&& sub_gop>=2) {
+      params->HQperiod = sub_gop;
+      sub_gop = 1;
+      params->num_reorder_pics = 0;
+    };
   }
   // Write out the tail
   int i;

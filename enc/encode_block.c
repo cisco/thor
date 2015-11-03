@@ -2936,7 +2936,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
   if (encode_smaller_size){
     int new_size = size/2;
-    if (frame_type == I_FRAME || encode_this_size){
+    if (encode_this_size){
       int split_flag = 1;
       write_data_t write_data;
       write_data.size = size;
@@ -2944,7 +2944,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       write_data.frame_type = frame_type;
       write_super_mode(stream, &write_data, split_flag);
     }
-    else{
+    else if (frame_type != I_FRAME){
       putbits(1,0,stream); //Flag to signal either split or rectangular skip
     }
     if (size==MAX_BLOCK_SIZE && encoder_info->params->max_delta_qp){

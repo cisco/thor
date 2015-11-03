@@ -469,7 +469,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
 }
 
 
-int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_rectangular_size){
+int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_size){
   stream_t *stream = decoder_info->stream;
   block_context_t *block_context = decoder_info->block_context;
 
@@ -484,15 +484,17 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_rectang
 
   if (frame_type==I_FRAME){
     decoder_info->mode = MODE_INTRA;
-    if (size > MIN_BLOCK_SIZE)
+    if (size > MIN_BLOCK_SIZE && decode_this_size)
       split_flag = getbits(stream, 1);
     else
-      split_flag = 0;
+      split_flag = !decode_this_size;
     return split_flag;
   }
-  if (decode_rectangular_size){
-    split_flag = !getbits(stream,1);
-    return split_flag;
+  else{
+    if (!decode_this_size) {
+      split_flag = !getbits(stream, 1);
+      return split_flag;
+    }
   }
   if (size > MAX_TR_SIZE) {
     split_flag = !getbits(stream, 1);
@@ -648,7 +650,7 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   find_block_contexts(yposY, xposY, height, width, size, decoder_info->deblock_data, &block_context, decoder_info->use_block_contexts);
   decoder_info->block_context = &block_context;
 
-  split_flag = decode_super_mode(decoder_info,size,decode_rectangular_size);  
+  split_flag = decode_super_mode(decoder_info,size,decode_this_size);
   mode = decoder_info->mode;
   
   /* Read delta_qp and set block-level qp */

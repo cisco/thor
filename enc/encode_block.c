@@ -1584,7 +1584,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     write_data.mvp = block_info->mvp;
     memcpy(write_data.mv_arr,pred_data->mv_arr0,4*sizeof(mv_t));
     write_data.pb_part = pred_data->PBpart;
-    write_data.max_num_tb_part = block_info->max_num_tb_part>1 && pred_data->PBpart==PART_NONE ? 2 : 1; //Can't have PU-split and TU-split at the same time
+    write_data.max_num_tb_part = block_info->max_num_tb_part>1? 2 : 1;
   }
   else if (mode==MODE_INTRA){
     write_data.intra_mode = pred_data->intra_mode;
@@ -2135,7 +2135,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
             pred_data.PBpart = part;
             memcpy(pred_data.mv_arr0,mv_all[part],4*sizeof(mv_t));
             min_tb_param = encoder_info->params->encoder_speed<1 && !encoder_info->params->sync ? -1 : 0; //tb_split == -1 means force residual to zero.
-            max_tb_param = part>0 ? 0 : block_info->max_num_tb_part-1;  //Can't have TU-split and PU-split at the same time
+            max_tb_param = block_info->max_num_tb_part - 1;
             for (tb_param=min_tb_param; tb_param<=max_tb_param; tb_param++){
               nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
               cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);

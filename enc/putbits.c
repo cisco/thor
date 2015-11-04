@@ -73,7 +73,6 @@ void flush_all_bits(stream_t *str, FILE *outfile)
     }
   }
 
-  printf("final flush: bytes=%4d\n",bytes);
   if ((str->bytepos+bytes) > str->bytesize)
   {
     flush_bytebuf(str,outfile);

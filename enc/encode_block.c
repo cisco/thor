@@ -878,6 +878,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
     int x = 0;
     mv_cand.y = mvcand[idx].y << 2;
     mv_cand.x = mvcand[idx].x << 2;
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
     if (size == 16)
       sad = widesad_calc(orig,ref + s*(mv_cand.x >> 2) + s*(mv_cand.y >> 2)*stride_r,size,stride_r,width,height, &x);
     else

@@ -2298,8 +2298,6 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         mode = MODE_BIPRED;
         min_tb_param = 0;
         max_tb_param = 0; //TODO: Support tb-split
-        int best_part = 0;
-
         for (part = 0; part < num_bi_part; part++) {
           pred_data.PBpart = part;
           pred_data.ref_idx0 = opt_ref_idx0[part];
@@ -2310,17 +2308,11 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
             nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
             if (cost < min_cost) {
-              best_part = part;
               min_cost = cost;
               copy_best_parameters(size, block_info, mode, tb_param, part, pred_data.ref_idx0, pred_data.mv_arr0, pred_data.ref_idx1, pred_data.mv_arr1,-1,-1);              
             }
           } //for tb_param..
         } //for part..
-        pred_data.ref_idx0 = opt_ref_idx0[best_part];
-        memcpy(pred_data.mv_arr0, opt_mv_arr0[best_part], 4 * sizeof(mv_t));
-        pred_data.ref_idx1 = opt_ref_idx1[best_part];
-        memcpy(pred_data.mv_arr1, opt_mv_arr1[best_part], 4 * sizeof(mv_t));
-        pred_data.PBpart = best_part;
       } //if enable_bipred
     } //if frame_type != I_FRAME
 

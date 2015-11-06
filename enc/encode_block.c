@@ -2440,11 +2440,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
     block_info->pred_data.dir = -1;
   }
   else if (best_mode == MODE_BIPRED){
-#if 2
     block_info->pred_data.PBpart = pred_data.PBpart;
-#else
-    block_info->pred_data.PBpart = PART_NONE;
-#endif
     memcpy(block_info->pred_data.mv_arr0,pred_data.mv_arr0,4*sizeof(mv_t)); //Used for writing to bitstream
     memcpy(block_info->pred_data.mv_arr1,pred_data.mv_arr1,4*sizeof(mv_t)); //Used for writing to bitstream
     block_info->pred_data.ref_idx0 = pred_data.ref_idx0;

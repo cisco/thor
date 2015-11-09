@@ -1099,6 +1099,115 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
   return min_sad;
 }
 
+int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda, enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred) {
+  int k, l, sad, range, step;
+  uint32_t min_sad;
+  uint8_t *rf = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *rf0 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *rf1 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  mv_t mv_cand;
+  mv_t mv_opt;
+  mv_t mv_ref;
+  int16_t mv_diff_y, mv_diff_x;
+  /* Initialize */
+  mv_opt.y = mv_opt.x = 0;
+  min_sad = MAX_UINT32;
+
+  /* Telecope search from 8x8 grid to 1/4 x 1/4 grid around rounded mvc (=mvp for uni-pred, part=PART_NONE)*/
+  mv_ref.y = (((mvc->y) + 2) >> 2) << 2;
+  mv_ref.x = (((mvc->x) + 2) >> 2) << 2;
+  step = 32;
+  while (step > 0) {
+    range = step;
+    for (k = -range; k <= range; k += step) {
+      for (l = -range; l <= range; l += step) {
+        if (step<32 && k == 0 && l == 0) continue; //Center position was investigated at previous step
+        int exitFlag = 0;
+        if (step == 1) {
+          int ver_frac, hor_frac;
+          ver_frac = mv_ref.y & 3;
+          hor_frac = mv_ref.x & 3;
+          if (ver_frac == 0 && hor_frac == 0) {
+            /* Integer pixel */
+            if (abs(k) != abs(l)) exitFlag = 1;
+          }
+          else if (ver_frac == 2 && hor_frac == 2) {
+            /* Funny position */
+            exitFlag = 1;
+          }
+          else {
+            /* Remaining half pixel */
+            if (abs(k) == abs(l)) exitFlag = 1;
+          }
+        }
+        if (exitFlag) continue;
+
+        mv_cand.y = mv_ref.y + k;
+        mv_cand.x = mv_ref.x + l;
+
+        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+        get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred);
+
+        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
+        get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred);
+
+        int i, j;
+        for (i = 0; i < size; i++) {
+          for (j = 0; j < size; j++) {
+            rf[i*size + j] = (uint8_t)(((int)rf0[i*size + j] + (int)rf1[i*size + j]) >> 1);
+          }
+        }
+
+        sad = sad_calc(orig, rf, size, width, width, height);
+        mv_diff_y = mv_cand.y - mvp->y;
+        mv_diff_x = mv_cand.x - mvp->x;
+        sad += (int)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
+        if (sad < min_sad) {
+          min_sad = sad;
+          mv_opt = mv_cand;
+        }
+      }
+    }
+    mv_ref = mv_opt;
+    step = step >> 1;
+  }
+
+  /* Extra candidate search */
+  mvcand[4] = *mvp;
+  mvcand[5].y = 0;
+  mvcand[5].x = 0;
+  for (int idx = 0; idx<ME_CANDIDATES; idx++) {
+    mv_cand = mvcand[idx];
+
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+    get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred);
+
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
+    get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred);
+
+    int i, j;
+    for (i = 0; i < size; i++) {
+      for (j = 0; j < size; j++) {
+        rf[i*size + j] = (uint8_t)(((int)rf0[i*size + j] + (int)rf1[i*size + j]) >> 1);
+      }
+    }
+    sad = sad_calc(orig, rf, size, width, width, height);
+    mv_diff_y = mv_cand.y - mvp->y;
+    mv_diff_x = mv_cand.x - mvp->x;
+    sad += (int)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
+    if (sad < min_sad) {
+      min_sad = sad;
+      mv_opt = mv_cand;
+    }
+  }
+  *mv = mv_opt;
+
+  thor_free(rf);
+  thor_free(rf0);
+  thor_free(rf1);
+  return min_sad;
+}
+
 
 uint32_t cost_calc(yuv_block_t *org_block,yuv_block_t *rec_block,int stride,int width, int height,int nbits,double lambda)
 {
@@ -2015,6 +2124,8 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   }
 }
 
+
+
 int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 {
   int size = block_info->block_pos.size;
@@ -2286,6 +2397,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
               } //for (ref_idx ..
             } //for iter ..
           } //for n=0...
+
           opt_ref_idx0[part] = min_ref_idx0;
           opt_ref_idx1[part] = min_ref_idx1;
           memcpy(opt_mv_arr0[part], min_mv_arr0, 4 * sizeof(mv_t));
@@ -2314,6 +2426,44 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
             }
           } //for tb_param..
         } //for part..
+
+        if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed <= 1) {
+          yuv_frame_t *ref0, *ref1;
+          int sign = 0;
+          mv_t mv;
+
+          tb_param = 0;
+
+          ref_idx = 0;
+          r = encoder_info->frame_info.ref_array[ref_idx];
+          ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+          ref_idx = 1;
+          r = encoder_info->frame_info.ref_array[ref_idx];
+          ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+          int rstride = ref0->stride_y;
+          int ostride = size;
+          int ref_posY = ypos*rstride + xpos;
+          uint8_t *ref0_y = ref0->y + ref_posY;
+          uint8_t *ref1_y = ref1->y + ref_posY;
+
+          sad = 2 * motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[ref_idx], &mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, 2);
+          mv_all[PART_NONE][0] = mv_all[PART_NONE][1] = mv_all[PART_NONE][2] = mv_all[PART_NONE][3] = mv;
+
+          pred_data.PBpart = PART_NONE;
+          pred_data.ref_idx0 = 0;
+          memcpy(pred_data.mv_arr0, mv_all[PART_NONE], 4 * sizeof(mv_t));
+          pred_data.ref_idx1 = 1;
+          memcpy(pred_data.mv_arr1, mv_all[PART_NONE], 4 * sizeof(mv_t));
+
+          nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
+          cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
+          if (cost < min_cost) {
+            min_cost = cost;
+            copy_best_parameters(size, block_info, mode, tb_param, PART_NONE, pred_data.ref_idx0, pred_data.mv_arr0, pred_data.ref_idx1, pred_data.mv_arr1, -1, -1);
+          }
+        }
       } //if enable_bipred
     } //if frame_type != I_FRAME
 

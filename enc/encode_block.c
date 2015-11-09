@@ -140,10 +140,10 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
     for (pos=2;pos<N;pos++){
       int flag = 1;
       if (pos>2){
-        if (scoeffq[pos-3] > 1) flag = 0;
+        if (abs(scoeffq[pos-3]) > 1) flag = 0;
       }
       if (pos>3){
-        if (scoeffq[pos-4] > 1 && scoeffq[pos-3] > 0) flag = 0;
+        if (abs(scoeffq[pos-4]) > 1 && abs(scoeffq[pos-3]) > 0) flag = 0;
       }
       if (pos==2 && (chroma_flag==0 || last_pos >= 6)){
         flag = 0;

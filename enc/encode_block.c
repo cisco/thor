@@ -2427,7 +2427,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           } //for tb_param..
         } //for part..
 
-        if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed <= 1) {
+        if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed == 0) {
           yuv_frame_t *ref0, *ref1;
           int sign = 0;
           mv_t mv;

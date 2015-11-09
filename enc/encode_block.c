@@ -2239,7 +2239,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       int ref_idx;
 
       int min_idx,max_idx;
-      if (frame_info->best_ref < 0 || encoder_info->params->encoder_speed < 2 || encoder_info->params->sync) {
+      if (frame_info->best_ref < 0 || encoder_info->params->encoder_speed < 2 || encoder_info->params->enable_bipred || encoder_info->params->sync) {
         min_idx = 0;
         max_idx = frame_info->num_ref - 1;
       } else

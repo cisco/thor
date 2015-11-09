@@ -472,5 +472,7 @@ void check_parameters(enc_params *params)
     fatalerror("Intra period must be a multiple of the subgroup size (num_reorder_pics+1).\n");
   }
 
-
+  if (params->sync && params->encoder_speed<2) {
+    fatalerror("Sync requires encoder_speed=2\n");
+  }
 }

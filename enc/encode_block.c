@@ -1358,7 +1358,7 @@ int search_inter_prediction_params(uint8_t *org_y,yuv_frame_t *ref,block_pos_t *
       py = index>>1;
       offset_o = py*(size/2)*ostride;
       offset_r = py*(size/2)*rstride;
-      sad += (params->sync ? motion_estimate_sync : motion_estimate)(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num, enable_bipred);
+      sad += motion_estimate(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num, enable_bipred);
       mv_arr[index] = mv;
       mv_arr[index+1] = mv;
       mvp2 = mv_arr[0]; //mv predictor from inside block
@@ -1371,7 +1371,7 @@ int search_inter_prediction_params(uint8_t *org_y,yuv_frame_t *ref,block_pos_t *
       px = index;
       offset_o = px*(size/2);
       offset_r = px*(size/2);
-      sad += (params->sync ? motion_estimate_sync : motion_estimate)(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num,enable_bipred);
+      sad += motion_estimate(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num,enable_bipred);
       mv_arr[index] = mv;
       mv_arr[index+2] = mv;
       mvp2 = mv_arr[0]; //mv predictor from inside block
@@ -1385,7 +1385,7 @@ int search_inter_prediction_params(uint8_t *org_y,yuv_frame_t *ref,block_pos_t *
       py = (index&2)>>1;
       offset_o = py*(size/2)*ostride + px*(size/2);
       offset_r = py*(size/2)*rstride + px*(size/2);
-      sad += (params->sync ? motion_estimate_sync : motion_estimate)(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num,enable_bipred);
+      sad += motion_estimate(org_y+offset_o,ref_y+offset_r,ostride,rstride,width,height,&mv,mvc,&mvp2,lambda,params,sign,fwidth,fheight,xposY,yposY,mvcand,mvcand_num,enable_bipred);
       mv_arr[index] = mv;
       mvp2 = mv_arr[0]; //mv predictor from inside block
     }
@@ -1420,7 +1420,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
 
           get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,pblock,intra_mode);
           get_residual (block2, pblock, &orig[i*orig_stride+j], size2, orig_stride);
-          transform (block2, coeff, size2, encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+          transform (block2, coeff, size2, encoder_info->params->encoder_speed > 1);
           cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type, rdoq);
           if (cbpbit){
             dequantize (coeffq+index, rcoeff, qp, size2);
@@ -1442,7 +1442,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
       get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,intra_mode);
       get_residual (block, pblock, orig, size, orig_stride);
 
-      transform (block, coeff, size, encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+      transform (block, coeff, size, encoder_info->params->encoder_speed > 1);
       cbp = quantize (coeff, coeffq, qp, size, coeff_type, rdoq);
       if (cbp){
         dequantize (coeffq, rcoeff, qp, size);
@@ -1486,7 +1486,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
           for (k=0;k<size2;k++){
             memcpy(&block2[k*size2],&block[(i+k)*size+j],size2*sizeof(int16_t));
           }
-          transform (block2, coeff, size2, size == 64 || encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+          transform (block2, coeff, size2, size == 64 || encoder_info->params->encoder_speed > 1);
           cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type, rdoq);
           if (cbpbit){
             dequantize (coeffq+index, rcoeff, qp, size2);
@@ -1507,7 +1507,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
       reconstruct_block (rblock, pblock, rec, size, size);
     }
     else{
-      transform (block, coeff, size, (size == 64 && encoder_info->params->encoder_speed > 0) || encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+      transform (block, coeff, size, (size == 64 && encoder_info->params->encoder_speed > 0) || encoder_info->params->encoder_speed > 1);
       cbp = quantize (coeff, coeffq, qp, size, coeff_type, rdoq);
       if (cbp){
         dequantize (coeffq, rcoeff, qp, size);
@@ -2160,8 +2160,9 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
   int rectangular_flag = block_info->block_pos.bwidth != size || block_info->block_pos.bheight != size; //Only skip evaluation if this is true
 
   /* Initialize parameters that are determined using RDO */
-  
   int best_ref_idx = 0;
+
+  int intra_inter_sad = encoder_info->params->encoder_speed > 0 && !encoder_info->params->sync;
   
   /* Initialize cost values */
   uint32_t min_cost = MAX_UINT32;
@@ -2227,7 +2228,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         }
       }
 
-      if (encoder_info->params->encoder_speed > 0 && !encoder_info->params->sync){
+      if (intra_inter_sad){
         sad_intra = search_intra_prediction_params(org_block->y,rec,&block_info->block_pos,encoder_info->width,encoder_info->height,encoder_info->frame_info.num_intra_modes,&intra_mode);      
         nbits = 2;
         sad_intra += (int)(sqrt(lambda)*(double)nbits + 0.5);
@@ -2262,21 +2263,21 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           sad = (uint32_t)search_inter_prediction_params(org_block->y,ref,&block_info->block_pos,&mv_center[ref_idx],&mvp,mv_all[part],part,sqrt(lambda),encoder_info->params,sign,width,height,frame_info->mvcand[ref_idx],frame_info->mvcand_num + ref_idx,enable_bipred);
           for (int i = 0; i < 4; i++)
             add_mvcandidate(mv_all[part] + i, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
-
           mv_center[ref_idx] = mv_all[0][0];
           sad_inter = min(sad_inter,sad);
         }
 
-        /* Loop over all PU partitions to do RDO */
-        if (encoder_info->params->encoder_speed > 0 && !encoder_info->params->sync){
+        if (intra_inter_sad){
           do_inter = sad_inter < sad_intra; //TODO: encode only if sad_inter is smaller than that of previous ref_idx
           if (sad_inter < sad_intra) do_intra = 0;
         }
+
         if (do_inter){
+          /* Loop over all PB partitions to do RDO */
           for (part=0;part<block_info->max_num_pb_part;part++){
             pred_data.PBpart = part;
             memcpy(pred_data.mv_arr0,mv_all[part],4*sizeof(mv_t));
-            min_tb_param = encoder_info->params->encoder_speed<1 && !encoder_info->params->sync ? -1 : 0; //tb_split == -1 means force residual to zero.
+            min_tb_param = encoder_info->params->encoder_speed<1 ? -1 : 0; //tb_split == -1 means force residual to zero.
             max_tb_param = block_info->max_num_tb_part - 1;
             for (tb_param=min_tb_param; tb_param<=max_tb_param; tb_param++){
               nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
@@ -2312,7 +2313,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         num_iter = encoder_info->params->encoder_speed < 0 ? 2 : 1;
 #else
         int num_bi_part = 1;
-        num_iter = encoder_info->params->encoder_speed == 0 && !encoder_info->params->sync ? 2 : 1;
+        num_iter = encoder_info->params->encoder_speed == 0 ? 2 : 1;
 #endif
         int min_ref_idx0 = 0, min_ref_idx1 = 0;
         mv_t min_mv_arr0[4], min_mv_arr1[4];
@@ -2567,6 +2568,7 @@ int check_early_skip_sub_block (encoder_info_t *encoder_info, uint8_t *orig, int
 
   get_residual(block, pblock, orig, size, orig_stride);
 
+  int fast = 0; //Core transform is never larger than 16x16 when EARLY_SKIP_BLOCK_SIZE=16
   if (size > 4){
     int16_t *tmp = thor_alloc(2*EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE/4,16);
     int i,j,i2,j2;
@@ -2579,12 +2581,12 @@ int check_early_skip_sub_block (encoder_info_t *encoder_info, uint8_t *orig, int
         tmp[i*size2+j] = (block[(i2+0)*size+(j2+0)] + block[(i2+0)*size+(j2+1)] + block[(i2+1)*size+(j2+0)] + block[(i2+1)*size+(j2+1)] + 2)>>2;
       }
     }
-    transform(tmp, coeff, size2, encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+    transform(tmp, coeff, size2, fast);
     cbp = check_early_skip_transform_coeff(coeff, qp, size2, 0.5*early_skip_threshold);
     thor_free(tmp);
   }
   else{
-    transform (block, coeff, size, encoder_info->params->encoder_speed > 1 || encoder_info->params->sync);
+    transform (block, coeff, size, fast);
     cbp = check_early_skip_transform_coeff(coeff, qp, size, early_skip_threshold);
   }
 
@@ -2688,7 +2690,7 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
   float early_skip_threshold = encoder_info->params->early_skip_thr;
   int enable_bipred = encoder_info->params->enable_bipred;
 
-  if ((encoder_info->params->encoder_speed > 1 || encoder_info->params->sync) && size == MAX_BLOCK_SIZE)
+  if (encoder_info->params->encoder_speed > 1 && size == MAX_BLOCK_SIZE)
     early_skip_threshold = 1.3*early_skip_threshold;
 
   if (pred_data->dir==2){

@@ -488,8 +488,7 @@ int main(int argc, char **argv)
         }
       }
 
-      if (params->intra_rdo == 0 || (encoder_info.frame_info.frame_type != I_FRAME &&
-                                     (params->encoder_speed > 0 || params->sync)))
+      if (params->intra_rdo == 0 || (encoder_info.frame_info.frame_type != I_FRAME && params->encoder_speed > 0))
         encoder_info.frame_info.num_intra_modes = 4;
       else
 #if LIMIT_INTRA_MODES

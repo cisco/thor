@@ -45,17 +45,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OFFYM1 (OFFY-1)
 
 static const int16_t filter_coeffsYbi[4][8] = {
-  { 0, 0, 128,  0,  0,  0 },
-  { 4,-21,118, 35, -9,  1 },
-  { 3,-17, 78, 78, -17, 3 },
-  { 1,-9,  35,118, -21, 4 }
+  { 0,  0, 64,  0,   0, 0 },
+  { 2,-10, 59, 17,  -5, 1 },
+  { 1, -8, 39, 39,  -8, 1 },
+  { 1, -5, 17, 59, -10, 2 }
 };
 
 static const int16_t filter_coeffsYuni[4][8] = {
-  { 0,  0,128,  0,  0,  0},
-  { 3,-15,111, 37,-10,  2},
-  { 3,-16, 77, 77,-16,  3},
-  { 2,-10, 37,111,-15,  3}
+  { 0,  0, 64,  0,  0, 0},
+  { 1, -7, 55, 19, -5, 1},
+  { 1, -7, 38, 38, -7, 1},
+  { 1, -5, 19, 55,- 7, 1}
 };
 
 static const int8_t filter_coeffsC[8][4] = {
@@ -163,7 +163,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
         int sum = 0;
         i_off = i + hor_int;
         j_off = j + ver_int;
-        for (m=0;m<NTAPY;m++) sum += filterV[m] * ref[(j_off + m - OFFYM1) * stride + i_off]; //7-bit version
+        for (m=0;m<NTAPY;m++) sum += filterV[m] * ref[(j_off + m - OFFYM1) * stride + i_off];
         tmp[j][i+OFFYM1] = sum;
       }
     }
@@ -172,8 +172,8 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
     for(i=0;i<width;i++){
       for (j=0;j<height;j++){
         int sum = 0;
-        for (m=0;m<NTAPY;m++) sum += filterH[m] * tmp[j][i+m]; //7-bit version
-        pblock[j*pstride+i] = clip255((sum + 8192)>>14); //7-bit version
+        for (m=0;m<NTAPY;m++) sum += filterH[m] * tmp[j][i+m];
+        pblock[j*pstride+i] = clip255((sum + 2048)>>12);
       }
     }
   }

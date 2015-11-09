@@ -9,6 +9,8 @@
 -qp                 32                                            ; Quantization parameter
 -HQperiod           1                                             ; Period of high quality frames
 -num_reorder_pics   7                                             ; GOPsize - 1
+-interp_ref         1                                             ; Use interpolated reference frames
+
 -intra_period       64
 
 ;
@@ -40,5 +42,5 @@
 -early_skip_thr     1.0                                           ; Early skip threshold
 -max_num_ref        2                                             ; Number of reference frames
 -use_block_contexts 1                                             ; Use block contexts
--enable_bipred      0                                             ; Enable biprediction
+-enable_bipred      1                                             ; Enable biprediction
 -encoder_speed      2                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)

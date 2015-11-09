@@ -9,6 +9,7 @@
 -qp                 32                                            ; Quantization parameter
 -HQperiod           1                                             ; Period of high quality frames
 -num_reorder_pics   7                                             ; GOPsize - 1
+-interp_ref         1                                             ; Use interpolated reference frames
 
 ;
 ; Lambda and QP modifiers

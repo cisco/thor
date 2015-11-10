@@ -406,7 +406,7 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
-          p[i*sp+j] = (r0[i*s0+j]+r1[i*s1+j])/2;
+          p[i*sp+j] = (r0[i*s0+j]+r1[i*s1+j]+1)/2;
         }
       }
     }
@@ -432,7 +432,7 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
         int xpos1=min(wP-1, max(-pad, j+xs[1]));
         int ypos0=min(hP-1, max(-pad, i+ys[0]));
         int ypos1=min(hP-1, max(-pad, i+ys[1]));
-        p[i*sp+j] = (r0[ypos0*s0+xpos0]+r1[ypos1*s1+xpos1])/2;
+        p[i*sp+j] = (r0[ypos0*s0+xpos0]+r1[ypos1*s1+xpos1]+1)/2;
       }
     }
 

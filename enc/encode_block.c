@@ -2445,15 +2445,15 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           yuv_frame_t *ref0, *ref1;
           int r,sign = 0;
           mv_t mv;
-
+          int ref_idx0, ref_idx1;
           tb_param = 0;
 
-          ref_idx = 0;
-          r = encoder_info->frame_info.ref_array[ref_idx];
+          ref_idx0 = encoder_info->params->interp_ref ? 1 : 0;
+          r = encoder_info->frame_info.ref_array[ref_idx0];
           ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 
-          ref_idx = 1;
-          r = encoder_info->frame_info.ref_array[ref_idx];
+          ref_idx1 = encoder_info->params->interp_ref ? 2 : 1;
+          r = encoder_info->frame_info.ref_array[ref_idx1];
           ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 
           int rstride = ref0->stride_y;
@@ -2462,13 +2462,13 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           uint8_t *ref0_y = ref0->y + ref_posY;
           uint8_t *ref1_y = ref1->y + ref_posY;
 
-          sad = 2 * motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[ref_idx], &mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, 2);
+          sad = 2 * motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[0], &mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, 2);
           mv_all[PART_NONE][0] = mv_all[PART_NONE][1] = mv_all[PART_NONE][2] = mv_all[PART_NONE][3] = mv;
 
           pred_data.PBpart = PART_NONE;
-          pred_data.ref_idx0 = 0;
+          pred_data.ref_idx0 = ref_idx0;
           memcpy(pred_data.mv_arr0, mv_all[PART_NONE], 4 * sizeof(mv_t));
-          pred_data.ref_idx1 = 1;
+          pred_data.ref_idx1 = ref_idx1;
           memcpy(pred_data.mv_arr1, mv_all[PART_NONE], 4 * sizeof(mv_t));
 
           nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);

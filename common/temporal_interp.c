@@ -190,8 +190,6 @@ void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout)
   int ho=sout->height;
   int so=sout->stride_y;
   int si=sin->stride_y;
-  int soc=sout->stride_c;
-  int sic=sin->stride_c;
   int i, j;
   v128 ones = v128_dup_8(1);
   v128 z = v128_dup_8(0);
@@ -210,6 +208,9 @@ void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout)
     }
 
   }
+#if USE_CHROMA
+  int soc=sout->stride_c;
+  int sic=sin->stride_c;
   ho /= 2;
   wo /= 2;
   for (int i=0; i<ho; ++i) {
@@ -239,6 +240,7 @@ void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout)
     }
 
   }
+#endif
   pad_yuv_frame(sout);
 }
 

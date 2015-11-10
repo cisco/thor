@@ -73,32 +73,6 @@ void parse_arg(int argc, char** argv, FILE **infile, FILE **outfile)
     }
 }
 
-// Coding order to display order
-static const int cd1[1] = {0};
-static const int cd2[2] = {1,0};
-static const int cd4[4] = {3,1,0,2};
-static const int cd8[8] = {7,3,1,5,0,2,4,6};
-static const int cd16[16] = {15,7,3,11,1,5,9,13,0,2,4,6,8,10,12,14};
-static const int* dyadic_reorder_code_to_display[5] = {cd1,cd2,cd4,cd8,cd16};
-
-// Display order to coding order
-static const int dc1[1+1] = {-1,0};
-static const int dc2[2+1] = {-2,1,0};
-static const int dc4[4+1] = {-4,2,1,3,0};
-static const int dc8[8+1] = {-8,4,2,5,1,6,3,7,0};
-static const int dc16[16+1] = {-16,8,4,9,2,10,5,11,1,12,6,13,3,14,7,15,0};
-//static const int* dyadic_reorder_display_to_code[5] = {dc1,dc2,dc4,dc8,dc16}; //Not used in decoder?
-
-static int reorder_frame_offset(int idx, int sub_gop, int dyadic)
-{
-  if (dyadic && sub_gop>1) {
-    return dyadic_reorder_code_to_display[log2i(sub_gop)][idx]-sub_gop+1;
-  } else {
-    if (idx==0) return 0;
-    else return idx-sub_gop;
-  }
-}
-
 unsigned int leading_zeros(unsigned int code)
 {
   unsigned int count = 0;
@@ -125,13 +99,11 @@ int main(int argc, char** argv)
     int rec_buffer_idx;
     int op_rec_buffer_idx;
     int decode_frame_num = 0;
-    int frame_count = 0;
     int last_frame_output = -1;
     int done = 0;
     int width;
     int height;
     int r;
-    int sub_gop=1;
 
     init_use_simd();
 
@@ -169,7 +141,6 @@ int main(int argc, char** argv)
     if (decoder_info.num_reorder_pics>0)
       decoder_info.dyadic_coding = getbits(&stream,1);
     decoder_info.interp_ref = getbits(&stream,1);
-    sub_gop = 1+decoder_info.num_reorder_pics;
 
     decoder_info.max_delta_qp = getbits(&stream,2);
 
@@ -199,25 +170,21 @@ int main(int argc, char** argv)
     do
     {
       decoder_info.frame_info.decode_order_frame_num = decode_frame_num;
-      decoder_info.frame_info.display_frame_num = (frame_count/sub_gop)*sub_gop+reorder_frame_offset(frame_count % sub_gop, sub_gop,decoder_info.dyadic_coding);
-      if (decoder_info.frame_info.display_frame_num>=0) {
-        decode_frame(&decoder_info,rec);
-        rec_buffer_idx = decoder_info.frame_info.display_frame_num%MAX_REORDER_BUFFER;
-        rec_available[rec_buffer_idx]=1;
+      decode_frame(&decoder_info,rec);
+      rec_buffer_idx = decoder_info.frame_info.display_frame_num%MAX_REORDER_BUFFER;
+      rec_available[rec_buffer_idx]=1;
 
-        done = initbits_dec(infile, &stream);
+      done = initbits_dec(infile, &stream);
 
-        op_rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
-        if (rec_available[op_rec_buffer_idx]) {
-          last_frame_output++;
-          write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
-          rec_available[op_rec_buffer_idx] = 0;
-        }
-        printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
-            decode_frame_num,decoder_info.frame_info.display_frame_num,input_file_size,stream.bitcnt);
-        decode_frame_num++;
+      op_rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
+      if (rec_available[op_rec_buffer_idx]) {
+        last_frame_output++;
+        write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
+        rec_available[op_rec_buffer_idx] = 0;
       }
-      frame_count++;
+      printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
+          decode_frame_num,decoder_info.frame_info.display_frame_num,input_file_size,stream.bitcnt);
+      decode_frame_num++;
     }
     while (!done);
     // Output the tail

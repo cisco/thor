@@ -46,7 +46,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 {
   int height = decoder_info->height;
   int width = decoder_info->width;
-  int k,l;
+  int k,l,r;
   int num_sb_hor = (width + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
   int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
   stream_t *stream = decoder_info->stream;
@@ -56,6 +56,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int rec_buffer_idx;
 
   decoder_info->frame_info.frame_type = getbits(stream,1);
+  decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
   int qp = getbits(stream,8);
   decoder_info->frame_info.num_intra_modes = getbits(stream,4);
 
@@ -75,6 +76,14 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     decoder_info->frame_info.num_ref = 0;
   }
   decoder_info->frame_info.display_frame_num = getbits(stream,16);
+  for (r=0; r<decoder_info->frame_info.num_ref; ++r){
+    if (decoder_info->frame_info.ref_array[r]!=-1) {
+      if (decoder_info->ref[decoder_info->frame_info.ref_array[r]]->frame_num > decoder_info->frame_info.display_frame_num) {
+        decoder_info->bit_count.stat_frame_type = B_FRAME;
+      }
+    }
+  }
+
   rec_buffer_idx = decoder_info->frame_info.display_frame_num%MAX_REORDER_BUFFER;
   decoder_info->rec = &rec_buffer[rec_buffer_idx];
   decoder_info->rec->frame_num = decoder_info->frame_info.display_frame_num;
@@ -94,9 +103,6 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     decoder_info->interp_frames[0]->frame_num = decoder_info->frame_info.display_frame_num;
   }
 
-  decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
-  if (decoder_info->frame_info.frame_type != I_FRAME && decoder_info->num_reorder_pics > 0 && decoder_info->frame_info.display_frame_num%(decoder_info->num_reorder_pics+1)) 
-      decoder_info->bit_count.stat_frame_type = B_FRAME;
   decoder_info->bit_count.frame_header[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);
   decoder_info->bit_count.frame_type[decoder_info->bit_count.stat_frame_type] += 1;
   decoder_info->frame_info.qp = qp;

@@ -1269,6 +1269,8 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
   }
 
   if (num_intra_modes == 4) { //TODO: generalize
+    thor_free(left - 1);
+    thor_free(top - 1);
     thor_free(pblock);
     return min_sad;
   }
@@ -1314,6 +1316,8 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
     *intra_mode = MODE_DOWNLEFTLEFT;
     min_sad = sad;
   }
+  thor_free(left - 1);
+  thor_free(top - 1);
   thor_free(pblock);
   return min_sad;
 }
@@ -1445,6 +1449,8 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
       }
     }
 
+    thor_free(top_data - 1);
+    thor_free(left_data - 1);
     thor_free(block);
     thor_free(block2);
     thor_free(coeff);
@@ -2487,7 +2493,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         search_intra_prediction_params(org_block->y, rec, &block_info->block_pos, encoder_info->width, encoder_info->height, frame_info->num_intra_modes, &intra_mode);
       }
 
-      /* Do final encoding of selected intra mode */
+      /* Do final encoding with selected intra mode */
       pred_data.intra_mode = intra_mode;
       for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
         nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);

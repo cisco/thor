@@ -80,6 +80,8 @@ void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int
     reconstruct_block(rblock,pblock,rec,size,stride);
   }
 
+  thor_free(top_data - 1);
+  thor_free(left_data - 1);
   thor_free(rcoeff);
   thor_free(rblock);
   thor_free(rblock2);

@@ -2470,64 +2470,47 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 
     /* Evaluate intra mode */
     mode = MODE_INTRA;
-    if (do_intra && encoder_info->params->intra_rdo){
-      uint8_t *pblock = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-      uint32_t min_intra_cost = MAX_UINT32;
-      intra_mode_t best_intra_mode = MODE_DC;
-      for (intra_mode = MODE_DC; intra_mode<MAX_NUM_INTRA_MODES; intra_mode++) {
+    if (do_intra) {
+      if (encoder_info->params->intra_rdo) {
+        uint32_t min_intra_cost = MAX_UINT32;
+        intra_mode_t best_intra_mode = MODE_DC;
+        for (intra_mode = MODE_DC; intra_mode < MAX_NUM_INTRA_MODES; intra_mode++) {
 
-        if (encoder_info->frame_info.num_intra_modes==4 && intra_mode >= 4)
-          continue;
+          if (encoder_info->frame_info.num_intra_modes == 4 && intra_mode >= 4)
+            continue;
 #if LIMIT_INTRA_MODES
-        if (intra_mode == MODE_PLANAR || intra_mode == MODE_UPRIGHT)
-          continue;
+          if (intra_mode == MODE_PLANAR || intra_mode == MODE_UPRIGHT)
+            continue;
 #endif
-        pred_data.intra_mode = intra_mode;
-        min_tb_param = 0;
-        max_tb_param = block_info->max_num_tb_part-1;
-        for (tb_param=0; tb_param<=max_tb_param; tb_param++){
-          nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
-          cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
-          if (cost < min_intra_cost){
-            min_intra_cost = cost;
-            best_intra_mode = intra_mode;
+          pred_data.intra_mode = intra_mode;
+          min_tb_param = 0;
+          max_tb_param = block_info->max_num_tb_part - 1;
+          for (tb_param = 0; tb_param <= max_tb_param; tb_param++) {
+            nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
+            cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
+            if (cost < min_intra_cost) {
+              min_intra_cost = cost;
+              best_intra_mode = intra_mode;
+            }
           }
         }
+        intra_mode = best_intra_mode;
       }
-      intra_mode = best_intra_mode;
-      uint8_t* left_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-      uint8_t* top_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-      uint8_t top_left;
-
-      int upright_available = get_upright_available(ypos,xpos,size,width);
-      int downleft_available = get_downleft_available(ypos,xpos,size,height);
-
-      // FIXME: ignoring TB split when calculating SAD
-      make_top_and_left(left_data,top_data,&top_left,&rec->y[ypos*rec->stride_y+xpos],rec->stride_y,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-      get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,intra_mode);
-
-      sad_intra = sad_calc(org_block->y,pblock,size,size,size,size);
-      thor_free(pblock);
-    }
-    else{
-      sad_intra = search_intra_prediction_params(org_block->y,rec,&block_info->block_pos,encoder_info->width,encoder_info->height,encoder_info->frame_info.num_intra_modes,&intra_mode);
-    }
-    nbits = 2;
-    sad_intra += (int)(sqrt(lambda)*(double)nbits + 0.5);
-    pred_data.intra_mode = intra_mode;
-
-    min_tb_param = 0;
-    max_tb_param = block_info->max_num_tb_part-1;
-    if (do_intra){
-      for (tb_param=min_tb_param; tb_param<=max_tb_param; tb_param++){
-        nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
-        cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
-        if (cost < min_cost){
+      else {
+        sad_intra = search_intra_prediction_params(org_block->y, rec, &block_info->block_pos, encoder_info->width, encoder_info->height, encoder_info->frame_info.num_intra_modes, &intra_mode);
+      }
+      pred_data.intra_mode = intra_mode;
+      min_tb_param = 0;
+      max_tb_param = block_info->max_num_tb_part - 1;
+      for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
+        nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
+        cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
+        if (cost < min_cost) {
           min_cost = cost;
           copy_best_parameters(size, block_info, mode, tb_param, -1, 0, NULL, 0, NULL, -1, intra_mode);
         }
       }
-    }
+    } //if do_intra
   } //if !rectangular_flag
 
   /* Rewind bitstream to reference position */

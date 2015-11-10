@@ -491,11 +491,7 @@ int main(int argc, char **argv)
       if (params->intra_rdo == 0 || (encoder_info.frame_info.frame_type != I_FRAME && params->encoder_speed > 0))
         encoder_info.frame_info.num_intra_modes = 4;
       else
-#if LIMIT_INTRA_MODES
-        encoder_info.frame_info.num_intra_modes = 8;
-#else
         encoder_info.frame_info.num_intra_modes = MAX_NUM_INTRA_MODES;
-#endif
 
 #if 0
       /* To test sliding window operation */

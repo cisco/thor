@@ -1261,17 +1261,11 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
     min_sad = sad;
   }
 
-#if LIMIT_INTRA_MODES
-  if (num_intra_modes<8){
-#else
-  if (1){
-#endif
-    get_planar_pred(left,top,top_left,size,pblock);
-    sad = sad_calc(org_y,pblock,size,size,size,size);
-    if (sad < min_sad){
-      *intra_mode = MODE_PLANAR;
-      min_sad = sad;
-    }
+  get_planar_pred(left,top,top_left,size,pblock);
+  sad = sad_calc(org_y,pblock,size,size,size,size);
+  if (sad < min_sad){
+    *intra_mode = MODE_PLANAR;
+    min_sad = sad;
   }
 
   if (num_intra_modes == 4) { //TODO: generalize
@@ -1286,15 +1280,12 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
     min_sad = sad;
   }
 
-#if LIMIT_INTRA_MODES
-#else
   get_upright_pred(top,size,pblock);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPRIGHT;
     min_sad = sad;
   }
-#endif
 
   get_upupright_pred(top,size,pblock);
   sad = sad_calc(org_y,pblock,size,size,size,size);
@@ -2471,20 +2462,16 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
     /* Evaluate intra mode */
     mode = MODE_INTRA;
     if (do_intra) {
+      min_tb_param = 0;
+      max_tb_param = block_info->max_num_tb_part - 1;
+
+      /* Find intra mode (by RDO or SAD) */
       if (encoder_info->params->intra_rdo) {
         uint32_t min_intra_cost = MAX_UINT32;
         intra_mode_t best_intra_mode = MODE_DC;
-        for (intra_mode = MODE_DC; intra_mode < MAX_NUM_INTRA_MODES; intra_mode++) {
-
-          if (encoder_info->frame_info.num_intra_modes == 4 && intra_mode >= 4)
-            continue;
-#if LIMIT_INTRA_MODES
-          if (intra_mode == MODE_PLANAR || intra_mode == MODE_UPRIGHT)
-            continue;
-#endif
+        int num_intra_modes = frame_info->num_intra_modes;
+        for (intra_mode = MODE_DC; intra_mode < num_intra_modes; intra_mode++) {
           pred_data.intra_mode = intra_mode;
-          min_tb_param = 0;
-          max_tb_param = block_info->max_num_tb_part - 1;
           for (tb_param = 0; tb_param <= max_tb_param; tb_param++) {
             nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
@@ -2497,11 +2484,11 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         intra_mode = best_intra_mode;
       }
       else {
-        sad_intra = search_intra_prediction_params(org_block->y, rec, &block_info->block_pos, encoder_info->width, encoder_info->height, encoder_info->frame_info.num_intra_modes, &intra_mode);
+        search_intra_prediction_params(org_block->y, rec, &block_info->block_pos, encoder_info->width, encoder_info->height, frame_info->num_intra_modes, &intra_mode);
       }
+
+      /* Do final encoding of selected intra mode */
       pred_data.intra_mode = intra_mode;
-      min_tb_param = 0;
-      max_tb_param = block_info->max_num_tb_part - 1;
       for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
         nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
         cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);

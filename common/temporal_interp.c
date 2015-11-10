@@ -395,21 +395,18 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
   ys[1]=ystart+((mv1.y+ACC_ROUND)>>ACC_BITS);
 
   uint8_t* p=&pic[ystart*sp+xstart];
-  int w0=abs(wt[0]);
-  int w1=abs(wt[1]);
-  int ratio = w0+w1;
 
   if (xs[0]>=-pad && xs[0]+size <= wP && ys[0]>=-pad && ys[0]+size<=hP
       && xs[1]>=-pad && xs[1]+size <= wP && ys[1]>=-pad && ys[1]+size<=hP) {
 
     uint8_t* r0=&ref0[ys[0]*s0+xs[0]];
     uint8_t* r1=&ref1[ys[1]*s1+xs[1]];
-    if (w0==1 && w1==1 && use_simd && size>=4) {
+    if (use_simd && size>=4) {
       block_avg_simd(p,r0,r1,sp,s0,s1,size,size);
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
-          p[i*sp+j] = (w0*r0[i*s0+j]+w1*r1[i*s1+j]+(ratio/2))/ratio;
+          p[i*sp+j] = (r0[i*s0+j]+r1[i*s1+j])/2;
         }
       }
     }
@@ -435,7 +432,7 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
         int xpos1=min(wP-1, max(-pad, j+xs[1]));
         int ypos0=min(hP-1, max(-pad, i+ys[0]));
         int ypos1=min(hP-1, max(-pad, i+ys[1]));
-        p[i*sp+j] = (w0*r0[ypos0*s0+xpos0]+w1*r1[ypos1*s1+xpos1]+(ratio/2))/ratio;
+        p[i*sp+j] = (r0[ypos0*s0+xpos0]+r1[ypos1*s1+xpos1])/2;
       }
     }
 

@@ -2121,7 +2121,125 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   }
 }
 
+int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t *block_info, int part, mv_t *mv_center, mv_t *mvp, int *ref_idx0, int *ref_idx1, mv_t *mv_arr0, mv_t *mv_arr1){
 
+  int min_sad, sad, ref_idx;
+  int r, i;
+  mv_t mv;
+  mv_t *mvc;
+
+  frame_type_t frame_type = encoder_info->frame_info.frame_type;
+  frame_info_t *frame_info = &encoder_info->frame_info;
+  yuv_frame_t *ref;
+  yuv_frame_t *rec = encoder_info->rec;
+  yuv_block_t *org_block = block_info->org_block;
+  uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *org8 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+
+  int width = encoder_info->width;
+  int height = encoder_info->height;
+  double lambda = frame_info->lambda;
+  mv_t mv_all[4][4];
+  int enable_bipred = 1;
+  int size = block_info->block_pos.size;
+  int n, num_iter, list;
+#if BIPRED_PART
+  num_iter = encoder_info->params->encoder_speed < 0 ? 2 : 1;
+#else
+  num_iter = encoder_info->params->encoder_speed == 0 ? 2 : 1;
+#endif
+  int min_ref_idx0 = 0, min_ref_idx1 = 0;
+  mv_t min_mv_arr0[4], min_mv_arr1[4];
+
+  /* Initialize using ME for ref_idx=0 */
+  if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->frame_info.interp_ref == 1)
+    ref_idx = 1;
+  else
+    ref_idx = 0;
+  min_ref_idx0 = ref_idx;
+
+  min_mv_arr0[0] = *mvp; //TODO: use actual uni-pred mv instead?
+  min_mv_arr0[1] = *mvp;
+  min_mv_arr0[2] = *mvp;
+  min_mv_arr0[3] = *mvp;
+  memcpy(min_mv_arr1, min_mv_arr0, 4 * sizeof(mv_t));
+
+  min_sad = (1 << 30);
+
+  for (n = 0; n < num_iter; n++) {
+#if 1
+    int stop = part == 0 ? 0 : 1;
+    for (list = 1; list >= stop; list--) {
+#else
+    for (list = 1; list >= 0; list--) {
+#endif
+      /* Determine mv and ref_idx for the other list */
+      mv = list ? min_mv_arr0[0] : min_mv_arr1[0];
+      ref_idx = list ? min_ref_idx0 : min_ref_idx1;
+
+      /* Find prediction for the other list */
+      r = encoder_info->frame_info.ref_array[ref_idx];
+      ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+      int sign = ref->frame_num > rec->frame_num;
+      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, block_info, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 1);
+      /* Modify the target block based on that predition */
+      for (i = 0; i < size*size; i++) {
+        org8[i] = (uint8_t)clip255(2 * (int16_t)org_block->y[i] - (int16_t)pblock_y[i]);
+      }
+
+      /* Find MV and ref_idx for the current list */
+      int ref_start, ref_end;
+      if (encoder_info->frame_info.frame_type == P_FRAME) {
+        ref_start = 0;
+        ref_end = frame_info->num_ref - 1;
+      }
+      else {
+        ref_start = list ? 1 : 0;
+        ref_end = list ? 1 : 0;
+        if (encoder_info->frame_info.interp_ref) {
+          ref_start += 1;
+          ref_end += 1;
+        }
+      }
+
+      for (ref_idx = ref_start; ref_idx <= ref_end; ref_idx++) {
+        r = encoder_info->frame_info.ref_array[ref_idx];
+        ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+        int sign = ref->frame_num > rec->frame_num;
+        mv_t mvp2 = (frame_type == B_FRAME && list == 1) ? mv : *mvp;
+        mvc = &mv_center[ref_idx];
+        sad = (uint32_t)search_inter_prediction_params(org8, ref, &block_info->block_pos, mvc, &mvp2, mv_all[part], part, sqrt(lambda), encoder_info->params, sign, width, height, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, enable_bipred);
+        for (int i = 0; i < 4; i++)
+          add_mvcandidate(mv_all[part] + i, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
+        if (sad < min_sad) {
+          min_sad = sad;
+          if (list) {
+            min_ref_idx1 = ref_idx;
+            memcpy(min_mv_arr1, mv_all[part], 4 * sizeof(mv_t));
+          }
+          else {
+            min_ref_idx0 = ref_idx;
+            memcpy(min_mv_arr0, mv_all[part], 4 * sizeof(mv_t));
+          }
+        } //if sad < min_sad
+      } //for (ref_idx ..
+    } //for iter ..
+  } //for n=0...
+
+  *ref_idx0 = min_ref_idx0;
+  *ref_idx1 = min_ref_idx1;
+  memcpy(mv_arr0, min_mv_arr0, 4 * sizeof(mv_t));
+  memcpy(mv_arr1, min_mv_arr1, 4 * sizeof(mv_t));
+
+  thor_free(pblock_y);
+  thor_free(pblock_u);
+  thor_free(pblock_v);
+  thor_free(org8);
+  return (min_sad/2); //Divide due to the way org8 is calculated
+}
 
 int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 {
@@ -2296,125 +2414,23 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 
       /* Start bipred ME */
       if (frame_info->num_ref > 1 && encoder_info->params->enable_bipred && do_inter) { //TODO: Should work with only one reference also
-        int min_sad, sad;
-        int r, i;
-        mv_t mv;
-        uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-        uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-        uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-        uint8_t *org8 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-
-        int n, num_iter, list;
+        mode = MODE_BIPRED;
 #if BIPRED_PART
         int num_bi_part = block_info->max_num_pb_part;
-        num_iter = encoder_info->params->encoder_speed < 0 ? 2 : 1;
 #else
         int num_bi_part = 1;
-        num_iter = encoder_info->params->encoder_speed == 0 ? 2 : 1;
 #endif
-        int min_ref_idx0 = 0, min_ref_idx1 = 0;
-        mv_t min_mv_arr0[4], min_mv_arr1[4];
-        int opt_ref_idx0[4];
-        int opt_ref_idx1[4];
-        mv_t opt_mv_arr0[4][4];
-        mv_t opt_mv_arr1[4][4];
-
-        for (part = 0; part < num_bi_part; part++) {
-
-          /* Initialize using ME for ref_idx=0 */
-          if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->frame_info.interp_ref == 1)
-            ref_idx = 1;
-          else
-            ref_idx = 0;
-          min_ref_idx0 = ref_idx;
-
-          min_mv_arr0[0] = mvp; //TODO: use actual uni-pred mv instead?
-          min_mv_arr0[1] = mvp;
-          min_mv_arr0[2] = mvp;
-          min_mv_arr0[3] = mvp;
-          memcpy(min_mv_arr1, min_mv_arr0, 4 * sizeof(mv_t));
-
-          min_sad = (1 << 30);
-
-          for (n = 0; n < num_iter; n++) {
-#if 1
-            int stop = part == 0 ? 0 : 1;
-            for (list = 1; list >= stop; list--) {
-#else
-            for (list = 1; list >= 0; list--) {
-#endif
-              /* Determine mv and ref_idx for the other list */
-              mv = list ? min_mv_arr0[0] : min_mv_arr1[0];
-              ref_idx = list ? min_ref_idx0 : min_ref_idx1;
-
-              /* Find prediction for the other list */
-              r = encoder_info->frame_info.ref_array[ref_idx];
-              ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-
-              int sign = ref->frame_num > rec->frame_num;
-              get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, block_info, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 1);
-              /* Modify the target block based on that predition */
-              for (i = 0; i < size*size; i++) {
-                org8[i] = (uint8_t)clip255(2 * (int16_t)org_block->y[i] - (int16_t)pblock_y[i]);
-              }
-
-              /* Find MV and ref_idx for the current list */
-              int ref_start, ref_end;
-              if (encoder_info->frame_info.frame_type == P_FRAME) {
-                ref_start = 0;
-                ref_end = frame_info->num_ref - 1;
-              }
-              else {
-                ref_start = list ? 1 : 0;
-                ref_end = list ? 1 : 0;
-                if (encoder_info->frame_info.interp_ref) {
-                  ref_start += 1;
-                  ref_end += 1;
-                }
-              }
-
-              for (ref_idx = ref_start; ref_idx <= ref_end; ref_idx++) {
-                r = encoder_info->frame_info.ref_array[ref_idx];
-                ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-                int sign = ref->frame_num > rec->frame_num;
-                mv_t mvp2 = (frame_type == B_FRAME && list == 1) ? mv : mvp;
-                sad = (uint32_t)search_inter_prediction_params(org8, ref, &block_info->block_pos, &mv_center[ref_idx], &mvp2, mv_all[part], part, sqrt(lambda), encoder_info->params, sign, width, height, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, enable_bipred);
-                for (int i = 0; i < 4; i++)
-                  add_mvcandidate(mv_all[part] + i, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
-                if (sad < min_sad) {
-                  min_sad = sad;
-                  if (list) {
-                    min_ref_idx1 = ref_idx;
-                    memcpy(min_mv_arr1, mv_all[part], 4 * sizeof(mv_t));
-                  }
-                  else {
-                    min_ref_idx0 = ref_idx;
-                    memcpy(min_mv_arr0, mv_all[part], 4 * sizeof(mv_t));
-                  }
-                } //if sad < min_sad
-              } //for (ref_idx ..
-            } //for iter ..
-          } //for n=0...
-
-          opt_ref_idx0[part] = min_ref_idx0;
-          opt_ref_idx1[part] = min_ref_idx1;
-          memcpy(opt_mv_arr0[part], min_mv_arr0, 4 * sizeof(mv_t));
-          memcpy(opt_mv_arr1[part], min_mv_arr1, 4 * sizeof(mv_t));
-        } //for part...
-        thor_free(pblock_y);
-        thor_free(pblock_u);
-        thor_free(pblock_v);
-        thor_free(org8);
-
-        mode = MODE_BIPRED;
+        int ref_idx0, ref_idx1;
+        mv_t mv_arr0[4], mv_arr1[4];
         min_tb_param = 0;
         max_tb_param = 0; //TODO: Support tb-split
         for (part = 0; part < num_bi_part; part++) {
+          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1);
           pred_data.PBpart = part;
-          pred_data.ref_idx0 = opt_ref_idx0[part];
-          memcpy(pred_data.mv_arr0, opt_mv_arr0[part], 4 * sizeof(mv_t));
-          pred_data.ref_idx1 = opt_ref_idx1[part];
-          memcpy(pred_data.mv_arr1, opt_mv_arr1[part], 4 * sizeof(mv_t));
+          pred_data.ref_idx0 = ref_idx0;
+          memcpy(pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
+          pred_data.ref_idx1 = ref_idx1;
+          memcpy(pred_data.mv_arr1, mv_arr1, 4 * sizeof(mv_t));
           for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
             nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
@@ -2427,7 +2443,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 
         if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed == 0) {
           yuv_frame_t *ref0, *ref1;
-          int sign = 0;
+          int r,sign = 0;
           mv_t mv;
 
           tb_param = 0;

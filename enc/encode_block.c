@@ -2121,7 +2121,7 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   }
 }
 
-int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t *block_info, int part, mv_t *mv_center, mv_t *mvp, int *ref_idx0, int *ref_idx1, mv_t *mv_arr0, mv_t *mv_arr1){
+int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t *block_info, int part, mv_t *mv_center, mv_t *mvp, int *ref_idx0, int *ref_idx1, mv_t *mv_arr0, mv_t *mv_arr1, int me_mode){
 
   int min_sad, sad, ref_idx;
   int r, i;
@@ -2152,6 +2152,42 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
 #endif
   int min_ref_idx0 = 0, min_ref_idx1 = 0;
   mv_t min_mv_arr0[4], min_mv_arr1[4];
+
+  if (me_mode) {
+    /* Simultaneous bipred search with mv0 = -mv1 */
+    int r_idx0, r_idx1;
+    int ypos = block_info->block_pos.ypos;
+    int xpos = block_info->block_pos.xpos;
+
+    yuv_frame_t *ref0, *ref1;
+    int r, sign = 0;
+    mv_t mv;
+
+    r_idx0 = encoder_info->params->interp_ref ? 1 : 0;
+    r = encoder_info->frame_info.ref_array[r_idx0];
+    ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+    r_idx1 = encoder_info->params->interp_ref ? 2 : 1;
+    r = encoder_info->frame_info.ref_array[r_idx1];
+    ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+    int rstride = ref0->stride_y;
+    int ostride = size;
+    int ref_posY = ypos*rstride + xpos;
+    uint8_t *ref0_y = ref0->y + ref_posY;
+    uint8_t *ref1_y = ref1->y + ref_posY;
+
+    sad = motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[r_idx0], mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[r_idx0], frame_info->mvcand_num + r_idx0, 2);
+
+    *ref_idx0 = r_idx0;
+    *ref_idx1 = r_idx1;
+    mv_arr0[0] = mv_arr0[1] = mv_arr0[2] = mv_arr0[3] = mv;
+    memcpy(mv_arr1, mv_arr0, 4 * sizeof(mv_t));
+
+    return sad;
+  }
+
+  /* Iterative unipred search for mv0 and mv1 */
 
   /* Initialize using ME for ref_idx=0 */
   if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->frame_info.interp_ref == 1)
@@ -2425,7 +2461,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         min_tb_param = 0;
         max_tb_param = 0; //TODO: Support tb-split
         for (part = 0; part < num_bi_part; part++) {
-          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1);
+          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1,0);
           pred_data.PBpart = part;
           pred_data.ref_idx0 = ref_idx0;
           memcpy(pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
@@ -2442,35 +2478,13 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         } //for part..
 
         if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed == 0) {
-          yuv_frame_t *ref0, *ref1;
-          int r,sign = 0;
-          mv_t mv;
-          int ref_idx0, ref_idx1;
-          tb_param = 0;
-
-          ref_idx0 = encoder_info->params->interp_ref ? 1 : 0;
-          r = encoder_info->frame_info.ref_array[ref_idx0];
-          ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-
-          ref_idx1 = encoder_info->params->interp_ref ? 2 : 1;
-          r = encoder_info->frame_info.ref_array[ref_idx1];
-          ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-
-          int rstride = ref0->stride_y;
-          int ostride = size;
-          int ref_posY = ypos*rstride + xpos;
-          uint8_t *ref0_y = ref0->y + ref_posY;
-          uint8_t *ref1_y = ref1->y + ref_posY;
-
-          sad = 2 * motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[0], &mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, 2);
-          mv_all[PART_NONE][0] = mv_all[PART_NONE][1] = mv_all[PART_NONE][2] = mv_all[PART_NONE][3] = mv;
-
+          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1, 1);
           pred_data.PBpart = PART_NONE;
           pred_data.ref_idx0 = ref_idx0;
-          memcpy(pred_data.mv_arr0, mv_all[PART_NONE], 4 * sizeof(mv_t));
+          memcpy(pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
           pred_data.ref_idx1 = ref_idx1;
-          memcpy(pred_data.mv_arr1, mv_all[PART_NONE], 4 * sizeof(mv_t));
-
+          memcpy(pred_data.mv_arr1, mv_arr1, 4 * sizeof(mv_t));
+          tb_param = 0;
           nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
           cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
           if (cost < min_cost) {

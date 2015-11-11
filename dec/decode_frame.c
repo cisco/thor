@@ -92,15 +92,20 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     // interpolate from the other references
     yuv_frame_t* ref1=decoder_info->ref[decoder_info->frame_info.ref_array[1]];
     yuv_frame_t* ref2=decoder_info->ref[decoder_info->frame_info.ref_array[2]];
-    if (decoder_info->dyadic_coding)
-      interpolate_frames(decoder_info->interp_frames[0], ref1, ref2, 2 , 1);
-    else if (decoder_info->num_reorder_pics>0){
-      int sub_gop = decoder_info->num_reorder_pics+1;
-      int phase = (decoder_info->frame_info.decode_order_frame_num + sub_gop - 2) % sub_gop;
-      interpolate_frames(decoder_info->interp_frames[0], ref1, ref2, sub_gop-phase, phase!=0 ? 1 : sub_gop-phase-1);
+    int display_frame_num = decoder_info->frame_info.display_frame_num;
+    int off1 = ref2->frame_num - display_frame_num;
+    int off2 = display_frame_num - ref1->frame_num;
+    if (off1 < 0 && off2 < 0) {
+      off1 = -off1;
+      off2 = -off2;
     }
+    if (off1 == off2) {
+      off1 = off2 = 1;
+    }
+    // FIXME: won't work for the 1-sided case
+    interpolate_frames(decoder_info->interp_frames[0], ref1, ref2, off1+off2 , off2);
     pad_yuv_frame(decoder_info->interp_frames[0]);
-    decoder_info->interp_frames[0]->frame_num = decoder_info->frame_info.display_frame_num;
+    decoder_info->interp_frames[0]->frame_num = display_frame_num;
   }
 
   decoder_info->bit_count.frame_header[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);

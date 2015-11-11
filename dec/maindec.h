@@ -71,8 +71,6 @@ typedef struct
     bit_count_t bit_count;
     int pb_split;
     int max_num_ref;
-    int num_reorder_pics;
-    int dyadic_coding;
     int interp_ref;
     int max_delta_qp;
     int deblocking;

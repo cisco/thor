@@ -199,9 +199,6 @@ int main(int argc, char **argv)
   putbits(1,params->enable_pb_split,&stream);
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
-  putbits(4,params->num_reorder_pics,&stream);// Max 15 reordered pictures
-  if (params->num_reorder_pics>0)
-    putbits(1,params->dyadic_coding,&stream);
   putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
   putbits(2,params->max_delta_qp,&stream);
   putbits(1,params->deblocking,&stream);

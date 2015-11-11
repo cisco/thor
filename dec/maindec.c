@@ -137,9 +137,6 @@ int main(int argc, char** argv)
     decoder_info.max_num_ref = getbits(&stream,2) + 1;
     fprintf(stderr,"num refs is %d\n",decoder_info.max_num_ref);
 
-    decoder_info.num_reorder_pics = getbits(&stream,4);
-    if (decoder_info.num_reorder_pics>0)
-      decoder_info.dyadic_coding = getbits(&stream,1);
     decoder_info.interp_ref = getbits(&stream,1);
 
     decoder_info.max_delta_qp = getbits(&stream,2);

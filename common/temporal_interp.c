@@ -901,7 +901,12 @@ static void motion_estimate_bi(mv_data_t* mv_data, mv_data_t** guide_mv_data, in
   for (int i=0; i<bh; i++) {
     for (int j=0; j<bw; j++) {
       int num_cands=get_merge_cands(mv_data, cand_list, 1, j, i, MAX_CANDS);
-      merge_candidate_search(cand_list, num_cands, mv_data, mv0, mv1, pic, j, i);
+      if (num_cands>1){
+        merge_candidate_search(cand_list, num_cands, mv_data, mv0, mv1, pic, j, i);
+      } else {
+        mv0[i*bw+j]=mv_data->mv[0][i*bw+j];
+        mv1[i*bw+j]=mv_data->mv[1][i*bw+j];
+      }
     }
   }
 

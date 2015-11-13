@@ -610,23 +610,14 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
     if (tb_split == 0){
       tmp = 0;
-#if NO_SUBBLOCK_SKIP
-      if (0){
-#else
       if (mode==MODE_MERGE){
-#endif
         if (code==7)
           code = 1;
         else if (code>0)
           code = code+1;
       }
       while (tmp < 8 && code != cbp_table[tmp]) tmp++;
-#if NO_SUBBLOCK_SKIP
-      if (1){
-#else
       if (mode!=MODE_MERGE){
-#endif
-
         if (decoder_info->block_context->cbp==0 && tmp < 2){
           tmp = 1-tmp;
         }

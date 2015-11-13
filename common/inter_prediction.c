@@ -462,18 +462,6 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_d
   zero_pred.ref_idx1 = 0;
   zero_pred.bipred_flag = 0;
 
-#if NO_SUBBLOCK_SKIP
-  if (size<MAX_BLOCK_SIZE) {
-    skip_candidates[0] = zero_pred;
-    if (bipred_copy) {
-      skip_candidates[0].ref_idx1 = 1;
-      skip_candidates[0].bipred_flag = 2;
-    }
-    num_skip_vec = 1;
-    return num_skip_vec;
-  }
-#endif
-
   /* Parameters values measured in units of 4 pixels */
   int block_size = size/MIN_PB_SIZE;
   int block_stride = width/MIN_PB_SIZE;

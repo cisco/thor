@@ -333,14 +333,6 @@ void write_super_mode(stream_t *stream,encoder_info_t *encoder_info, block_info_
       else if (mode == MODE_INTER && pred_data->ref_idx0>0)
         code = 5 + pred_data->ref_idx0;
 
-#if NO_SUBBLOCK_SKIP
-      if (size < MAX_BLOCK_SIZE){
-        /* Merge is more likely than inter-ref_idx=0 */
-        if (code==2) code = 3;
-        else if (code==3) code = 2;
-      }
-#endif
-
       if (!bipred_possible_flag && code > 4) {
         /* Don't need a codeword for bipred so fill the empty slot */
         code = code - 1;
@@ -562,11 +554,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
       }
     }
     else{
-#if NO_SUBBLOCK_SKIP
-      if (0){
-#else
       if (mode==MODE_MERGE){
-#endif
         cbp = cbp_y + (cbp_u<<1) + (cbp_v<<2);
         code = cbp_table[cbp];
         if (code==1)

@@ -587,14 +587,6 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
       code += 1;
     }
 
-#if NO_SUBBLOCK_SKIP
-    if (size < MAX_BLOCK_SIZE) {
-      /* Merge was more likey than inter-ref_idx=0 */
-      if (code == 2) code = 3;
-      else if (code == 3) code = 2;
-    }
-#endif
-
     if (code == 0) {
       mode = MODE_SKIP;
       stat_mode = STAT_SKIP;

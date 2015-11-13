@@ -75,7 +75,6 @@ static inline void fatalerror(char error_text[])
 /* Experimental */
 #define BIPRED_PART 0
 
-#define NO_SUBBLOCK_SKIP 0       //Force only zero skip mv in subblocks
 #define NEW_DEBLOCK_TEST 1       //New test for deblocking a block edge
 #define NEW_MV_TEST 1            //New MV test for deblocking a line
 #define NEW_DEBLOCK_FILTER 1     //New deblocking filter

@@ -1650,62 +1650,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   uint8_t *rec_u = block_info->rec_block->u;
   uint8_t *rec_v = block_info->rec_block->v;
 
-  /* Store all information that is needed to produce bitstream for this block */
-  write_data_t write_data;
-
   int zero_block = tb_param == -1 ? 1 : 0;
   int tb_split = max(0,tb_param);
-
+  block_info->tb_split = tb_split;
+  pred_data->mode = mode; //TODO: PARAM CLEANUP
   if (mode!=MODE_INTRA) {
     ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-  }
-
-  write_data.mode = mode;
-  write_data.size = size;
-  write_data.max_num_pb_part = block_info->max_num_pb_part;
-  write_data.max_num_tb_part = block_info->max_num_tb_part;
-  write_data.tb_part = tb_split;
-  write_data.frame_type = frame_type;
-  write_data.ref_idx = pred_data->ref_idx0;
-  write_data.enable_bipred = encoder_info->params->enable_bipred;
-  write_data.num_ref = encoder_info->frame_info.num_ref;
-  write_data.cbp = &cbp;
-  write_data.coeffq_y = coeffq_y;
-  write_data.coeffq_u = coeffq_u;
-  write_data.coeffq_v = coeffq_v;
-  write_data.max_delta_qp = encoder_info->params->max_delta_qp;
-  write_data.delta_qp = block_info->delta_qp;
-  write_data.block_context = block_info->block_context;
-  write_data.encode_rectangular_size = yposY + size > encoder_info->height || xposY + size > encoder_info->width;
-  write_data.interp_ref = encoder_info->frame_info.interp_ref;
-  if (mode==MODE_SKIP){
-    write_data.skip_idx = pred_data->skip_idx;
-    write_data.num_skip_vec = block_info->num_skip_vec;
-  }
-  else if (mode==MODE_MERGE){
-    write_data.skip_idx = pred_data->skip_idx;
-    write_data.num_skip_vec = block_info->num_merge_vec;
-    write_data.max_num_tb_part = 1; ////TODO: Support merge mode and tb-split combination
-  }
-  else if (mode==MODE_INTER){
-    write_data.mvp = block_info->mvp;
-    memcpy(write_data.mv_arr,pred_data->mv_arr0,4*sizeof(mv_t));
-    write_data.pb_part = pred_data->PBpart;
-    write_data.max_num_tb_part = block_info->max_num_tb_part>1? 2 : 1;
-  }
-  else if (mode==MODE_INTRA){
-    write_data.intra_mode = pred_data->intra_mode;
-    write_data.num_intra_modes = encoder_info->frame_info.num_intra_modes;
-    write_data.max_num_tb_part = block_info->max_num_tb_part;
-  }
-  else if (mode==MODE_BIPRED){
-    write_data.mvp = block_info->mvp;
-    memcpy(write_data.mv_arr0,pred_data->mv_arr0,4*sizeof(mv_t));
-    memcpy(write_data.mv_arr1,pred_data->mv_arr1,4*sizeof(mv_t));
-    write_data.ref_idx0 = pred_data->ref_idx0;
-    write_data.ref_idx1 = pred_data->ref_idx1;
-    write_data.pb_part = pred_data->PBpart;
-    write_data.max_num_tb_part = 1; //TODO: Support bipred and tb-split combination
   }
 
   if (re_use){
@@ -1722,12 +1672,17 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       cbp.u = block_info->cbp_best.u;
       cbp.v = block_info->cbp_best.v;
     }
+    //TODO: PARAM CLEANUP
     if (mode != MODE_SKIP) {
       memcpy(coeffq_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
       memcpy(coeffq_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
       memcpy(coeffq_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
     }
-    nbits = write_block(stream,&write_data);
+    memcpy(block_info->coeff_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
+    memcpy(block_info->coeff_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
+    memcpy(block_info->coeff_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
+    block_info->cbp = cbp;
+    nbits = write_block(stream, encoder_info, block_info, pred_data);
 
     if (tb_split){
       cbp.y = cbp.u = cbp.v = 1; //TODO: Do properly with respect to deblocking filter
@@ -1856,9 +1811,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     }
 
   }
+  block_info->cbp = cbp; //TODO: PARAM CLEANUP
 
-
-  nbits = write_block(stream,&write_data);
+  nbits = write_block(stream,encoder_info,block_info,pred_data);
 
   if (tb_split){
     cbp.y = cbp.u = cbp.v = 1; //TODO: Do properly with respect to deblocking filter
@@ -3023,11 +2978,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     int new_size = size/2;
     if (encode_this_size){
       int split_flag = 1;
-      write_data_t write_data;
-      write_data.size = size;
-      write_data.block_context = block_info.block_context;
-      write_data.frame_type = frame_type;
-      write_super_mode(stream, &write_data, split_flag);
+      pred_data_t pred_data;
+      write_super_mode(stream, encoder_info, &block_info, &pred_data, split_flag);
     }
     else if (frame_type != I_FRAME){
       putbits(1,0,stream); //Flag to signal either split or rectangular skip
@@ -3072,11 +3024,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     if (top_down && cost > me_threshold) {
       int new_size = size/2;
       int split_flag = 1;
-      write_data_t write_data;
-      write_data.size = size;
-      write_data.block_context = block_info.block_context;
-      write_data.frame_type = frame_type;
-      write_super_mode(stream, &write_data, split_flag);
+      pred_data_t pred_data;
+      write_super_mode(stream, encoder_info, &block_info, &pred_data, split_flag);
       cost_small = 0; //TODO: Why not nbit * lambda?
       cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
       cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp);

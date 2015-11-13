@@ -108,6 +108,7 @@ typedef struct
   mvb_t mvb_merge[MAX_NUM_SKIP];
   mv_t mvp;
   int tb_param;
+  int tb_split;
   int max_num_pb_part;
   int max_num_tb_part;
   cbp_t cbp;

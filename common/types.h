@@ -201,39 +201,6 @@ typedef struct
 
 typedef struct
 {
-  block_mode_t mode;
-  intra_mode_t intra_mode;
-  mv_t mvp;
-  cbp_t *cbp;
-  int16_t *coeffq_y;
-  int16_t *coeffq_u;
-  int16_t *coeffq_v;
-  uint8_t size;
-  int skip_idx;
-  int num_skip_vec;
-  mv_t mv_arr[4]; //TODO: collapse with mv_arr0
-  mv_t mv_arr0[4];
-  mv_t mv_arr1[4];
-  int ref_idx0;
-  int ref_idx1;
-  int max_num_pb_part;
-  int max_num_tb_part;
-  int tb_part;
-  int pb_part;
-  int frame_type;
-  int num_ref;
-  int ref_idx; //TODO: collapse with ref_idx0
-  int num_intra_modes;
-  int delta_qp;
-  int max_delta_qp;
-  block_context_t *block_context;
-  int enable_bipred;
-  int encode_rectangular_size;
-  int interp_ref;
-} write_data_t;
-
-typedef struct
-{
   frame_type_t stat_frame_type;
   /* For bitcount */
   uint32_t sequence_header;

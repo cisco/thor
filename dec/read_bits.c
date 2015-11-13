@@ -218,7 +218,6 @@ int read_delta_qp(stream_t *stream){
   delta_qp = sign_delta_qp ? -abs_delta_qp : abs_delta_qp;
   return delta_qp;
 }
-
 int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *block_info, frame_type_t frame_type)
 {
   int width = decoder_info->width;
@@ -265,16 +264,11 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     /* Derive skip vector candidates and number of skip vector candidates from neighbour blocks */
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
-    mvb_t tmp_mvb_skip[MAX_NUM_SKIP];
     int bipred_copy = decoder_info->frame_info.interp_ref || stat_frame_type == P_FRAME ? 0 : 1;
     inter_pred_t skip_candidates[MAX_NUM_SKIP];
     num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, decoder_info->deblock_data, skip_candidates, bipred_copy);
     for (int idx = 0; idx < num_skip_vec; idx++) {
-      inter_pred_to_mvb(&skip_candidates[idx], &tmp_mvb_skip[idx]);
-    }
-    for (int idx=0;idx<num_skip_vec;idx++){
-      mv_skip[idx].x = tmp_mvb_skip[idx].x0;
-      mv_skip[idx].y = tmp_mvb_skip[idx].y0;
+      mv_skip[idx] = skip_candidates[idx].mv0;
     }
     /* Decode skip index */
     if (num_skip_vec == 4)
@@ -305,37 +299,22 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_arr[2] = mv;
     mv_arr[3] = mv;
 
-    //int ref_idx = tmp_mvb_skip[skip_idx].ref_idx0;
-
-    block_info->pred_data.ref_idx0 = tmp_mvb_skip[skip_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = tmp_mvb_skip[skip_idx].ref_idx1;
-    block_info->pred_data.dir = tmp_mvb_skip[skip_idx].dir;
-    mv_arr0[0].x = tmp_mvb_skip[skip_idx].x0;
-    mv_arr0[0].y = tmp_mvb_skip[skip_idx].y0;
-    mv_arr0[1] = mv_arr0[0];
-    mv_arr0[2] = mv_arr0[0];
-    mv_arr0[3] = mv_arr0[0];
-
-    mv_arr1[0].x = tmp_mvb_skip[skip_idx].x1;
-    mv_arr1[0].y = tmp_mvb_skip[skip_idx].y1;
-    mv_arr1[1] = mv_arr1[0];
-    mv_arr1[2] = mv_arr1[0];
-    mv_arr1[3] = mv_arr1[0];
-
+    block_info->pred_data.ref_idx0 = skip_candidates[skip_idx].ref_idx0;
+    block_info->pred_data.ref_idx1 = skip_candidates[skip_idx].ref_idx1;
+    for (int i = 0; i < 4; i++) {
+      mv_arr0[i] = skip_candidates[skip_idx].mv0;
+      mv_arr1[i] = skip_candidates[skip_idx].mv1;
+    }
+    block_info->pred_data.dir = skip_candidates[skip_idx].bipred_flag;
   }
   else if (mode == MODE_MERGE){
     /* Derive skip vector candidates and number of skip vector candidates from neighbour blocks */
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
-    mvb_t tmp_mvb_skip[MAX_NUM_SKIP];
     inter_pred_t merge_candidates[MAX_NUM_SKIP];
     num_skip_vec = get_mv_merge(ypos, xpos, width, height, size, decoder_info->deblock_data, merge_candidates);
     for (int idx = 0; idx < num_skip_vec; idx++) {
-      inter_pred_to_mvb(&merge_candidates[idx], &tmp_mvb_skip[idx]);
-    }
-    for (int idx=0;idx<num_skip_vec;idx++){
-      mv_skip[idx].x = tmp_mvb_skip[idx].x0;
-      mv_skip[idx].y = tmp_mvb_skip[idx].y0;
+      mv_skip[idx] = merge_candidates[idx].mv0;
     }
     /* Decode skip index */
     if (num_skip_vec == 4)
@@ -366,22 +345,13 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_arr[2] = mv;
     mv_arr[3] = mv;
 
-    //int ref_idx = tmp_mvb_skip[skip_idx].ref_idx0;
-
-    block_info->pred_data.ref_idx0 = tmp_mvb_skip[skip_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = tmp_mvb_skip[skip_idx].ref_idx1;
-    block_info->pred_data.dir = tmp_mvb_skip[skip_idx].dir;
-    mv_arr0[0].x = tmp_mvb_skip[skip_idx].x0;
-    mv_arr0[0].y = tmp_mvb_skip[skip_idx].y0;
-    mv_arr0[1] = mv_arr0[0];
-    mv_arr0[2] = mv_arr0[0];
-    mv_arr0[3] = mv_arr0[0];
-
-    mv_arr1[0].x = tmp_mvb_skip[skip_idx].x1;
-    mv_arr1[0].y = tmp_mvb_skip[skip_idx].y1;
-    mv_arr1[1] = mv_arr1[0];
-    mv_arr1[2] = mv_arr1[0];
-    mv_arr1[3] = mv_arr1[0];
+    block_info->pred_data.ref_idx0 = merge_candidates[skip_idx].ref_idx0;
+    block_info->pred_data.ref_idx1 = merge_candidates[skip_idx].ref_idx1;
+    for (int i = 0; i < 4; i++) {
+      mv_arr0[i] = merge_candidates[skip_idx].mv0;
+      mv_arr1[i] = merge_candidates[skip_idx].mv1;
+    }
+    block_info->pred_data.dir = merge_candidates[skip_idx].bipred_flag;
   }
   else if (mode==MODE_INTER){
     int ref_idx;

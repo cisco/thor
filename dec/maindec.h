@@ -49,7 +49,6 @@ typedef struct
   block_pos_t block_pos;
   pred_data_t pred_data;
   int num_skip_vec;
-  mvr_t mvr_skip[MAX_NUM_SKIP];
   int tb_split;
   cbp_t cbp;
   int16_t *coeffq_y;

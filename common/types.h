@@ -110,24 +110,6 @@ typedef struct
 
 typedef struct
 {
-  int16_t x;
-  int16_t y;
-  int32_t ref_idx;
-} mvr_t;
-
-typedef struct
-{
-  int16_t x0;
-  int16_t y0;
-  int32_t ref_idx0;
-  int16_t x1;
-  int16_t y1;
-  int32_t ref_idx1;
-  int32_t dir;
-} mvb_t;
-
-typedef struct
-{
   mv_t mv0;
   mv_t mv1;
   uint32_t ref_idx0;    //TODO: Maybe use uint8_t?

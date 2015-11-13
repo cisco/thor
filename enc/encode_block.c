@@ -2248,7 +2248,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
   /* Evaluate skip candidates */
   if (frame_type != I_FRAME){
     tb_param = 0;
-    int part = PART_NONE;
+    pred_data.pb_part = PART_NONE;
     mode = MODE_SKIP;
     int num_skip_vec = block_info->num_skip_vec;
     int skip_idx;
@@ -2722,7 +2722,6 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
 
   uint32_t cost,min_cost;
   int skip_idx,nbit,tmp_early_skip_flag;
-  int best_skip_idx = 0;
   int early_skip_flag = 0;
   int tb_split = 0;
   int size = block_info->block_pos.size;

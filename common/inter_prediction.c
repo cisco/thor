@@ -293,26 +293,6 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   return mvp;
 }
 
-void mvb_to_inter_pred(mvb_t *mvb, inter_pred_t *inter_pred) {
-  inter_pred->mv0.x = mvb->x0;
-  inter_pred->mv0.y = mvb->y0;
-  inter_pred->ref_idx0 = mvb->ref_idx0;
-  inter_pred->mv1.x = mvb->x1;
-  inter_pred->mv1.y = mvb->y1;
-  inter_pred->ref_idx1 = mvb->ref_idx1;
-  inter_pred->bipred_flag = mvb->dir;
-}
-
-void inter_pred_to_mvb(inter_pred_t *inter_pred, mvb_t *mvb) {
-  mvb->x0 = inter_pred->mv0.x;
-  mvb->y0 = inter_pred->mv0.y;
-  mvb->ref_idx0 = inter_pred->ref_idx0;
-  mvb->x1 = inter_pred->mv1.x;
-  mvb->y1 = inter_pred->mv1.y;
-  mvb->ref_idx1 = inter_pred->ref_idx1;
-  mvb->dir = inter_pred->bipred_flag;
-}
-
 int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
 {
   int num_merge_vec = 0;

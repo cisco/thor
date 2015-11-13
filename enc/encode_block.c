@@ -1991,26 +1991,22 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   block_info->pred_data.mode = mode;
 
   if (mode == MODE_SKIP) {
-    block_info->pred_data.ref_idx0 = block_info->mvb_skip[skip_or_merge_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = block_info->mvb_skip[skip_or_merge_idx].ref_idx1;
+    block_info->pred_data.ref_idx0 = block_info->skip_candidates[skip_or_merge_idx].ref_idx0;
+    block_info->pred_data.ref_idx1 = block_info->skip_candidates[skip_or_merge_idx].ref_idx1;
     for (int i = 0; i < 4; i++) {
-      block_info->pred_data.mv_arr0[i].x = block_info->mvb_skip[skip_or_merge_idx].x0;
-      block_info->pred_data.mv_arr0[i].y = block_info->mvb_skip[skip_or_merge_idx].y0;
-      block_info->pred_data.mv_arr1[i].x = block_info->mvb_skip[skip_or_merge_idx].x1;
-      block_info->pred_data.mv_arr1[i].y = block_info->mvb_skip[skip_or_merge_idx].y1;
+      block_info->pred_data.mv_arr0[i] = block_info->skip_candidates[skip_or_merge_idx].mv0;
+      block_info->pred_data.mv_arr1[i] = block_info->skip_candidates[skip_or_merge_idx].mv1;
     }
-    block_info->pred_data.dir = block_info->mvb_skip[skip_or_merge_idx].dir;
+    block_info->pred_data.dir = block_info->skip_candidates[skip_or_merge_idx].bipred_flag;
   }
   else if (mode == MODE_MERGE) {
-    block_info->pred_data.ref_idx0 = block_info->mvb_merge[skip_or_merge_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = block_info->mvb_merge[skip_or_merge_idx].ref_idx1;
+    block_info->pred_data.ref_idx0 = block_info->merge_candidates[skip_or_merge_idx].ref_idx0;
+    block_info->pred_data.ref_idx1 = block_info->merge_candidates[skip_or_merge_idx].ref_idx1;
     for (int i = 0; i < 4; i++) {
-      block_info->pred_data.mv_arr0[i].x = block_info->mvb_merge[skip_or_merge_idx].x0;
-      block_info->pred_data.mv_arr0[i].y = block_info->mvb_merge[skip_or_merge_idx].y0;
-      block_info->pred_data.mv_arr1[i].x = block_info->mvb_merge[skip_or_merge_idx].x1;
-      block_info->pred_data.mv_arr1[i].y = block_info->mvb_merge[skip_or_merge_idx].y1;
+      block_info->pred_data.mv_arr0[i] = block_info->merge_candidates[skip_or_merge_idx].mv0;
+      block_info->pred_data.mv_arr1[i] = block_info->merge_candidates[skip_or_merge_idx].mv1;
     }
-    block_info->pred_data.dir = block_info->mvb_skip[skip_or_merge_idx].dir;
+    block_info->pred_data.dir = block_info->merge_candidates[skip_or_merge_idx].bipred_flag;
   }
   else if (mode == MODE_INTRA) {
     block_info->pred_data.ref_idx0 = 0; //Note: This is necessary for derivation of mvp, mv_cand and mv_skip
@@ -2250,13 +2246,11 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
     int bheight = block_info->block_pos.bheight;
     for (skip_idx=0;skip_idx<num_skip_vec;skip_idx++){
       pred_data.skip_idx = skip_idx;
-      pred_data.mv_arr0[0].x = block_info->mvb_skip[skip_idx].x0;
-      pred_data.mv_arr0[0].y = block_info->mvb_skip[skip_idx].y0;
-      pred_data.ref_idx0 = block_info->mvb_skip[skip_idx].ref_idx0;
-      pred_data.mv_arr1[0].x = block_info->mvb_skip[skip_idx].x1;
-      pred_data.mv_arr1[0].y = block_info->mvb_skip[skip_idx].y1;
-      pred_data.ref_idx1 = block_info->mvb_skip[skip_idx].ref_idx1;
-      pred_data.dir = block_info->mvb_skip[skip_idx].dir;
+      pred_data.ref_idx0 = block_info->skip_candidates[skip_idx].ref_idx0;
+      pred_data.ref_idx1 = block_info->skip_candidates[skip_idx].ref_idx1;
+      pred_data.mv_arr0[0] = block_info->skip_candidates[skip_idx].mv0;
+      pred_data.mv_arr1[0] = block_info->skip_candidates[skip_idx].mv1;
+      pred_data.dir = block_info->skip_candidates[skip_idx].bipred_flag;
       nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
       cost = cost_calc(org_block,rec_block,size,bwidth,bheight,nbits,lambda);
       if (cost < min_cost){
@@ -2276,13 +2270,11 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       int num_merge_vec = block_info->num_merge_vec;
       for (merge_idx=0;merge_idx<num_merge_vec;merge_idx++){
         pred_data.skip_idx = merge_idx;
-        pred_data.mv_arr0[0].x = block_info->mvb_merge[merge_idx].x0;
-        pred_data.mv_arr0[0].y = block_info->mvb_merge[merge_idx].y0;
-        pred_data.ref_idx0 = block_info->mvb_merge[merge_idx].ref_idx0;
-        pred_data.mv_arr1[0].x = block_info->mvb_merge[merge_idx].x1;
-        pred_data.mv_arr1[0].y = block_info->mvb_merge[merge_idx].y1;
-        pred_data.ref_idx1 = block_info->mvb_merge[merge_idx].ref_idx1;
-        pred_data.dir = block_info->mvb_merge[merge_idx].dir;
+        pred_data.ref_idx0 = block_info->merge_candidates[merge_idx].ref_idx0;
+        pred_data.ref_idx1 = block_info->merge_candidates[merge_idx].ref_idx1;
+        pred_data.mv_arr0[0] = block_info->merge_candidates[merge_idx].mv0;
+        pred_data.mv_arr1[0] = block_info->merge_candidates[merge_idx].mv1;
+        pred_data.dir = block_info->merge_candidates[merge_idx].bipred_flag;
         nbits = encode_block(encoder_info,stream,block_info,&pred_data,mode,tb_param);
         cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
         if (cost < min_cost){
@@ -2738,14 +2730,11 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
   for (skip_idx=0; skip_idx<num_skip_vec; skip_idx++){
     /* Early skip check for this vector */
     tmp_pred_data.skip_idx = skip_idx;
-    tmp_pred_data.mv_arr0[0].x = block_info->mvb_skip[skip_idx].x0;
-    tmp_pred_data.mv_arr0[0].y = block_info->mvb_skip[skip_idx].y0;
-    tmp_pred_data.ref_idx0 = block_info->mvb_skip[skip_idx].ref_idx0;
-    tmp_pred_data.mv_arr1[0].x = block_info->mvb_skip[skip_idx].x1;
-    tmp_pred_data.mv_arr1[0].y = block_info->mvb_skip[skip_idx].y1;
-    tmp_pred_data.ref_idx1 = block_info->mvb_skip[skip_idx].ref_idx1;
-    tmp_pred_data.dir = block_info->mvb_skip[skip_idx].dir;
-
+    tmp_pred_data.ref_idx0 = block_info->skip_candidates[skip_idx].ref_idx0;
+    tmp_pred_data.ref_idx1 = block_info->skip_candidates[skip_idx].ref_idx1;
+    tmp_pred_data.mv_arr0[0] = block_info->skip_candidates[skip_idx].mv0;
+    tmp_pred_data.mv_arr1[0] = block_info->skip_candidates[skip_idx].mv1;
+    tmp_pred_data.dir = block_info->skip_candidates[skip_idx].bipred_flag;
     tmp_early_skip_flag = check_early_skip_block(encoder_info,block_info,&tmp_pred_data);
     if (tmp_early_skip_flag){
       /* Calculate RD cost for this skip vector */
@@ -2773,14 +2762,12 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
     {
       block_info->pred_data.skip_idx = best_skip_idx;
       block_info->pred_data.mode = MODE_SKIP;
-      for (int i=0;i<4;i++){
-        block_info->pred_data.mv_arr0[i].x = block_info->mvb_skip[best_skip_idx].x0;
-        block_info->pred_data.mv_arr0[i].y = block_info->mvb_skip[best_skip_idx].y0;
-        block_info->pred_data.mv_arr1[i].x = block_info->mvb_skip[best_skip_idx].x1;
-        block_info->pred_data.mv_arr1[i].y = block_info->mvb_skip[best_skip_idx].y1;
+      block_info->pred_data.ref_idx0 = block_info->skip_candidates[best_skip_idx].ref_idx0;
+      block_info->pred_data.ref_idx1 = block_info->skip_candidates[best_skip_idx].ref_idx1;
+      for (int i = 0; i < 4; i++) {
+        block_info->pred_data.mv_arr0[i] = block_info->skip_candidates[best_skip_idx].mv0;
+        block_info->pred_data.mv_arr1[i] = block_info->skip_candidates[best_skip_idx].mv1;
       }
-      block_info->pred_data.ref_idx0 = block_info->mvb_skip[best_skip_idx].ref_idx0;
-      block_info->pred_data.ref_idx1 = block_info->mvb_skip[best_skip_idx].ref_idx1;
       block_info->pred_data.dir = best_skip_dir;
       block_info->tb_param = 0;
     }
@@ -2876,12 +2863,12 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       inter_pred_t skip_candidates[MAX_NUM_SKIP];
       block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, encoder_info->deblock_data, skip_candidates, bipred_copy);
       for (int idx = 0; idx < block_info.num_skip_vec; idx++) {
-        inter_pred_to_mvb(&skip_candidates[idx], &block_info.mvb_skip[idx]);
+        memcpy(&block_info.skip_candidates[idx], &skip_candidates[idx], sizeof(inter_pred_t));
       }
       inter_pred_t merge_candidates[MAX_NUM_SKIP];
       block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, encoder_info->deblock_data, merge_candidates);
       for (int idx = 0; idx < block_info.num_merge_vec; idx++) {
-        inter_pred_to_mvb(&merge_candidates[idx], &block_info.mvb_merge[idx]);
+        memcpy(&block_info.merge_candidates[idx], &merge_candidates[idx], sizeof(inter_pred_t));
       }
     }
   }

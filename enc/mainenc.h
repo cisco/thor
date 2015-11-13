@@ -103,9 +103,7 @@ typedef struct
   inter_pred_t merge_candidates[MAX_NUM_MERGE];
   inter_pred_t inter_pred_data[4]; //inter prediction parameters for up to 4 PB in a CB
   int num_skip_vec;
-  mvb_t mvb_skip[MAX_NUM_SKIP];
   int num_merge_vec;
-  mvb_t mvb_merge[MAX_NUM_SKIP];
   mv_t mvp;
   int tb_param;
   int tb_split;

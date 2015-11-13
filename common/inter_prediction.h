@@ -28,9 +28,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _INTER_PREDICTION_H_
 #include "types.h"
 
-void mvb_to_inter_pred(mvb_t *mvb, inter_pred_t *inter_pred);
-void inter_pred_to_mvb(inter_pred_t *inter_pred, mvb_t *mvb);
-
 void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred);
 void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign);
 mv_t get_mv_pred(int yposY,int xposY,int width,int height,int size,int ref_idx,deblock_data_t *deblock_data);

@@ -1602,17 +1602,22 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
 
   /* Intermediate block variables */
   int re_use = (block_info->final_encode & 1) && !(encoder_info->params->enable_tb_split);
-  uint8_t *pblock_y = NULL;
-  uint8_t *pblock_u = NULL;
-  uint8_t *pblock_v = NULL;
-  if (!re_use){
-    pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+
+  if (re_use) {
+    memcpy(block_info->rec_block->y, block_info->rec_block_best->y, size*size*sizeof(uint8_t));
+    memcpy(block_info->rec_block->u, block_info->rec_block_best->u, size*size / 4 * sizeof(uint8_t));
+    memcpy(block_info->rec_block->v, block_info->rec_block_best->v, size*size / 4 * sizeof(uint8_t));
+    memcpy(block_info->coeff_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
+    memcpy(block_info->coeff_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
+    memcpy(block_info->coeff_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
+    block_info->cbp = block_info->cbp_best;
+    nbits = write_block(stream, encoder_info, block_info, pred_data);
+    return nbits;
   }
-  int16_t *coeffq_y = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeffq_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeffq_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
+
+  uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
 
   int ref_idx = (frame_type==I_FRAME) ? 0 : pred_data->ref_idx0;
   int r = encoder_info->frame_info.ref_array[ref_idx];
@@ -1622,20 +1627,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   ref = NULL;
 
   /* Variables for bipred */
-  uint8_t *pblock0_y = NULL;
-  uint8_t *pblock0_u = NULL;
-  uint8_t *pblock0_v = NULL;
-  uint8_t *pblock1_y = NULL;
-  uint8_t *pblock1_u = NULL;
-  uint8_t *pblock1_v = NULL;
-  if (!re_use){
-    pblock0_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock0_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock0_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock1_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock1_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-    pblock1_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  }
+  uint8_t *pblock0_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock0_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock0_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock1_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock1_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock1_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
   int r0,r1;
   yuv_frame_t *ref0;
   yuv_frame_t *ref1;
@@ -1650,53 +1647,16 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   uint8_t *rec_u = block_info->rec_block->u;
   uint8_t *rec_v = block_info->rec_block->v;
 
+  int tb_split = max(0, tb_param);
   int zero_block = tb_param == -1 ? 1 : 0;
-  int tb_split = max(0,tb_param);
   block_info->tb_split = tb_split;
-  pred_data->mode = mode; //TODO: PARAM CLEANUP
+  pred_data->mode = mode;
   if (mode!=MODE_INTRA) {
     ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
   }
-
-  if (re_use){
-    memcpy(block_info->rec_block->y,block_info->rec_block_best->y,size*size*sizeof(uint8_t));
-    memcpy(block_info->rec_block->u,block_info->rec_block_best->u,size*size/4*sizeof(uint8_t));
-    memcpy(block_info->rec_block->v,block_info->rec_block_best->v,size*size/4*sizeof(uint8_t));
-    if (mode==MODE_SKIP || zero_block){
-      cbp.y = 0;
-      cbp.u = 0;
-      cbp.v = 0;
-    }
-    else{
-      cbp.y = block_info->cbp_best.y;
-      cbp.u = block_info->cbp_best.u;
-      cbp.v = block_info->cbp_best.v;
-    }
-    //TODO: PARAM CLEANUP
-    if (mode != MODE_SKIP) {
-      memcpy(coeffq_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
-      memcpy(coeffq_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
-      memcpy(coeffq_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
-    }
-    memcpy(block_info->coeff_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
-    memcpy(block_info->coeff_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
-    memcpy(block_info->coeff_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
-    block_info->cbp = cbp;
-    nbits = write_block(stream, encoder_info, block_info, pred_data);
-
-    if (tb_split){
-      cbp.y = cbp.u = cbp.v = 1; //TODO: Do properly with respect to deblocking filter
-    }
-
-    /* Needed for array containing deblocking filter parameters */
-    block_info->cbp = cbp;
-
-    thor_free(coeffq_y);
-    thor_free(coeffq_u);
-    thor_free(coeffq_v);
-
-    return nbits;
-  }
+  int16_t *coeffq_y = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *coeffq_u = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *coeffq_v = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
   if (mode==MODE_INTRA){
     intra_mode = pred_data->intra_mode;
@@ -1811,16 +1771,13 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     }
 
   }
-  block_info->cbp = cbp; //TODO: PARAM CLEANUP
-
+  block_info->cbp = cbp;
   nbits = write_block(stream,encoder_info,block_info,pred_data);
 
-  if (tb_split){
-    cbp.y = cbp.u = cbp.v = 1; //TODO: Do properly with respect to deblocking filter
+  if (tb_split) {
+    /* Used for deblocking only (i.e. not for bitstream generation) */
+    block_info->cbp.y = block_info->cbp.u = block_info->cbp.v = 1; //TODO: Do properly with respect to deblocking filter
   }
-
-  /* Needed for array containing deblocking filter parameters */
-  block_info->cbp = cbp;
 
   thor_free(pblock0_y);
   thor_free(pblock0_u);

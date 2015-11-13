@@ -1976,21 +1976,25 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
   }
 }
 
-void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, int tb_param, int pb_part, int ref_idx0, mv_t *mv_arr0, int ref_idx1, mv_t *mv_arr1, int skip_or_merge_idx, int intra_mode){
+void copy_best_parameters(int size,block_info_t *block_info, pred_data_t pred_data, int tb_param){
+
   yuv_block_t *rec_block = block_info->rec_block;
   memcpy(block_info->rec_block_best->y, rec_block->y, size*size*sizeof(uint8_t));
   memcpy(block_info->rec_block_best->u, rec_block->u, size*size / 4 * sizeof(uint8_t));
   memcpy(block_info->rec_block_best->v, rec_block->v, size*size / 4 * sizeof(uint8_t));
-  block_info->cbp_best = block_info->cbp;
   if (block_info->cbp.y) memcpy(block_info->coeff_y_best, block_info->coeff_y, size*size*sizeof(uint16_t));
   if (block_info->cbp.u) memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
   if (block_info->cbp.v) memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
-  block_info->pred_data.pb_part = pb_part;
-  block_info->pred_data.skip_idx = skip_or_merge_idx;
+  block_info->cbp_best = block_info->cbp;
   block_info->tb_param = tb_param;
   block_info->tb_split = tb_param > 0;
-  block_info->pred_data.mode = mode;
 
+  block_info->pred_data.pb_part = pred_data.pb_part;
+  block_info->pred_data.skip_idx = pred_data.skip_idx;
+  block_info->pred_data.mode = pred_data.mode;
+
+  int mode = pred_data.mode;
+  int skip_or_merge_idx = pred_data.skip_idx;
   if (mode == MODE_SKIP) {
     block_info->pred_data.ref_idx0 = block_info->skip_candidates[skip_or_merge_idx].ref_idx0;
     block_info->pred_data.ref_idx1 = block_info->skip_candidates[skip_or_merge_idx].ref_idx1;
@@ -2019,14 +2023,19 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
       block_info->pred_data.mv_arr1[i].y = 0;
     }
     block_info->pred_data.dir = -1;
-    block_info->pred_data.intra_mode = intra_mode;
+    block_info->pred_data.intra_mode = pred_data.intra_mode;
   }
-  else if (mode == MODE_INTER || mode == MODE_BIPRED) {
-    block_info->pred_data.ref_idx0 = ref_idx0;
-    block_info->pred_data.ref_idx1 = ref_idx1;
-    memcpy(block_info->pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
-    memcpy(block_info->pred_data.mv_arr1, mv_arr1, 4 * sizeof(mv_t));
-    block_info->pred_data.dir = mode == MODE_BIPRED ? 2 : 0;
+  else if (mode == MODE_INTER) {
+    block_info->pred_data.ref_idx0 = pred_data.ref_idx0;
+    memcpy(block_info->pred_data.mv_arr0, pred_data.mv_arr0, 4 * sizeof(mv_t));
+    block_info->pred_data.dir = 0;
+  }
+  else if (mode == MODE_BIPRED) {
+    block_info->pred_data.ref_idx0 = pred_data.ref_idx0;
+    block_info->pred_data.ref_idx1 = pred_data.ref_idx1;
+    memcpy(block_info->pred_data.mv_arr0, pred_data.mv_arr0, 4 * sizeof(mv_t));
+    memcpy(block_info->pred_data.mv_arr1, pred_data.mv_arr1, 4 * sizeof(mv_t));
+    block_info->pred_data.dir = 2;
   }
 }
 
@@ -2256,7 +2265,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       cost = cost_calc(org_block,rec_block,size,bwidth,bheight,nbits,lambda);
       if (cost < min_cost){
         min_cost = cost;
-        copy_best_parameters(size, block_info, mode, tb_param, part, -1, NULL, -1, NULL, skip_idx, -1);
+        copy_best_parameters(size, block_info, pred_data, tb_param);
       }
     }
   }
@@ -2280,7 +2289,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
         if (cost < min_cost){
           min_cost = cost;
-          copy_best_parameters(size, block_info, mode, tb_param, part, -1, NULL, -1, NULL, merge_idx, -1);
+          copy_best_parameters(size, block_info, pred_data, tb_param);
         }
       }
 
@@ -2342,7 +2351,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
               best_cost = min(best_cost, cost);
               if (cost < min_cost){
                 min_cost = cost;
-                copy_best_parameters(size, block_info, mode, tb_param, part, ref_idx, pred_data.mv_arr0, ref_idx, pred_data.mv_arr0,-1, -1);
+                copy_best_parameters(size, block_info, pred_data, tb_param);
               }
             }
           } //for part=
@@ -2377,7 +2386,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
             if (cost < min_cost) {
               min_cost = cost;
-              copy_best_parameters(size, block_info, mode, tb_param, part, pred_data.ref_idx0, pred_data.mv_arr0, pred_data.ref_idx1, pred_data.mv_arr1,-1,-1);              
+              copy_best_parameters(size, block_info, pred_data, tb_param);
             }
           } //for tb_param..
         } //for part..
@@ -2394,7 +2403,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
           if (cost < min_cost) {
             min_cost = cost;
-            copy_best_parameters(size, block_info, mode, tb_param, PART_NONE, pred_data.ref_idx0, pred_data.mv_arr0, pred_data.ref_idx1, pred_data.mv_arr1, -1, -1);
+            copy_best_parameters(size, block_info, pred_data, tb_param);
           }
         }
       } //if enable_bipred
@@ -2435,7 +2444,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
         if (cost < min_cost) {
           min_cost = cost;
-          copy_best_parameters(size, block_info, mode, tb_param, -1, 0, NULL, 0, NULL, -1, intra_mode);
+          copy_best_parameters(size, block_info, pred_data, tb_param);
         }
       }
     } //if do_intra
@@ -2743,7 +2752,7 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
       cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
       if (cost < min_cost){
         min_cost = cost;
-        copy_best_parameters(size, block_info, MODE_SKIP, 0, 0, -1, NULL, -1, NULL, skip_idx, -1);
+        copy_best_parameters(size, block_info, tmp_pred_data, 0);
       }
     }
   }

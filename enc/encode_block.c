@@ -1952,7 +1952,7 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
   int bwidth =  block_info->block_pos.bwidth;
   int bheight =  block_info->block_pos.bheight;
 
-  uint8_t tb_split = block_info->tb_param > 0;
+  uint8_t tb_split = block_info->tb_split;
   part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.PBpart : PART_NONE; //TODO: Set PBpart properly for SKIP and BIPRED
 
   for (m=0;m<bheight/MIN_PB_SIZE;m++){
@@ -1988,6 +1988,7 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   block_info->pred_data.PBpart = pb_part;
   block_info->pred_data.skip_idx = skip_or_merge_idx;
   block_info->tb_param = tb_param;
+  block_info->tb_split = tb_param > 0;
   block_info->pred_data.mode = mode;
 
   if (mode == MODE_SKIP) {
@@ -2717,7 +2718,6 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
   int tb_split = 0;
   int size = block_info->block_pos.size;
   int num_skip_vec = block_info->num_skip_vec;
-  int best_skip_dir = 0;
 
   min_cost = MAX_UINT32;
 
@@ -2743,36 +2743,10 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
       cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
       if (cost < min_cost){
         min_cost = cost;
-        best_skip_idx = skip_idx;
-        best_skip_dir = tmp_pred_data.dir;
-        memcpy(block_info->rec_block_best->y,rec_block->y,size*size*sizeof(uint8_t));
-        memcpy(block_info->rec_block_best->u,rec_block->u,size*size/4*sizeof(uint8_t));
-        memcpy(block_info->rec_block_best->v,rec_block->v,size*size/4*sizeof(uint8_t));
-        block_info->cbp_best.y = block_info->cbp.y;
-        block_info->cbp_best.u = block_info->cbp.u;
-        block_info->cbp_best.v = block_info->cbp.v;
+        copy_best_parameters(size, block_info, MODE_SKIP, 0, 0, -1, NULL, -1, NULL, skip_idx, -1);
       }
     }
   }
-
-  if (early_skip_flag){
-    /* Store relevant parameters to block_info */
-    block_info->pred_data.skip_idx = best_skip_idx;
-    block_info->pred_data.mode = MODE_SKIP;
-    {
-      block_info->pred_data.skip_idx = best_skip_idx;
-      block_info->pred_data.mode = MODE_SKIP;
-      block_info->pred_data.ref_idx0 = block_info->skip_candidates[best_skip_idx].ref_idx0;
-      block_info->pred_data.ref_idx1 = block_info->skip_candidates[best_skip_idx].ref_idx1;
-      for (int i = 0; i < 4; i++) {
-        block_info->pred_data.mv_arr0[i] = block_info->skip_candidates[best_skip_idx].mv0;
-        block_info->pred_data.mv_arr1[i] = block_info->skip_candidates[best_skip_idx].mv1;
-      }
-      block_info->pred_data.dir = best_skip_dir;
-      block_info->tb_param = 0;
-    }
-  }
-
   return early_skip_flag;
 }
 
@@ -2984,7 +2958,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
       block_info.final_encode = 1;
 
-      encode_block(encoder_info,stream,&block_info,&block_info.pred_data,block_info.pred_data.mode,block_info.tb_param);
+      encode_block(encoder_info,stream,&block_info,&block_info.pred_data,block_info.pred_data.mode,block_info.tb_param); 
 
       /* Copy reconstructed data from smaller compact block to frame array */
       copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);

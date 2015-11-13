@@ -417,26 +417,26 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   else if (mode==MODE_INTER){
     /* Code PU partitions */
     if (block_info->max_num_pb_part > 1) {
-      if (pred_data->PBpart == 0)
+      if (pred_data->pb_part == 0)
         putbits(1, 1, stream);
-      else if (pred_data->PBpart == 1)
+      else if (pred_data->pb_part == 1)
         putbits(2, 1, stream);
-      else if (pred_data->PBpart == 2)
+      else if (pred_data->pb_part == 2)
         putbits(3, 1, stream);
-      else if (pred_data->PBpart == 3)
+      else if (pred_data->pb_part == 3)
         putbits(3, 0, stream);
     }
     /* Code motion vectors for each prediction block */
     mv_t mvp2 = mvp;
-    if (pred_data->PBpart == PART_NONE) { //NONE
+    if (pred_data->pb_part == PART_NONE) { //NONE
       write_mv(stream, &pred_data->mv_arr0[0], &mvp2);
     }
-    else if (pred_data->PBpart == PART_HOR) { //HOR
+    else if (pred_data->pb_part == PART_HOR) { //HOR
       write_mv(stream, &pred_data->mv_arr0[0], &mvp2);
       mvp2 = pred_data->mv_arr0[0];
       write_mv(stream, &pred_data->mv_arr0[2], &mvp2);
     }
-    else if (pred_data->PBpart == PART_VER) { //VER
+    else if (pred_data->pb_part == PART_VER) { //VER
       write_mv(stream, &pred_data->mv_arr0[0], &mvp2);
       mvp2 = pred_data->mv_arr0[0];
       write_mv(stream, &pred_data->mv_arr0[1], &mvp2);
@@ -453,33 +453,33 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
 #if BIPRED_PART
     /* Code PU partitions */
     if (block_info->max_num_pb_part > 1) {
-      if (pred_data->PBpart == 0)
+      if (pred_data->pb_part == 0)
         putbits(1, 1, stream);
-      else if (pred_data->PBpart == 1)
+      else if (pred_data->pb_part == 1)
         putbits(2, 1, stream);
-      else if (pred_data->PBpart == 2)
+      else if (pred_data->pb_part == 2)
         putbits(3, 1, stream);
-      else if (pred_data->PBpart == 3)
+      else if (pred_data->pb_part == 3)
         putbits(3, 0, stream);
     }
 #endif
 
     /* Code motion vectors for each prediction block */
     mv_t mvp2 = mvp;
-    if (pred_data->PBpart == PART_NONE) { //NONE
+    if (pred_data->pb_part == PART_NONE) { //NONE
       write_mv(stream, &pred_data->mv_arr0[0], &mvp2);
     }
     if (encoder_info->frame_info.frame_type == B_FRAME)
       mvp2 = pred_data->mv_arr0[0];
-    if (pred_data->PBpart == PART_NONE) { //NONE
+    if (pred_data->pb_part == PART_NONE) { //NONE
       write_mv(stream, &pred_data->mv_arr1[0], &mvp2);
     }
-    else if (pred_data->PBpart == PART_HOR) { //HOR
+    else if (pred_data->pb_part == PART_HOR) { //HOR
       write_mv(stream, &pred_data->mv_arr1[0], &mvp2);
       mvp2 = pred_data->mv_arr1[0];
       write_mv(stream, &pred_data->mv_arr1[2], &mvp2);
     }
-    else if (pred_data->PBpart == PART_VER) { //VER
+    else if (pred_data->pb_part == PART_VER) { //VER
       write_mv(stream, &pred_data->mv_arr1[0], &mvp2);
       mvp2 = pred_data->mv_arr1[0];
       write_mv(stream, &pred_data->mv_arr1[1], &mvp2);

@@ -224,7 +224,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   int height = decoder_info->height;
   int bit_start;
   int code,tmp,tb_split;
-  int PBpart=0;
+  int pb_part=0;
   cbp_t cbp;
   int stat_frame_type = decoder_info->bit_count.stat_frame_type; //TODO: Use only one variable for frame type
 
@@ -372,12 +372,12 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           code = 3 - tmp;
         }
       }
-      PBpart = code;
+      pb_part = code;
     }
     else{
-      PBpart = 0;
+      pb_part = 0;
     }
-    block_info->pred_data.PBpart = PBpart;
+    block_info->pred_data.pb_part = pb_part;
     if (decoder_info->frame_info.num_ref > 1){
       ref_idx = decoder_info->ref_idx;
     }
@@ -393,20 +393,20 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     /* Deode motion vectors for each prediction block */
     mv_t mvp2 = mvp;
 
-    if (PBpart==0){
+    if (pb_part==0){
       read_mv(stream,&mv_arr[0],&mvp2);
       mv_arr[1] = mv_arr[0];
       mv_arr[2] = mv_arr[0];
       mv_arr[3] = mv_arr[0];
     }
-    else if(PBpart==1){ //HOR
+    else if(pb_part==1){ //HOR
       read_mv(stream,&mv_arr[0],&mvp2);
       mvp2 = mv_arr[0];
       read_mv(stream,&mv_arr[2],&mvp2);
       mv_arr[1] = mv_arr[0];
       mv_arr[3] = mv_arr[2];
     }
-    else if(PBpart==2){ //VER
+    else if(pb_part==2){ //VER
       read_mv(stream,&mv_arr[0],&mvp2);
       mvp2 = mv_arr[0];
       read_mv(stream,&mv_arr[1],&mvp2);
@@ -449,17 +449,17 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           code = 3 - tmp;
         }
       }
-      PBpart = code;
+      pb_part = code;
     }
     else {
-      PBpart = 0;
+      pb_part = 0;
     }
 #else
-    PBpart = 0;
+    pb_part = 0;
 #endif
-    block_info->pred_data.PBpart = PBpart;
+    block_info->pred_data.pb_part = pb_part;
 
-    if (PBpart == 0) {
+    if (pb_part == 0) {
       read_mv(stream, &mv_arr0[0], &mvp2);
       mv_arr0[1] = mv_arr0[0];
       mv_arr0[2] = mv_arr0[0];
@@ -473,20 +473,20 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     }
     if (decoder_info->bit_count.stat_frame_type == B_FRAME)
       mvp2 = mv_arr0[0];
-    if (PBpart == 0) {
+    if (pb_part == 0) {
       read_mv(stream, &mv_arr1[0], &mvp2);
       mv_arr1[1] = mv_arr1[0];
       mv_arr1[2] = mv_arr1[0];
       mv_arr1[3] = mv_arr1[0];
     }
-    else if (PBpart == 1) { //HOR
+    else if (pb_part == 1) { //HOR
       read_mv(stream, &mv_arr1[0], &mvp2);
       mvp2 = mv_arr1[0];
       read_mv(stream, &mv_arr1[2], &mvp2);
       mv_arr1[1] = mv_arr1[0];
       mv_arr1[3] = mv_arr1[2];
     }
-    else if (PBpart == 2) { //VER
+    else if (pb_part == 2) { //VER
       read_mv(stream, &mv_arr1[0], &mvp2);
       mvp2 = mv_arr1[0];
       read_mv(stream, &mv_arr1[1], &mvp2);

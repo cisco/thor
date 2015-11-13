@@ -155,7 +155,7 @@ typedef struct
   block_mode_t mode;
   intra_mode_t intra_mode;
   int skip_idx;
-  int PBpart;
+  int pb_part;
   mv_t mv_arr0[4];
   mv_t mv_arr1[4];
   int ref_idx0;

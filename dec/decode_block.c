@@ -131,7 +131,7 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
   int bwidth =  block_info->block_pos.bwidth;
   int bheight =  block_info->block_pos.bheight;
   uint8_t tb_split = block_info->tb_split > 0;
-  part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.PBpart : PART_NONE; //TODO: Set PBpart properly for SKIP and BIPRED
+  part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.pb_part : PART_NONE; //TODO: Set pb_part properly for SKIP and BIPRED
 
   for (m=0;m<bheight/MIN_PB_SIZE;m++){
     for (n=0;n<bwidth/MIN_PB_SIZE;n++){

@@ -1953,7 +1953,7 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
   int bheight =  block_info->block_pos.bheight;
 
   uint8_t tb_split = block_info->tb_split;
-  part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.PBpart : PART_NONE; //TODO: Set PBpart properly for SKIP and BIPRED
+  part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.pb_part : PART_NONE; //TODO: Set pb_part properly for SKIP and BIPRED
 
   for (m=0;m<bheight/MIN_PB_SIZE;m++){
     for (n=0;n<bwidth/MIN_PB_SIZE;n++){
@@ -1985,7 +1985,7 @@ void copy_best_parameters(int size,block_info_t *block_info, block_mode_t mode, 
   if (block_info->cbp.y) memcpy(block_info->coeff_y_best, block_info->coeff_y, size*size*sizeof(uint16_t));
   if (block_info->cbp.u) memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
   if (block_info->cbp.v) memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
-  block_info->pred_data.PBpart = pb_part;
+  block_info->pred_data.pb_part = pb_part;
   block_info->pred_data.skip_idx = skip_or_merge_idx;
   block_info->tb_param = tb_param;
   block_info->tb_split = tb_param > 0;
@@ -2331,7 +2331,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         if (do_inter){
           /* Loop over all PB partitions to do RDO */
           for (part=0;part<block_info->max_num_pb_part;part++){
-            pred_data.PBpart = part;
+            pred_data.pb_part = part;
             memcpy(pred_data.mv_arr0,mv_all[part],4*sizeof(mv_t));
             min_tb_param = encoder_info->params->encoder_speed<1 ? -1 : 0; //tb_split == -1 means force residual to zero.
             max_tb_param = block_info->max_num_tb_part - 1;
@@ -2367,7 +2367,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         max_tb_param = 0; //TODO: Support tb-split
         for (part = 0; part < num_bi_part; part++) {
           search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1,0);
-          pred_data.PBpart = part;
+          pred_data.pb_part = part;
           pred_data.ref_idx0 = ref_idx0;
           memcpy(pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
           pred_data.ref_idx1 = ref_idx1;
@@ -2384,7 +2384,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 
         if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->encoder_speed == 0) {
           search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1, 1);
-          pred_data.PBpart = PART_NONE;
+          pred_data.pb_part = PART_NONE;
           pred_data.ref_idx0 = ref_idx0;
           memcpy(pred_data.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
           pred_data.ref_idx1 = ref_idx1;

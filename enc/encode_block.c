@@ -2027,7 +2027,9 @@ void copy_best_parameters(int size,block_info_t *block_info, pred_data_t pred_da
   }
   else if (mode == MODE_INTER) {
     block_info->pred_data.ref_idx0 = pred_data.ref_idx0;
+    block_info->pred_data.ref_idx1 = pred_data.ref_idx1;
     memcpy(block_info->pred_data.mv_arr0, pred_data.mv_arr0, 4 * sizeof(mv_t));
+    memcpy(block_info->pred_data.mv_arr1, pred_data.mv_arr1, 4 * sizeof(mv_t));
     block_info->pred_data.dir = 0;
   }
   else if (mode == MODE_BIPRED) {
@@ -2315,6 +2317,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         int r = encoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
         pred_data.ref_idx0 = ref_idx;
+        pred_data.ref_idx1 = ref_idx;
         mvp = get_mv_pred(ypos,xpos,width,height,size,ref_idx,encoder_info->deblock_data);
         add_mvcandidate(&mvp, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
         block_info->mvp = mvp;
@@ -2342,6 +2345,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           for (part=0;part<block_info->max_num_pb_part;part++){
             pred_data.pb_part = part;
             memcpy(pred_data.mv_arr0,mv_all[part],4*sizeof(mv_t));
+            memcpy(pred_data.mv_arr1,mv_all[part],4*sizeof(mv_t));
             min_tb_param = encoder_info->params->encoder_speed<1 ? -1 : 0; //tb_split == -1 means force residual to zero.
             max_tb_param = block_info->max_num_tb_part - 1;
             for (tb_param=min_tb_param; tb_param<=max_tb_param; tb_param++){

@@ -1581,7 +1581,7 @@ void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t 
   }
 }
 
-int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *block_info,block_param_t *block_param, block_mode_t mode,int tb_param)
+int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *block_info,block_param_t *block_param)
 {
   int size = block_info->block_pos.size;
   int yposY = block_info->block_pos.ypos;
@@ -1590,6 +1590,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   int xposC = xposY/2;
   int sizeY = size;
   int sizeC = size/2;
+  block_mode_t mode = block_param->mode;
 
   int nbits;
   cbp_t cbp;
@@ -1979,9 +1980,9 @@ void copy_best_parameters(int size,block_info_t *block_info, block_param_t block
   memcpy(block_info->rec_block_best->y, rec_block->y, size*size*sizeof(uint8_t));
   memcpy(block_info->rec_block_best->u, rec_block->u, size*size / 4 * sizeof(uint8_t));
   memcpy(block_info->rec_block_best->v, rec_block->v, size*size / 4 * sizeof(uint8_t));
-  memcpy(block_info->block_param.coeff_y, block_param.coeff_y, size*size*sizeof(uint16_t));
-  memcpy(block_info->block_param.coeff_u, block_param.coeff_u, size*size/4*sizeof(uint16_t));
-  memcpy(block_info->block_param.coeff_v, block_param.coeff_v, size*size/4*sizeof(uint16_t));
+  if (block_param.cbp.y) memcpy(block_info->block_param.coeff_y, block_param.coeff_y, size*size*sizeof(uint16_t));
+  if (block_param.cbp.u) memcpy(block_info->block_param.coeff_u, block_param.coeff_u, size*size/4*sizeof(uint16_t));
+  if (block_param.cbp.v) memcpy(block_info->block_param.coeff_v, block_param.coeff_v, size*size/4*sizeof(uint16_t));
   block_info->block_param.pb_part = block_param.pb_part;
   block_info->block_param.skip_idx = block_param.skip_idx;
   block_info->block_param.mode = block_param.mode;
@@ -2260,7 +2261,8 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       tmp_block_param.mv_arr0[0] = block_info->skip_candidates[skip_idx].mv0;
       tmp_block_param.mv_arr1[0] = block_info->skip_candidates[skip_idx].mv1;
       tmp_block_param.dir = block_info->skip_candidates[skip_idx].bipred_flag;
-      nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param,mode,tb_param);
+      tmp_block_param.mode = mode;
+      nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param);
       cost = cost_calc(org_block,rec_block,size,bwidth,bheight,nbits,lambda);
       if (cost < min_cost){
         min_cost = cost;
@@ -2285,7 +2287,8 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         tmp_block_param.mv_arr0[0] = block_info->merge_candidates[merge_idx].mv0;
         tmp_block_param.mv_arr1[0] = block_info->merge_candidates[merge_idx].mv1;
         tmp_block_param.dir = block_info->merge_candidates[merge_idx].bipred_flag;
-        nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param,mode,tb_param);
+        tmp_block_param.mode = mode;
+        nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param);
         cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
         if (cost < min_cost){
           min_cost = cost;
@@ -2346,9 +2349,10 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
             memcpy(tmp_block_param.mv_arr1,mv_all[part],4*sizeof(mv_t));
             min_tb_param = encoder_info->params->encoder_speed<1 ? -1 : 0; //tb_split == -1 means force residual to zero.
             max_tb_param = block_info->max_num_tb_part - 1;
+            tmp_block_param.mode = mode;
             for (tb_param=min_tb_param; tb_param<=max_tb_param; tb_param++){
               tmp_block_param.tb_param = tb_param;
-              nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param,mode,tb_param);
+              nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param);
               cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
               worst_cost = max(worst_cost, cost);
               best_cost = min(best_cost, cost);
@@ -2384,9 +2388,10 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           memcpy(tmp_block_param.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
           tmp_block_param.ref_idx1 = ref_idx1;
           memcpy(tmp_block_param.mv_arr1, mv_arr1, 4 * sizeof(mv_t));
+          tmp_block_param.mode = mode;
           for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
             tmp_block_param.tb_param = tb_param;
-            nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param, mode, tb_param);
+            nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
             if (cost < min_cost) {
               min_cost = cost;
@@ -2404,7 +2409,8 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           memcpy(tmp_block_param.mv_arr1, mv_arr1, 4 * sizeof(mv_t));
           tb_param = 0;
           tmp_block_param.tb_param = 0;
-          nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param, mode, tb_param);
+          tmp_block_param.mode = mode;
+          nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param);
           cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
           if (cost < min_cost) {
             min_cost = cost;
@@ -2429,7 +2435,8 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
           tmp_block_param.intra_mode = intra_mode;
           for (tb_param = 0; tb_param <= max_tb_param; tb_param++) {
             tmp_block_param.tb_param = tb_param;
-            nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param, mode, tb_param);
+            tmp_block_param.mode = mode;
+            nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
             if (cost < min_intra_cost) {
               min_intra_cost = cost;
@@ -2447,7 +2454,8 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       tmp_block_param.intra_mode = intra_mode;
       for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
         tmp_block_param.tb_param = tb_param;
-        nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param, mode, tb_param);
+        tmp_block_param.mode = mode;
+        nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param);
         cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
         if (cost < min_cost) {
           min_cost = cost;
@@ -2755,7 +2763,8 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
     if (tmp_early_skip_flag){
       /* Calculate RD cost for this skip vector */
       early_skip_flag = 1;
-      nbit = encode_block(encoder_info,encoder_info->stream,block_info,&tmp_block_param,MODE_SKIP,tb_split);
+      tmp_block_param.mode = MODE_SKIP;
+      nbit = encode_block(encoder_info,encoder_info->stream,block_info,&tmp_block_param);
       cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
       if (cost < min_cost){
         min_cost = cost;
@@ -2882,7 +2891,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
         tb_split = 0;
         block_info.final_encode = 3;
 
-        nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param,MODE_SKIP,tb_split);
+        block_info.block_param.mode = MODE_SKIP;
+        nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param);
 
         cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
 
@@ -2974,7 +2984,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
       block_info.final_encode = 1;
 
-      encode_block(encoder_info,stream,&block_info,&block_info.block_param,block_info.block_param.mode,block_info.block_param.tb_param);
+      encode_block(encoder_info,stream,&block_info,&block_info.block_param);
 
       /* Copy reconstructed data from smaller compact block to frame array */
       copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);
@@ -2996,7 +3006,9 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       /* Revind bitstream to reference position of this block size */
       write_stream_pos(stream,&stream_pos_ref);
       block_info.final_encode = 1;
-      encode_block(encoder_info,stream,&block_info,&block_info.block_param,MODE_SKIP,0);
+      block_info.block_param.mode = MODE_SKIP;
+      block_info.block_param.tb_param = 0;
+      encode_block(encoder_info,stream,&block_info,&block_info.block_param);
 
       /* Copy reconstructed data from smaller compact block to frame array */
       copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);

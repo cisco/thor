@@ -2738,7 +2738,7 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
   uint32_t cost,min_cost;
   int skip_idx,nbit,tmp_early_skip_flag;
   int early_skip_flag = 0;
-  int tb_split = 0;
+  //int tb_split = 0;
   int size = block_info->block_pos.size;
   int num_skip_vec = block_info->num_skip_vec;
 
@@ -2784,7 +2784,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   uint32_t cost,cost_small;
   stream_t *stream = encoder_info->stream;
   double lambda = encoder_info->frame_info.lambda;
-  int nbit,early_skip_flag,tb_split;
+  int nbit,early_skip_flag;
   frame_type_t frame_type = encoder_info->frame_info.frame_type;
 
   if (ypos >= height || xpos >= width)
@@ -2888,10 +2888,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       if (early_skip_flag){
 
         /* Encode block with final choice of skip_idx */
-        tb_split = 0;
         block_info.final_encode = 3;
 
         block_info.block_param.mode = MODE_SKIP;
+        block_info.block_param.tb_param = 0;
         nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param);
 
         cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);

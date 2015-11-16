@@ -47,7 +47,7 @@ typedef struct
 typedef struct
 {
   block_pos_t block_pos;
-  pred_data_t pred_data;
+  block_param_t block_param;
   int num_skip_vec;
   cbp_t cbp;
   int16_t *coeffq_y;

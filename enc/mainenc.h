@@ -98,10 +98,10 @@ typedef struct
   block_pos_t block_pos;
   yuv_block_t *rec_block;
   yuv_block_t *org_block;
-  pred_data_t pred_data;
+  block_param_t block_param;
   inter_pred_t skip_candidates[MAX_NUM_SKIP];
   inter_pred_t merge_candidates[MAX_NUM_MERGE];
-  inter_pred_t inter_pred_data[4]; //inter prediction parameters for up to 4 PB in a CB
+  inter_pred_t inter_block_param[4]; //inter prediction parameters for up to 4 PB in a CB
   int num_skip_vec;
   int num_merge_vec;
   mv_t mvp;

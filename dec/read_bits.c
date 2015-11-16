@@ -288,7 +288,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     decoder_info->bit_count.skip_idx[stat_frame_type] += (stream->bitcnt - bit_start);
 
     block_info->num_skip_vec = num_skip_vec;
-    block_info->pred_data.skip_idx = skip_idx;
+    block_info->block_param.skip_idx = skip_idx;
 
     if (skip_idx == num_skip_vec)
       mv = mv_skip[0];
@@ -299,13 +299,13 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_arr[2] = mv;
     mv_arr[3] = mv;
 
-    block_info->pred_data.ref_idx0 = skip_candidates[skip_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = skip_candidates[skip_idx].ref_idx1;
+    block_info->block_param.ref_idx0 = skip_candidates[skip_idx].ref_idx0;
+    block_info->block_param.ref_idx1 = skip_candidates[skip_idx].ref_idx1;
     for (int i = 0; i < 4; i++) {
       mv_arr0[i] = skip_candidates[skip_idx].mv0;
       mv_arr1[i] = skip_candidates[skip_idx].mv1;
     }
-    block_info->pred_data.dir = skip_candidates[skip_idx].bipred_flag;
+    block_info->block_param.dir = skip_candidates[skip_idx].bipred_flag;
   }
   else if (mode == MODE_MERGE){
     /* Derive skip vector candidates and number of skip vector candidates from neighbour blocks */
@@ -334,7 +334,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     decoder_info->bit_count.skip_idx[stat_frame_type] += (stream->bitcnt - bit_start);
 
     block_info->num_skip_vec = num_skip_vec;
-    block_info->pred_data.skip_idx = skip_idx;
+    block_info->block_param.skip_idx = skip_idx;
 
     if (skip_idx == num_skip_vec)
       mv = mv_skip[0];
@@ -345,13 +345,13 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_arr[2] = mv;
     mv_arr[3] = mv;
 
-    block_info->pred_data.ref_idx0 = merge_candidates[skip_idx].ref_idx0;
-    block_info->pred_data.ref_idx1 = merge_candidates[skip_idx].ref_idx1;
+    block_info->block_param.ref_idx0 = merge_candidates[skip_idx].ref_idx0;
+    block_info->block_param.ref_idx1 = merge_candidates[skip_idx].ref_idx1;
     for (int i = 0; i < 4; i++) {
       mv_arr0[i] = merge_candidates[skip_idx].mv0;
       mv_arr1[i] = merge_candidates[skip_idx].mv1;
     }
-    block_info->pred_data.dir = merge_candidates[skip_idx].bipred_flag;
+    block_info->block_param.dir = merge_candidates[skip_idx].bipred_flag;
   }
   else if (mode==MODE_INTER){
     int ref_idx;
@@ -377,7 +377,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     else{
       pb_part = 0;
     }
-    block_info->pred_data.pb_part = pb_part;
+    block_info->block_param.pb_part = pb_part;
     if (decoder_info->frame_info.num_ref > 1){
       ref_idx = decoder_info->ref_idx;
     }
@@ -421,9 +421,9 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       read_mv(stream,&mv_arr[3],&mvp2);
     }
     decoder_info->bit_count.mv[stat_frame_type] += (stream->bitcnt - bit_start);
-    block_info->pred_data.ref_idx0 = ref_idx;
-    block_info->pred_data.ref_idx1 = ref_idx;
-    block_info->pred_data.dir = 0;
+    block_info->block_param.ref_idx0 = ref_idx;
+    block_info->block_param.ref_idx1 = ref_idx;
+    block_info->block_param.dir = 0;
   }
   else if (mode==MODE_BIPRED){
     int ref_idx = 0;
@@ -457,7 +457,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 #else
     pb_part = 0;
 #endif
-    block_info->pred_data.pb_part = pb_part;
+    block_info->block_param.pb_part = pb_part;
 
     if (pb_part == 0) {
       read_mv(stream, &mv_arr0[0], &mvp2);
@@ -502,27 +502,27 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     }
 
     if (decoder_info->bit_count.stat_frame_type == B_FRAME) {
-      block_info->pred_data.ref_idx0 = 0;
-      block_info->pred_data.ref_idx1 = 1;
+      block_info->block_param.ref_idx0 = 0;
+      block_info->block_param.ref_idx1 = 1;
       if (decoder_info->frame_info.interp_ref == 1) {
-        block_info->pred_data.ref_idx0 += 1;
-        block_info->pred_data.ref_idx1 += 1;
+        block_info->block_param.ref_idx0 += 1;
+        block_info->block_param.ref_idx1 += 1;
       }
     }
     else{
       if (decoder_info->frame_info.num_ref == 2) {
         int code = get_vlc0_limit(3, stream);
-        block_info->pred_data.ref_idx0 = (code >> 1) & 1;
-        block_info->pred_data.ref_idx1 = (code >> 0) & 1;
+        block_info->block_param.ref_idx0 = (code >> 1) & 1;
+        block_info->block_param.ref_idx1 = (code >> 0) & 1;
       }
       else {
         int code = get_vlc(10, stream);
-        block_info->pred_data.ref_idx0 = (code >> 2) & 3;
-        block_info->pred_data.ref_idx1 = (code >> 0) & 3;
+        block_info->block_param.ref_idx0 = (code >> 2) & 3;
+        block_info->block_param.ref_idx1 = (code >> 0) & 3;
       }
     }
-    block_info->pred_data.dir = 2;
-    int combined_ref = block_info->pred_data.ref_idx0 * decoder_info->frame_info.num_ref + block_info->pred_data.ref_idx1;
+    block_info->block_param.dir = 2;
+    int combined_ref = block_info->block_param.ref_idx0 * decoder_info->frame_info.num_ref + block_info->block_param.ref_idx1;
     decoder_info->bit_count.bi_ref[stat_frame_type][combined_ref] += 1;
     decoder_info->bit_count.mv[stat_frame_type] += (stream->bitcnt - bit_start);
   }
@@ -579,13 +579,13 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     decoder_info->bit_count.intra_mode[stat_frame_type] += (stream->bitcnt - bit_start);
     decoder_info->bit_count.size_and_intra_mode[stat_frame_type][log2i(size)-3][intra_mode] += 1;
 
-    block_info->pred_data.intra_mode = intra_mode;
+    block_info->block_param.intra_mode = intra_mode;
     for (int i=0;i<4;i++){
       mv_arr[i] = zerovec; //Note: This is necessary for derivation of mvp and mv_skip
     }
-    block_info->pred_data.ref_idx0 = 0;
-    block_info->pred_data.ref_idx1 = 0;
-    block_info->pred_data.dir = -1;
+    block_info->block_param.ref_idx0 = 0;
+    block_info->block_param.ref_idx1 = 0;
+    block_info->block_param.dir = -1;
   }
 
 
@@ -605,7 +605,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     else{
       tb_split = 0;
     }
-    block_info->pred_data.tb_split = tb_split;
+    block_info->block_param.tb_split = tb_split;
     decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
 
     if (tb_split == 0){
@@ -791,23 +791,23 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
   /* Store block data */
   if (mode==MODE_BIPRED){
-    memcpy(block_info->pred_data.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
-    memcpy(block_info->pred_data.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
+    memcpy(block_info->block_param.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
+    memcpy(block_info->block_param.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
   }
   else if(mode==MODE_SKIP){
-    memcpy(block_info->pred_data.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
-    memcpy(block_info->pred_data.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
+    memcpy(block_info->block_param.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
+    memcpy(block_info->block_param.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
   }
   else if(mode==MODE_MERGE){
-    memcpy(block_info->pred_data.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
-    memcpy(block_info->pred_data.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
+    memcpy(block_info->block_param.mv_arr0,mv_arr0,4*sizeof(mv_t)); //Used for mv0 coding
+    memcpy(block_info->block_param.mv_arr1,mv_arr1,4*sizeof(mv_t)); //Used for mv1 coding
   }
   else{
-    memcpy(block_info->pred_data.mv_arr0,mv_arr,4*sizeof(mv_t)); //Used for mv0 coding
-    memcpy(block_info->pred_data.mv_arr1,mv_arr,4*sizeof(mv_t)); //Used for mv1 coding
+    memcpy(block_info->block_param.mv_arr0,mv_arr,4*sizeof(mv_t)); //Used for mv0 coding
+    memcpy(block_info->block_param.mv_arr1,mv_arr,4*sizeof(mv_t)); //Used for mv1 coding
   }
-  block_info->pred_data.mode = mode;
-  block_info->pred_data.tb_split = tb_split;
+  block_info->block_param.mode = mode;
+  block_info->block_param.tb_split = tb_split;
 
   int bwidth = min(size,width - xpos);
   int bheight = min(size,height - ypos);

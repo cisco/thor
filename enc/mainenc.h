@@ -106,7 +106,7 @@ typedef struct
   int num_merge_vec;
   mv_t mvp;
   int tb_param;
-  int tb_split;
+  //int tb_split;
   int max_num_pb_part;
   int max_num_tb_part;
   int delta_qp;

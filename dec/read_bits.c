@@ -605,7 +605,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     else{
       tb_split = 0;
     }
-    block_info->tb_split = tb_split;
+    block_info->pred_data.tb_split = tb_split;
     decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
 
     if (tb_split == 0){
@@ -807,7 +807,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     memcpy(block_info->pred_data.mv_arr1,mv_arr,4*sizeof(mv_t)); //Used for mv1 coding
   }
   block_info->pred_data.mode = mode;
-  block_info->tb_split = tb_split;
+  block_info->pred_data.tb_split = tb_split;
 
   int bwidth = min(size,width - xpos);
   int bheight = min(size,height - ypos);

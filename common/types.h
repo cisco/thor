@@ -163,6 +163,7 @@ typedef struct
   int dir;
   cbp_t cbp;
   int tb_param;
+  int tb_split;
 } pred_data_t;
 
 typedef struct

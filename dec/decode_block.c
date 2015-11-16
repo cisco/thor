@@ -130,7 +130,7 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
   int div = size/(2*MIN_PB_SIZE);
   int bwidth =  block_info->block_pos.bwidth;
   int bheight =  block_info->block_pos.bheight;
-  uint8_t tb_split = block_info->tb_split > 0;
+  uint8_t tb_split = block_info->pred_data.tb_split > 0;
   part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.pb_part : PART_NONE; //TODO: Set pb_part properly for SKIP and BIPRED
 
   for (m=0;m<bheight/MIN_PB_SIZE;m++){
@@ -233,7 +233,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     intra_mode = block_info.pred_data.intra_mode;
     int upright_available = get_upright_available(ypos,xpos,size,width);
     int downleft_available = get_downleft_available(ypos,xpos,size,height);
-    int tb_split = block_info.tb_split;
+    int tb_split = block_info.pred_data.tb_split;
     decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0);
     decode_and_reconstruct_block_intra(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,upright_available,downleft_available,intra_mode,yposC,xposC,width/2,1);
     decode_and_reconstruct_block_intra(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8,upright_available,downleft_available,intra_mode,yposC,xposC,width/2,2);
@@ -447,7 +447,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     }
 
     /* Dequantize, invere tranform and reconstruct */
-    int tb_split = block_info.tb_split;
+    int tb_split = block_info.pred_data.tb_split;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split);
     decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8);
     decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8);

@@ -1646,10 +1646,11 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   uint8_t *rec_u = block_info->rec_block->u;
   uint8_t *rec_v = block_info->rec_block->v;
 
-  int tb_split = max(0, tb_param);
-  int zero_block = tb_param == -1 ? 1 : 0;
-  block_info->tb_split = tb_split;
+  int tb_split = max(0, pred_data->tb_param);
+  int zero_block = pred_data->tb_param == -1 ? 1 : 0;
+  pred_data->tb_split = tb_split;
   pred_data->mode = mode;
+
   if (mode!=MODE_INTRA) {
     ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
   }
@@ -1951,7 +1952,7 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
   int bwidth =  block_info->block_pos.bwidth;
   int bheight =  block_info->block_pos.bheight;
 
-  uint8_t tb_split = block_info->tb_split;
+  uint8_t tb_split = max(0,block_info->pred_data.tb_param);
   part_t pb_part = block_info->pred_data.mode == MODE_INTER ? block_info->pred_data.pb_part : PART_NONE; //TODO: Set pb_part properly for SKIP and BIPRED
 
   for (m=0;m<bheight/MIN_PB_SIZE;m++){
@@ -1985,13 +1986,12 @@ void copy_best_parameters(int size,block_info_t *block_info, pred_data_t pred_da
   memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
   memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
 
-  //block_info->tb_param = pred_data.tb_param;
   block_info->pred_data.pb_part = pred_data.pb_part;
   block_info->pred_data.skip_idx = pred_data.skip_idx;
   block_info->pred_data.mode = pred_data.mode;
   block_info->pred_data.cbp = pred_data.cbp;
   block_info->pred_data.tb_param = pred_data.tb_param;
-  block_info->tb_split = pred_data.tb_param > 0;
+  block_info->pred_data.tb_split = pred_data.tb_split;
 
   int mode = pred_data.mode;
   int skip_or_merge_idx = pred_data.skip_idx;
@@ -2432,6 +2432,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         for (intra_mode = MODE_DC; intra_mode < num_intra_modes; intra_mode++) {
           pred_data.intra_mode = intra_mode;
           for (tb_param = 0; tb_param <= max_tb_param; tb_param++) {
+            pred_data.tb_param = tb_param;
             nbits = encode_block(encoder_info, stream, block_info, &pred_data, mode, tb_param);
             cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
             if (cost < min_intra_cost) {

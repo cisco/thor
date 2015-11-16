@@ -366,7 +366,8 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   int start_bits,end_bits;
 
   int size = block_info->block_pos.size;
-  int tb_split = block_info->tb_split;
+  int tb_split = pred_data->tb_split;
+
   uint8_t cbp_y = pred_data->cbp.y;
   uint8_t cbp_u = pred_data->cbp.u;
   uint8_t cbp_v = pred_data->cbp.v;

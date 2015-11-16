@@ -367,10 +367,9 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
 
   int size = block_info->block_pos.size;
   int tb_split = block_info->tb_split;
-  uint8_t cbp_y = block_info->cbp.y;
-  uint8_t cbp_u = block_info->cbp.u;
-  uint8_t cbp_v = block_info->cbp.v;
-
+  uint8_t cbp_y = pred_data->cbp.y;
+  uint8_t cbp_u = pred_data->cbp.u;
+  uint8_t cbp_v = pred_data->cbp.v;
   int16_t *coeffq_y = block_info->coeff_y;
   int16_t *coeffq_u = block_info->coeff_u;
   int16_t *coeffq_v = block_info->coeff_v;
@@ -587,9 +586,9 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
       if (size > 8){
         int index;
         for (index=0;index<4;index++){
-          cbp_y = ((block_info->cbp.y) >> (3 - index)) & 1;
-          cbp_u = ((block_info->cbp.u) >> (3 - index)) & 1;
-          cbp_v = ((block_info->cbp.v) >> (3 - index)) & 1;
+          cbp_y = ((pred_data->cbp.y) >> (3 - index)) & 1;
+          cbp_u = ((pred_data->cbp.u) >> (3 - index)) & 1;
+          cbp_v = ((pred_data->cbp.v) >> (3 - index)) & 1;
           /* Code cbp separately for each TU */
           int cbp = cbp_y + (cbp_u<<1) + (cbp_v<<2);
           code = cbp_table[cbp];
@@ -615,7 +614,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
       else{
         int index;
         for (index=0;index<4;index++){
-          cbp_y = ((block_info->cbp.y) >> (3 - index)) & 1;
+          cbp_y = ((pred_data->cbp.y) >> (3 - index)) & 1;
           /* Code cbp_y separately for each TU */
           putbits(1,cbp_y,stream);
 

@@ -109,12 +109,10 @@ typedef struct
   int tb_split;
   int max_num_pb_part;
   int max_num_tb_part;
-  cbp_t cbp;
   int delta_qp;
   block_context_t *block_context;
   int final_encode;
   yuv_block_t *rec_block_best;
-  cbp_t cbp_best;
   int16_t coeff_y[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
   int16_t coeff_u[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
   int16_t coeff_v[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];

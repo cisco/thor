@@ -161,6 +161,7 @@ typedef struct
   int ref_idx0;
   int ref_idx1;
   int dir;
+  cbp_t cbp;
 } pred_data_t;
 
 typedef struct

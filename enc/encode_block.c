@@ -1610,7 +1610,6 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     memcpy(block_info->coeff_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
     memcpy(block_info->coeff_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
     memcpy(block_info->coeff_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
-    block_info->cbp = block_info->cbp_best;
     nbits = write_block(stream, encoder_info, block_info, pred_data);
     return nbits;
   }
@@ -1771,12 +1770,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     }
 
   }
-  block_info->cbp = cbp;
+  pred_data->cbp = cbp;
   nbits = write_block(stream,encoder_info,block_info,pred_data);
 
   if (tb_split) {
     /* Used for deblocking only (i.e. not for bitstream generation) */
-    block_info->cbp.y = block_info->cbp.u = block_info->cbp.v = 1; //TODO: Do properly with respect to deblocking filter
+    pred_data->cbp.y = pred_data->cbp.u = pred_data->cbp.v = 1; //TODO: Do properly with respect to deblocking filter
   }
 
   thor_free(pblock0_y);
@@ -1962,7 +1961,7 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
       n0 = div > 0 ? n/div : 0;
       index = 2*m0+n0;
       if (index > 3) printf("error: index=%4d\n",index);
-      encoder_info->deblock_data[block_index].cbp = block_info->cbp;
+      encoder_info->deblock_data[block_index].cbp = block_info->pred_data.cbp;
       encoder_info->deblock_data[block_index].tb_split = tb_split;
       encoder_info->deblock_data[block_index].pb_part = pb_part;
       encoder_info->deblock_data[block_index].size = block_info->block_pos.size;
@@ -1982,16 +1981,17 @@ void copy_best_parameters(int size,block_info_t *block_info, pred_data_t pred_da
   memcpy(block_info->rec_block_best->y, rec_block->y, size*size*sizeof(uint8_t));
   memcpy(block_info->rec_block_best->u, rec_block->u, size*size / 4 * sizeof(uint8_t));
   memcpy(block_info->rec_block_best->v, rec_block->v, size*size / 4 * sizeof(uint8_t));
-  if (block_info->cbp.y) memcpy(block_info->coeff_y_best, block_info->coeff_y, size*size*sizeof(uint16_t));
-  if (block_info->cbp.u) memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
-  if (block_info->cbp.v) memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
-  block_info->cbp_best = block_info->cbp;
+  memcpy(block_info->coeff_y_best, block_info->coeff_y, size*size*sizeof(uint16_t));
+  memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
+  memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
+
   block_info->tb_param = tb_param;
   block_info->tb_split = tb_param > 0;
 
   block_info->pred_data.pb_part = pred_data.pb_part;
   block_info->pred_data.skip_idx = pred_data.skip_idx;
   block_info->pred_data.mode = pred_data.mode;
+  block_info->pred_data.cbp = pred_data.cbp;
 
   int mode = pred_data.mode;
   int skip_or_merge_idx = pred_data.skip_idx;

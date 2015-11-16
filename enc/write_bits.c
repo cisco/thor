@@ -371,9 +371,9 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   uint8_t cbp_y = pred_data->cbp.y;
   uint8_t cbp_u = pred_data->cbp.u;
   uint8_t cbp_v = pred_data->cbp.v;
-  int16_t *coeffq_y = block_info->coeff_y;
-  int16_t *coeffq_u = block_info->coeff_u;
-  int16_t *coeffq_v = block_info->coeff_v;
+  int16_t *coeffq_y = pred_data->coeff_y;
+  int16_t *coeffq_u = pred_data->coeff_u;
+  int16_t *coeffq_v = pred_data->coeff_v;
   block_mode_t mode = pred_data->mode;
   intra_mode_t intra_mode = pred_data->intra_mode;
   mv_t mvp = block_info->mvp;
@@ -598,9 +598,9 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
           put_vlc(0,code,stream);
 
           /* Code coefficients for each TU separately */
-          coeffq_y = block_info->coeff_y + index*(size / 2)*(size / 2);
-          coeffq_u = block_info->coeff_u + index*(size / 4)*(size / 4);
-          coeffq_v = block_info->coeff_v + index*(size / 4)*(size / 4);
+          coeffq_y = pred_data->coeff_y + index*(size / 2)*(size / 2);
+          coeffq_u = pred_data->coeff_u + index*(size / 4)*(size / 4);
+          coeffq_v = pred_data->coeff_v + index*(size / 4)*(size / 4);
           if (cbp_y){
             write_coeff(stream,coeffq_y,size/2,coeff_type|0);
           }
@@ -620,7 +620,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
           putbits(1,cbp_y,stream);
 
           /* Code coefficients for each TU separately */
-          coeffq_y = block_info->coeff_y + index*(size / 2)*(size / 2);
+          coeffq_y = pred_data->coeff_y + index*(size / 2)*(size / 2);
           if (cbp_y){
             write_coeff(stream,coeffq_y,size/2,coeff_type|0);
           }

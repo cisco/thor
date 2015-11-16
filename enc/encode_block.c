@@ -1607,9 +1607,6 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     memcpy(block_info->rec_block->y, block_info->rec_block_best->y, size*size*sizeof(uint8_t));
     memcpy(block_info->rec_block->u, block_info->rec_block_best->u, size*size / 4 * sizeof(uint8_t));
     memcpy(block_info->rec_block->v, block_info->rec_block_best->v, size*size / 4 * sizeof(uint8_t));
-    memcpy(block_info->coeff_y, block_info->coeff_y_best, size*size*sizeof(uint16_t));
-    memcpy(block_info->coeff_u, block_info->coeff_u_best, size*size / 4 * sizeof(uint16_t));
-    memcpy(block_info->coeff_v, block_info->coeff_v_best, size*size / 4 * sizeof(uint16_t));
     nbits = write_block(stream, encoder_info, block_info, pred_data);
     return nbits;
   }
@@ -1676,9 +1673,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     cbp.v = encode_and_reconstruct_block_intra (encoder_info, org_v,sizeC,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,
         tb_split&&(size>8),encoder_info->params->rdoq,width/2,intra_mode,upright_available,downleft_available);
 
-    if (cbp.y) memcpy(block_info->coeff_y,coeffq_y,size*size*sizeof(uint16_t));
-    if (cbp.u) memcpy(block_info->coeff_u,coeffq_u,size*size/4*sizeof(uint16_t));
-    if (cbp.v) memcpy(block_info->coeff_v,coeffq_v,size*size/4*sizeof(uint16_t));
+    if (cbp.y) memcpy(pred_data->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
+    if (cbp.u) memcpy(pred_data->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
+    if (cbp.v) memcpy(pred_data->coeff_v, coeffq_v, size*size / 4 * sizeof(uint16_t));
 
   }
   else {
@@ -1761,9 +1758,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
         cbp.y = encode_and_reconstruct_block_inter (encoder_info, org_y,sizeY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,tb_split,encoder_info->params->rdoq);
         cbp.u = encode_and_reconstruct_block_inter (encoder_info, org_u,sizeC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,tb_split&&(size>8),encoder_info->params->rdoq);
         cbp.v = encode_and_reconstruct_block_inter (encoder_info, org_v,sizeC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,tb_split&&(size>8),encoder_info->params->rdoq);
-        if (cbp.y) memcpy(block_info->coeff_y,coeffq_y,size*size*sizeof(uint16_t));
-        if (cbp.u) memcpy(block_info->coeff_u,coeffq_u,size*size/4*sizeof(uint16_t));
-        if (cbp.v) memcpy(block_info->coeff_v,coeffq_v,size*size/4*sizeof(uint16_t));
+        if (cbp.y) memcpy(pred_data->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
+        if (cbp.u) memcpy(pred_data->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
+        if (cbp.v) memcpy(pred_data->coeff_v, coeffq_v, size*size / 4 * sizeof(uint16_t));
       }
     }
     else if (mode==MODE_SKIP){
@@ -1982,10 +1979,9 @@ void copy_best_parameters(int size,block_info_t *block_info, pred_data_t pred_da
   memcpy(block_info->rec_block_best->y, rec_block->y, size*size*sizeof(uint8_t));
   memcpy(block_info->rec_block_best->u, rec_block->u, size*size / 4 * sizeof(uint8_t));
   memcpy(block_info->rec_block_best->v, rec_block->v, size*size / 4 * sizeof(uint8_t));
-  memcpy(block_info->coeff_y_best, block_info->coeff_y, size*size*sizeof(uint16_t));
-  memcpy(block_info->coeff_u_best, block_info->coeff_u, size*size / 4 * sizeof(uint16_t));
-  memcpy(block_info->coeff_v_best, block_info->coeff_v, size*size / 4 * sizeof(uint16_t));
-
+  memcpy(block_info->pred_data.coeff_y, pred_data.coeff_y, size*size*sizeof(uint16_t));
+  memcpy(block_info->pred_data.coeff_u, pred_data.coeff_u, size*size/4*sizeof(uint16_t));
+  memcpy(block_info->pred_data.coeff_v, pred_data.coeff_v, size*size/4*sizeof(uint16_t));
   block_info->pred_data.pb_part = pred_data.pb_part;
   block_info->pred_data.skip_idx = pred_data.skip_idx;
   block_info->pred_data.mode = pred_data.mode;

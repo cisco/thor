@@ -106,19 +106,12 @@ typedef struct
   int num_merge_vec;
   mv_t mvp;
   int tb_param;
-  //int tb_split;
   int max_num_pb_part;
   int max_num_tb_part;
   int delta_qp;
   block_context_t *block_context;
   int final_encode;
   yuv_block_t *rec_block_best;
-  int16_t coeff_y[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
-  int16_t coeff_u[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
-  int16_t coeff_v[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
-  int16_t coeff_y_best[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
-  int16_t coeff_u_best[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
-  int16_t coeff_v_best[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
 } block_info_t; //TODO: Consider merging with block_pos_t
 
 

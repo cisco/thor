@@ -35,3 +35,20 @@
 *~
 old
 
+#Visual Studio files
+*.tlog
+*.pdb
+*.ipdb
+*.ilk
+*.suo
+*.suo
+*.iobj
+*.sdf
+*.opensdf
+*.log
+*.idb
+*.user
+
+
+
+

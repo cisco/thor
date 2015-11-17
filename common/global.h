@@ -73,7 +73,6 @@ static inline void fatalerror(char error_text[])
 #define DYADIC_CODING 1          // Support hierarchical B frames
 
 /* Experimental */
-#define HEVC_INTERPOLATION 0     //Enable HEVC interpolation filter
 #define BIPRED_PART 0
 
 #define NO_SUBBLOCK_SKIP 0       //Force only zero skip mv in subblocks

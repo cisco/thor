@@ -39,27 +39,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "simd.h"
 #include "common_kernels.h"
 
-#if HEVC_INTERPOLATION
-#define NTAPY 8
-#define OFFY (NTAPY/2)
-#define OFFYM1 (OFFY-1)
-static const int16_t filter_coeffsY[4][8] = {
-    { 0,  0,  0, 64,  0,  0, 0,  0},
-    {-1,  4,-10, 58, 17, -5, 1,  0},
-    {-1,  4,-11, 40, 40,-11, 4, -1},
-    { 0,  1, -5, 17, 58,-10, 4, -1}
-};
-#else
+
 #define NTAPY 6
 #define OFFY (NTAPY/2)
 #define OFFYM1 (OFFY-1)
-static const int16_t filter_coeffsY[4][8] = {
-    { 0,  0,128,  0,  0,  0},
-    { 3,-15,111, 37,-10,  2},
-    { 3,-17, 78, 78,-17,  3},
-    { 2,-10, 37,111,-15,  3}
-};
-#endif
 
 static const int16_t filter_coeffsYbi[4][8] = {
   { 0, 0, 128,  0,  0,  0 },
@@ -156,27 +139,6 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
     return;
   }
 
-#if HEVC_INTERPOLATION
-  /* Vertical filtering */
-  for(i=-OFFYM1;i<width+OFFY;i++){
-    for (j=0;j<height;j++){
-      int sum = 0;
-      i_off = i + hor_int;
-      j_off = j + ver_int;
-      for (m=0;m<NTAPY;m++) sum += filter_coeffsY[ver_frac][m] * ref[(j_off + m - OFFYM1) * stride + i_off];
-      tmp[j][i+OFFYM1] = sum;
-    }
-  }
-  /* Horizontal filtering */
-  for(i=0;i<width;i++){
-    for (j=0;j<height;j++){
-      int sum = 0;
-      for (m=0;m<NTAPY;m++) sum += filter_coeffsY[hor_frac][m] * tmp[j][i+m];
-      pblock[j*pstride+i] = clip255((sum + 2048)>>12);
-    }
-  }
-  return;
-#endif
   if (use_simd)
     get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred);
   /* Special lowpass filter at center position */

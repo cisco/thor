@@ -49,6 +49,6 @@ old
 *.idb
 *.user
 
-
-
+#Deps
+*.d
 

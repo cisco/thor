@@ -81,5 +81,27 @@ clean:
 cleanall: clean
 	rm -f $(ENCODER_PROGRAM) $(DECODER_PROGRAM)
 
+check: all
+	# Usage : 
+	# 	make check test-config=.. test-frames-count=.. test-valgrind=.. test-files=..
+	#
+	# Test performs (valgrind) encode -> (valgrind) decode -> 
+	# 	compare encoder reconstructed yuv - decoder output yuv
+	#
+	# test-config - encoder config file
+	# test-frames-count - how many frames to use from the input files
+	# test-valgrind - pass through valgrind or not
+	# test-files (optional) - test input files. If not specified, will generate a
+	# 	few random yuv files for a few resolutions. If specify directory, will use all yuv files
+	# 	in that directory. If specify explicitly yuv file, will use that file. 
+	# 	Filename format must be name_WIDTHxHEIGHT_RATE.yuv
+	#
+	# Examples:
+	#	 make check test-config=config_HDB_low_complexity.txt test-frames-count=10 test-valgrind=0 test-files=rnd_test_tmp_640x480_30.yuv
+	#	 make check test-config=config_HDB_low_complexity.txt test-frames-count=5 test-valgrind=0 test-files=.
+	#	 make check test-config=config_HDB_low_complexity.txt test-frames-count=2 test-valgrind=1 
+	#
+	./check.sh $(test-config) $(test-frames-count) $(test-valgrind) $(test-files)
+
 -include $(DEPS)
 

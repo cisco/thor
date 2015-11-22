@@ -1,0 +1,47 @@
+-if                 c:\video\Rover\TelePresence_1920x1080_60.yuv  ; Input yuv sequence
+-of                 str.bit                                       ; Output bitstream
+-rf                 rec.yuv                                       ; Reconstructed yuv sequence
+-stat               stat.txt                                      ; Statistics to file
+-width              1920                                          ; Witdh of luminance
+-height             1080                                          ; Height of luminance
+-n                  16                                            ; Number of frames to encode
+-f                  60                                            ; Frame rate in Hz
+-qp                 32                                            ; Quantization parameter
+-HQperiod           1                                             ; Period of high quality frames
+-num_reorder_pics   15                                            ; GOPsize - 1
+-interp_ref         1                                             ; Use interpolated reference frames
+
+;
+; Lambda and QP modifiers
+;
+-dqpI              -2                                             ; QP offset for I frames
+-dqpB0              2                                             ; QP offset for B frames - level 0
+-dqpB1              1                                             ; QP offset for B frames - level 1
+-dqpB2              0                                             ; QP offset for B frames - level 2
+-dqpB3              0                                             ; QP offset for B frames - level 3
+-mqpP               1.2                                           ; QP multiplier for low quality P frames
+-mqpB               1.2                                           ; QP multiplier for B frames
+-mqpB0              1.075                                         ; QP multiplier for B frames - level 0
+-mqpB1              1.15                                          ; QP multiplier for B frames - level 1
+-mqpB2              1.225                                         ; QP multiplier for B frames - level 2
+-mqpB3              1.3                                           ; QP multiplier for B frames - level 3
+
+-lambda_coeffI      0.8                                           ; Multiplier for lambda - I frames
+-lambda_coeffP      1.2                                           ; Multiplier for lambda - P frames
+-lambda_coeffB      1.2                                           ; Multiplier for lambda - B frames
+-lambda_coeffB0     1.2                                           ; Multiplier for lambda - B frames - level 0
+-lambda_coeffB1     1.2                                           ; Multiplier for lambda - B frames - level 1
+-lambda_coeffB2     1.2                                           ; Multiplier for lambda - B frames - level 2
+-lambda_coeffB3     1.2                                           ; Multiplier for lambda - B frames - level 3
+
+;
+;Medium complexity operating point
+;
+-intra_rdo          1                                             ; Use RDO for choosing intra mode
+-enable_tb_split    0                                             ; Enable splitting of a block in 4 transform blocks
+-enable_pb_split    0                                             ; Enable splitting of an inter block in 4 prediction blocks
+-early_skip_thr     0.8                                           ; Early skip threshold
+-max_num_ref        2                                             ; Number of reference frames
+-use_block_contexts 1                                             ; Use block contexts
+-enable_bipred      1                                             ; Enable biprediction
+-encoder_speed 	    1                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)

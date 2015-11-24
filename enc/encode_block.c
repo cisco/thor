@@ -1172,10 +1172,16 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
     step = step >> 1;
   }
 
+  for (int idx = *mvcand_num; idx < 4; idx++) { //Temporary workaround
+    mvcand[idx].y = 0;
+    mvcand[idx].x = 0;
+  }
+
   /* Extra candidate search */
   mvcand[4] = *mvp;
   mvcand[5].y = 0;
   mvcand[5].x = 0;
+
   for (int idx = 0; idx<ME_CANDIDATES; idx++) {
     mv_cand = mvcand[idx];
 
@@ -2080,11 +2086,12 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
     int r, sign = 0;
     mv_t mv;
 
-    r_idx0 = encoder_info->params->interp_ref ? 1 : 0;
+    r_idx0 = encoder_info->frame_info.interp_ref ? 1 : 0;
     r = encoder_info->frame_info.ref_array[r_idx0];
     ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+    assert(r>=0);
 
-    r_idx1 = encoder_info->params->interp_ref ? 2 : 1;
+    r_idx1 = encoder_info->frame_info.interp_ref ? 2 : 1;
     r = encoder_info->frame_info.ref_array[r_idx1];
     ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 

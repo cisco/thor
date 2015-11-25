@@ -130,8 +130,8 @@ void encode_frame(encoder_info_t *encoder_info)
         read_stream_pos(&stream_pos_ref,stream);
         best_qp = qp;
         min_qp = qp-max_delta_qp;
-        max_qp = qp;
-        for (qp0=min_qp;qp0<=max_qp;qp0++){
+        max_qp = qp+max_delta_qp;
+        for (qp0=min_qp;qp0<=max_qp;qp0+=encoder_info->params->delta_qp_step){
           cost = process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp0);
           if (cost < min_cost){
             min_cost = cost;

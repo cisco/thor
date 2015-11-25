@@ -648,7 +648,7 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   mode = decoder_info->mode;
   
   /* Read delta_qp and set block-level qp */
-  if (size==MAX_BLOCK_SIZE && mode != MODE_SKIP && decoder_info->max_delta_qp > 0){
+  if (size==MAX_BLOCK_SIZE && (split_flag || mode != MODE_SKIP) && decoder_info->max_delta_qp > 0){
     /* Read delta_qp */
     int delta_qp = read_delta_qp(stream);
     decoder_info->frame_info.qpb = decoder_info->frame_info.qp + delta_qp;

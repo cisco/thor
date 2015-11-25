@@ -200,7 +200,7 @@ int main(int argc, char **argv)
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
   putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
-  putbits(2,params->max_delta_qp,&stream);
+  putbits(3,params->max_delta_qp,&stream);
   putbits(1,params->deblocking,&stream);
   putbits(1,params->clpf,&stream);
   putbits(1,params->use_block_contexts,&stream);

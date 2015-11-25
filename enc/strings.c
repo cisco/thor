@@ -328,6 +328,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-intra_rdo",             "0", ARG_INTEGER,  &params->intra_rdo);
   add_param_to_list(&list, "-rdoq",                  "0", ARG_INTEGER,  &params->rdoq);
   add_param_to_list(&list, "-max_delta_qp",          "0", ARG_INTEGER,  &params->max_delta_qp);
+  add_param_to_list(&list, "-delta_qp_step",         "1", ARG_INTEGER,  &params->delta_qp_step);
   add_param_to_list(&list, "-encoder_speed",         "0", ARG_INTEGER,  &params->encoder_speed);
   add_param_to_list(&list, "-sync",                  "0", ARG_INTEGER,  &params->sync);
   add_param_to_list(&list, "-deblocking",            "1", ARG_INTEGER,  &params->deblocking);
@@ -443,7 +444,7 @@ void check_parameters(enc_params *params)
     fatalerror("This number of max reference frames is not supported \n");
   }
 
-  if(params->max_delta_qp >= 4)
+  if(params->max_delta_qp >= 8)
   {
     fatalerror("max_delta_qp too large\n");
   }

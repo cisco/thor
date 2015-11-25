@@ -77,6 +77,7 @@ typedef struct
   int intra_rdo;
   int rdoq;
   int max_delta_qp;
+  int delta_qp_step;
   int encoder_speed;
   int sync;
   int deblocking;

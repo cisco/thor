@@ -139,7 +139,7 @@ int main(int argc, char** argv)
 
     decoder_info.interp_ref = getbits(&stream,1);
 
-    decoder_info.max_delta_qp = getbits(&stream,2);
+    decoder_info.max_delta_qp = getbits(&stream,3);
 
     decoder_info.deblocking = getbits(&stream,1);
     decoder_info.clpf = getbits(&stream,1);

@@ -16,6 +16,7 @@
 ;
 ;High complexity operating point
 ;
+
 -intra_rdo          1                                             ; Use RDO for choosing intra mode
 -enable_tb_split    1                                             ; Enable splitting of a block in 4 transform blocks
 -enable_pb_split    1                                             ; Enable splitting of an inter block in 4 prediction blocks
@@ -24,3 +25,4 @@
 -use_block_contexts 1                                             ; Use block contexts
 -enable_bipred      1                                             ; Enable biprediction
 -encoder_speed      0                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)
+-max_delta_qp       1                                             ; Abs max delta qp

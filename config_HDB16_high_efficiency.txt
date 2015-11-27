@@ -1,12 +1,3 @@
--if                 c:\video\Rover\TelePresence_1920x1080_60.yuv  ; Input yuv sequence
--of                 str.bit                                       ; Output bitstream
--rf                 rec.yuv                                       ; Reconstructed yuv sequence
--stat               stat.txt                                      ; Statistics to file
--width              1920                                          ; Witdh of luminance
--height             1080                                          ; Height of luminance
--n                  16                                            ; Number of frames to encode
--f                  60                                            ; Frame rate in Hz
--qp                 32                                            ; Quantization parameter
 -HQperiod           1                                             ; Period of high quality frames
 -num_reorder_pics   15                                            ; GOPsize - 1
 -interp_ref         1                                             ; Use interpolated reference frames
@@ -45,4 +36,3 @@
 -use_block_contexts 1                                             ; Use block contexts
 -enable_bipred      1                                             ; Enable biprediction
 -encoder_speed      0                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)
--max_delta_qp       1                                             ; Abs max delta qp

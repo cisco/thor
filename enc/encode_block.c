@@ -1691,12 +1691,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       if (block_param->dir==2){
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num >= rec->frame_num;
+        sign = ref0->frame_num > rec->frame_num;
         get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
 
         r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
         ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-        sign = ref1->frame_num >= rec->frame_num;
+        sign = ref1->frame_num > rec->frame_num;
         get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
         average_blocks_all(rec_y, rec_u, rec_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
@@ -1713,12 +1713,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       if (block_param->dir == 2) {
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num >= rec->frame_num;
+        sign = ref0->frame_num > rec->frame_num;
         get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
         r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
         ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-        sign = ref1->frame_num >= rec->frame_num;
+        sign = ref1->frame_num > rec->frame_num;
         get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
         average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
@@ -1743,11 +1743,11 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       int split = encoder_info->params->enable_pb_split;
       r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
       ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-      sign = ref0->frame_num >= rec->frame_num;
+      sign = ref0->frame_num > rec->frame_num;
       get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
       r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
       ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-      sign = ref1->frame_num >= rec->frame_num;
+      sign = ref1->frame_num > rec->frame_num;
       get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
       average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
 
@@ -2330,7 +2330,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         add_mvcandidate(&mvp, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
         block_info->mvp = mvp;
 
-        int sign = ref->frame_num >= rec->frame_num;
+        int sign = ref->frame_num > rec->frame_num;
 
         /* Loop over all PU partitions to do ME */
         mv_center[ref_idx] = mvp; //Center integer ME search to mvp for uni-pred, part=PART_NONE;

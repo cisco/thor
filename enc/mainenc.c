@@ -215,7 +215,7 @@ int main(int argc, char **argv)
   num_encoded_frames = 0;
   sub_gop = max(1,params->num_reorder_pics+1);
 
-  min_interp_depth = log2i(params->num_reorder_pics+1)-2;
+  min_interp_depth = log2i(params->num_reorder_pics+1)-3;
   if (params->frame_rate > 30) min_interp_depth--;
 
   last_PorI_frame = -1;

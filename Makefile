@@ -26,7 +26,8 @@ COMMON_SOURCES = \
 	common/common_kernels.c \
 	common/snr.c \
 	common/simd.c \
-        common/temporal_interp.c
+        common/temporal_interp.c \
+        common/wt_matrix.c
 
 ENCODER_SOURCES = \
 	enc/encode_block.c \

@@ -73,14 +73,13 @@ int zigzag256[256] = {
 };
 
 
-
-
 int chroma_qp[52] = {
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
         17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 29,
         30, 31, 32, 33, 33, 34, 34, 35, 35, 36, 36, 37, 37, 38,
         39, 40, 41, 42, 43, 44, 45
 };
+
 
 int super_table[8][20] = {
   {-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,  1, 0, 5, 2, 6, 3, 7, 4, 8,-1},
@@ -128,18 +127,19 @@ int get_downleft_available(int ypos, int xpos, int size, int height){
   return downleft_available;
 }
 
-
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size)
+void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, unsigned int * wt_matrix, int ws)
 {
   int tr_log2size = log2i(size);
   const int lshift = qp / 6;
-  const int rshift = tr_log2size - 1;
+  const int rshift = tr_log2size - 1 + (wt_matrix!=NULL ? INV_WEIGHT_SHIFT : 0);
   const int scale = gdequant_table[qp % 6];
   const int add = 1<<(rshift-1);
 
   for (int i = 0; i < size ; i++){
     for (int j = 0; j < size; j++){
       int c = coeff[i*size+j];
+      if (wt_matrix)
+        c = c*wt_matrix[i*ws+j];
       rcoeff[i*size+j] = ((c * scale << lshift) + add) >> rshift;
     }
   }

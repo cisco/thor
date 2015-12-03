@@ -91,6 +91,7 @@ typedef struct
   int min_qp;
   int max_qpI;
   int min_qpI;
+  int qmtx;
 } enc_params;
 
 typedef struct
@@ -145,6 +146,7 @@ typedef struct
   int b_level;
   double lambda_coeff;
   int prev_qp;
+  int min_ref_dist;
 } frame_info_t;
 
 typedef struct 
@@ -162,6 +164,8 @@ typedef struct
   int width;
   int height;
   int depth;
+  unsigned int wmatrix [52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE];
+  unsigned int iwmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE];
 } encoder_info_t;
 
 #endif

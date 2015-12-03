@@ -81,6 +81,8 @@ typedef struct
     block_context_t *block_context;
     int bipred;
     int depth;
+    int qmtx;
+    unsigned int iwmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE];
 } decoder_info_t;
 
 #endif

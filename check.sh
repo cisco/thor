@@ -5,7 +5,7 @@ FRAMES=$2
 VALGRIND=$3
 FILES=$4
 
-VALGRIND_PREFIX="valgrind --leak-check=full --error-exitcode=123";
+VALGRIND_PREFIX="valgrind --leak-check=full --max-stackframe=5000000 --error-exitcode=123";
 if [[ $VALGRIND == 0 ]]; then
     VALGRIND_PREFIX=""
 fi

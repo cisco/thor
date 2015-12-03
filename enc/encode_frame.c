@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "encode_block.h"
 #include "common_block.h"
 #include "common_frame.h"
+#include "wt_matrix.h"
 #include "enc_kernels.h"
 
 extern int chroma_qp[52];
@@ -74,6 +75,8 @@ void encode_frame(encoder_info_t *encoder_info)
   memset(encoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
   frame_info_t *frame_info = &(encoder_info->frame_info);
+  uint8_t qp = frame_info->qp;
+
   double lambda_coeff;
   if (frame_info->frame_type == I_FRAME)
     lambda_coeff = encoder_info->params->lambda_coeffI;
@@ -105,7 +108,6 @@ void encode_frame(encoder_info_t *encoder_info)
   }
 
   putbits(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
-  uint8_t qp = encoder_info->frame_info.qp;
   putbits(8,(int)qp,stream);
   putbits(4,(int)encoder_info->frame_info.num_intra_modes,stream);
 

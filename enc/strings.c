@@ -341,6 +341,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-min_qp",                "1", ARG_INTEGER,  &params->min_qp);
   add_param_to_list(&list, "-max_qpI",              "32", ARG_INTEGER,  &params->max_qpI);
   add_param_to_list(&list, "-min_qpI",              "32", ARG_INTEGER,  &params->min_qpI);
+  add_param_to_list(&list, "-qmtx",                  "0", ARG_INTEGER,  &params->qmtx);
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;

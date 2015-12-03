@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 #include "common_frame.h"
 #include "temporal_interp.h"
+#include "wt_matrix.h"
 
 extern int chroma_qp[52];
 
@@ -58,6 +59,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   decoder_info->frame_info.frame_type = getbits(stream,1);
   decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
   int qp = getbits(stream,8);
+
   decoder_info->frame_info.num_intra_modes = getbits(stream,4);
 
   decoder_info->frame_info.interp_ref = 0;

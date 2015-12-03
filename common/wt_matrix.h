@@ -24,22 +24,13 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#if !defined(_COMMON_BLOCK_H_)
-#define _COMMON_BLOCK_H_
+#if !defined(_WT_MATRIX_H_)
+#define _WT_MATRIX_H_
 
-#include "types.h"
-#include "simd.h"
+#include "global.h"
 
-int get_left_available(int ypos, int xpos, int size, int width);
-int get_up_available(int ypos, int xpos, int size, int width);
-int get_upright_available(int ypos, int xpos, int size, int width);
-int get_downleft_available(int ypos, int xpos, int size, int height);
+void make_wmatrices(unsigned int wmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE],
+                    unsigned int iwmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE]);
 
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, unsigned int * wt_matrix, int ws);
-void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int stride);
-
-void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
-
-void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height);
 
 #endif

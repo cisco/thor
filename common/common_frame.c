@@ -47,12 +47,20 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 {
   int i,j,k,l,d;
   int stride = rec->stride_y;
+#if MODIFIED_DEBLOCK_TEST
+  int d_15, d_26;
+  int p11, p01, q01, q11;
+  int p12, p02, q02, q12;
+  int p15, p05, q05, q15;
+  int p16, p06, q06, q16;
+#else
 #if NEW_DEBLOCK_TEST
   int p12,p02,q02,q12;
   int p15,p05,q05,q15;
 #else
   int p22,p12,p02,q02,q12,q22;
   int p25,p15,p05,q05,q15,q25;
+#endif
 #endif
   int p2,p1,p0,q0,q1,q2;
   uint8_t *recY = rec->y;
@@ -73,6 +81,29 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
   for (i=0;i<height;i+=MIN_BLOCK_SIZE){
     for (j=MIN_BLOCK_SIZE;j<width;j+=MIN_BLOCK_SIZE){
 
+#if MODIFIED_DEBLOCK_TEST
+      p11 = recY[(i + 1)*stride + j - 2];
+      p01 = recY[(i + 1)*stride + j - 1];
+      q01 = recY[(i + 1)*stride + j + 0];
+      q11 = recY[(i + 1)*stride + j + 1];
+
+      p15 = recY[(i + 5)*stride + j - 2];
+      p05 = recY[(i + 5)*stride + j - 1];
+      q05 = recY[(i + 5)*stride + j + 0];
+      q15 = recY[(i + 5)*stride + j + 1];
+      d_15 = abs(p11 - p01) + abs(q11 - q01) + abs(p15 - p05) + abs(q15 - q05);
+
+      p12 = recY[(i + 2)*stride + j - 2];
+      p02 = recY[(i + 2)*stride + j - 1];
+      q02 = recY[(i + 2)*stride + j + 0];
+      q12 = recY[(i + 2)*stride + j + 1];
+
+      p16 = recY[(i + 6)*stride + j - 2];
+      p06 = recY[(i + 6)*stride + j - 1];
+      q06 = recY[(i + 6)*stride + j + 0];
+      q16 = recY[(i + 6)*stride + j + 1];
+      d_26 = abs(p12 - p02) + abs(q12 - q02) + abs(p16 - p06) + abs(q16 - q06);
+#else
 #if NEW_DEBLOCK_TEST
       p12 = recY[(i+2)*stride + j - 2];
       p02 = recY[(i+2)*stride + j - 1];
@@ -100,6 +131,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
       q25 = recY[(i+5)*stride + j + 2];
       d = abs(p22-2*p12+p02) + abs(q22-2*q12+q02) + abs(p25-2*p15+p05) + abs(q25-2*q15+q05);
 #endif
+#endif
       int m;
       for (m=0;m<MIN_BLOCK_SIZE;m+=MIN_PB_SIZE){
         q_index = ((i+m)/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (j/MIN_PB_SIZE);
@@ -125,9 +157,35 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
         cbp = p_cbp || q_cbp;
         mode = p_mode == MODE_INTRA || q_mode == MODE_INTRA;
         interior = j%q_size > 0 ? 1 : 0;
+#if MODIFIED_DEBLOCK_TEST
+        do_filter = !interior && (mv || cbp || mode); //TODO: This logic needs to support 4x4TUs
+#else
         do_filter = (d < beta) && !interior && (mv || cbp || mode); //TODO: This logic needs to support 4x4TUs
+#endif
         if (do_filter){
           for (k=m;k<m+MIN_PB_SIZE;k++){
+#if MODIFIED_DEBLOCK_TEST
+            d = k & 1 ? d_26 : d_15;
+            if (d < beta) {
+              p2 = (int)recY[(i + k)*stride + j - 3];
+              p1 = (int)recY[(i + k)*stride + j - 2];
+              p0 = (int)recY[(i + k)*stride + j - 1];
+              q0 = (int)recY[(i + k)*stride + j + 0];
+              q1 = (int)recY[(i + k)*stride + j + 1];
+              q2 = (int)recY[(i + k)*stride + j + 2];
+#if NEW_DEBLOCK_FILTER
+              delta = (18 * (q0 - p0) - 6 * (q1 - p1) + 0 * (q2 - p2) + 16) >> 5;
+#else
+              delta = (13 * (q0 - p0) + 4 * (q1 - p1) - 5 * (q2 - p2) + 16) >> 5;
+#endif
+              delta = clip(delta, -tc, tc);
+
+              recY[(i + k)*stride + j - 2] = (uint8_t)clip255(p1 + delta / 2);
+              recY[(i + k)*stride + j - 1] = (uint8_t)clip255(p0 + delta);
+              recY[(i + k)*stride + j + 0] = (uint8_t)clip255(q0 - delta);
+              recY[(i + k)*stride + j + 1] = (uint8_t)clip255(q1 - delta / 2);
+            }
+#else
             p2 = (int)recY[(i+k)*stride + j - 3];
             p1 = (int)recY[(i+k)*stride + j - 2];
             p0 = (int)recY[(i+k)*stride + j - 1];
@@ -145,6 +203,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
             recY[(i+k)*stride + j - 1] = (uint8_t)clip255(p0 + delta);
             recY[(i+k)*stride + j + 0] = (uint8_t)clip255(q0 - delta);
             recY[(i+k)*stride + j + 1] = (uint8_t)clip255(q1 - delta/2);
+#endif
           }
         }
       }
@@ -156,6 +215,29 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
   for (i=MIN_BLOCK_SIZE;i<height;i+=MIN_BLOCK_SIZE){
     for (j=0;j<width;j+=MIN_BLOCK_SIZE){
 
+#if MODIFIED_DEBLOCK_TEST
+      p11 = recY[(i - 2)*stride + j + 1];
+      p01 = recY[(i - 1)*stride + j + 1];
+      q01 = recY[(i + 0)*stride + j + 1];
+      q11 = recY[(i + 1)*stride + j + 1];
+
+      p15 = recY[(i - 2)*stride + j + 5];
+      p05 = recY[(i - 1)*stride + j + 5];
+      q05 = recY[(i + 0)*stride + j + 5];
+      q15 = recY[(i + 1)*stride + j + 5];
+      d_15 = abs(p11 - p01) + abs(q11 - q01) + abs(p15 - p05) + abs(q15 - q05);
+
+      p12 = recY[(i - 2)*stride + j + 2];
+      p02 = recY[(i - 1)*stride + j + 2];
+      q02 = recY[(i + 0)*stride + j + 2];
+      q12 = recY[(i + 1)*stride + j + 2];
+
+      p16 = recY[(i - 2)*stride + j + 6];
+      p06 = recY[(i - 1)*stride + j + 6];
+      q06 = recY[(i + 0)*stride + j + 6];
+      q16 = recY[(i + 1)*stride + j + 6];
+      d_26 = abs(p12 - p02) + abs(q12 - q02) + abs(p16 - p06) + abs(q16 - q06);
+#else
 #if NEW_DEBLOCK_TEST
       p12 = recY[(i-2)*stride + j + 2];
       p02 = recY[(i-1)*stride + j + 2];
@@ -183,7 +265,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
       q25 = recY[(i+2)*stride + j + 5];
       d = abs(p22-2*p12+p02) + abs(q22-2*q12+q02) + abs(p25-2*p15+p05) + abs(q25-2*q15+q05);
 #endif
-
+#endif
       int n;
       for (n=0;n<MIN_BLOCK_SIZE;n+=MIN_PB_SIZE){
         q_index = (i/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + ((j+n)/MIN_PB_SIZE);
@@ -211,9 +293,36 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
         cbp = p_cbp || q_cbp;
         mode = p_mode == MODE_INTRA || q_mode == MODE_INTRA;
         interior = i%q_size > 0 ? 1 : 0;
+#if MODIFIED_DEBLOCK_TEST
+        do_filter = !interior && (mv || cbp || mode); //TODO: This logic needs to support 4x4TUs
+#else
         do_filter = (d < beta) && !interior && (mv || cbp || mode); //TODO: This logic needs to support 4x4TUs
+#endif
         if (do_filter){
           for (l=n;l<n+MIN_PB_SIZE;l++){
+#if MODIFIED_DEBLOCK_TEST
+            d = l & 1 ? d_26 : d_15;
+            if (d < beta) {
+              p2 = (int)recY[(i - 3)*stride + j + l];
+              p1 = (int)recY[(i - 2)*stride + j + l];
+              p0 = (int)recY[(i - 1)*stride + j + l];
+              q0 = (int)recY[(i + 0)*stride + j + l];
+              q1 = (int)recY[(i + 1)*stride + j + l];
+              q2 = (int)recY[(i + 2)*stride + j + l];
+
+#if NEW_DEBLOCK_FILTER
+              delta = (18 * (q0 - p0) - 6 * (q1 - p1) + 0 * (q2 - p2) + 16) >> 5;
+#else
+              delta = (13 * (q0 - p0) + 4 * (q1 - p1) - 5 * (q2 - p2) + 16) >> 5;
+#endif
+              delta = clip(delta, -tc, tc);
+
+              recY[(i - 2)*stride + j + l] = (uint8_t)clip255(p1 + delta / 2);
+              recY[(i - 1)*stride + j + l] = (uint8_t)clip255(p0 + delta);
+              recY[(i + 0)*stride + j + l] = (uint8_t)clip255(q0 - delta);
+              recY[(i + 1)*stride + j + l] = (uint8_t)clip255(q1 - delta / 2);
+            }
+#else
             p2 = (int)recY[(i-3)*stride + j + l];
             p1 = (int)recY[(i-2)*stride + j + l];
             p0 = (int)recY[(i-1)*stride + j + l];
@@ -232,6 +341,7 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
             recY[(i-1)*stride + j + l] = (uint8_t)clip255(p0 + delta);
             recY[(i+0)*stride + j + l] = (uint8_t)clip255(q0 - delta);
             recY[(i+1)*stride + j + l] = (uint8_t)clip255(q1 - delta/2);
+#endif
           }
         }
       }

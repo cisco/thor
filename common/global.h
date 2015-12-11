@@ -79,6 +79,7 @@ static inline void fatalerror(char error_text[])
 #define NEW_MV_TEST 1            //New MV test for deblocking a line
 #define NEW_DEBLOCK_FILTER 1     //New deblocking filter
 #define LIMITED_SKIP 1           //Limit number of skip candidates
+#define MODIFIED_DEBLOCK_TEST 1  //New test for whether or not to apply deblock filter
 
 #if LIMITED_SKIP
 #define MAX_NUM_SKIP 2           //Maximum number of skip candidates

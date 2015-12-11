@@ -30,7 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include "putbits.h"
 #include "types.h"
-#include "rc.h"
 
 typedef struct
 {

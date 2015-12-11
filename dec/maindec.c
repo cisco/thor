@@ -138,9 +138,7 @@ int main(int argc, char** argv)
     fprintf(stderr,"num refs is %d\n",decoder_info.max_num_ref);
 
     decoder_info.interp_ref = getbits(&stream,1);
-
-    decoder_info.max_delta_qp = getbits(&stream,3);
-
+    decoder_info.max_delta_qp = getbits(&stream, 1);
     decoder_info.deblocking = getbits(&stream,1);
     decoder_info.clpf = getbits(&stream,1);
     decoder_info.use_block_contexts = getbits(&stream,1);

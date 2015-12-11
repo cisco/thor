@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include "putbits.h"
 #include "types.h"
+#include "rc.h"
 
 typedef struct
 {
@@ -113,6 +114,8 @@ typedef struct
   block_context_t *block_context;
   int final_encode;
   yuv_block_t *rec_block_best;
+  double lambda;
+  int qp;
 } block_info_t; //TODO: Consider merging with block_pos_t
 
 
@@ -135,6 +138,8 @@ typedef struct
 #endif
   int interp_ref;
   int b_level;
+  double lambda_coeff;
+  int prev_qp;
 } frame_info_t;
 
 typedef struct 

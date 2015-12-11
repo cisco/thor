@@ -91,6 +91,7 @@ void encode_frame(encoder_info_t *encoder_info)
     else
       lambda_coeff = encoder_info->params->lambda_coeffB;
   }
+  frame_info->lambda_coeff = lambda_coeff;
   frame_info->lambda = lambda_coeff*squared_lambda_QP[frame_info->qp];
 
   putbits(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
@@ -108,6 +109,9 @@ void encode_frame(encoder_info_t *encoder_info)
   }
   // 16 bit frame number for now
   putbits(16,encoder_info->frame_info.frame_num,stream);
+
+  // Initialize prev_qp to qp used in frame header
+  encoder_info->frame_info.prev_qp = encoder_info->frame_info.qp;
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
@@ -131,6 +135,7 @@ void encode_frame(encoder_info_t *encoder_info)
         best_qp = qp;
         min_qp = qp-max_delta_qp;
         max_qp = qp+max_delta_qp;
+        int pqp = encoder_info->frame_info.prev_qp; // Save prev_qp in local variable
         for (qp0=min_qp;qp0<=max_qp;qp0+=encoder_info->params->delta_qp_step){
           cost = process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp0);
           if (cost < min_cost){
@@ -138,16 +143,19 @@ void encode_frame(encoder_info_t *encoder_info)
             best_qp = qp0;
           }
         }
+        encoder_info->frame_info.prev_qp = pqp; // Restore prev_qp from local variable
         write_stream_pos(stream,&stream_pos_ref);
         process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,best_qp);
       }
       else{
-        process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp);
+        process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
       }
     }
   }
+  qp = encoder_info->frame_info.qp = encoder_info->frame_info.prev_qp; //TODO: Consider using average QP instead
 
   if (encoder_info->params->deblocking){
+    //TODO: Use QP per SB or average QP
     deblock_frame_y(encoder_info->rec, encoder_info->deblock_data, width, height, qp);
     int qpc = chroma_qp[qp];
     deblock_frame_uv(encoder_info->rec, encoder_info->deblock_data, width, height, qpc);

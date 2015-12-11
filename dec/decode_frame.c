@@ -121,6 +121,8 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     }
   }
 
+  qp = decoder_info->frame_info.qp = decoder_info->frame_info.qpb;
+
   if (decoder_info->deblocking){
     deblock_frame_y(decoder_info->rec, decoder_info->deblock_data, width, height, qp);
     int qpc = chroma_qp[qp];

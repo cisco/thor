@@ -1604,7 +1604,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
 
   frame_type_t frame_type = encoder_info->frame_info.frame_type;
   int enable_bipred = encoder_info->params->enable_bipred;
-  int qpY = encoder_info->frame_info.qp + block_info->delta_qp;
+  int qpY = block_info->qp;
   int qpC = chroma_qp[qpY];
 
   /* Intermediate block variables */
@@ -2063,7 +2063,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
 
   int width = encoder_info->width;
   int height = encoder_info->height;
-  double lambda = frame_info->lambda;
+  double lambda = block_info->lambda;
   mv_t mv_all[4][4];
   int enable_bipred = 1;
   int size = block_info->block_pos.size;
@@ -2219,8 +2219,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
 
   frame_info_t *frame_info = &encoder_info->frame_info;
   frame_type_t frame_type = frame_info->frame_type;
-  double lambda = frame_info->lambda;
-
+  double lambda = block_info->lambda;
   int nbits,tb_param;
   int min_tb_param,max_tb_param;
   mv_t mvp;
@@ -2618,7 +2617,7 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
   int i,j;
   int significant_flag = 0;
   int size0 = min(size,EARLY_SKIP_BLOCK_SIZE);
-  int qpY = encoder_info->frame_info.qp + block_info->delta_qp;
+  int qpY = block_info->qp;
   int qpC = chroma_qp[qpY];
   uint8_t *pblock = thor_alloc(EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE, 16);
   uint8_t *pblock0 = thor_alloc(EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE, 16);
@@ -2857,8 +2856,13 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     block_info.block_pos.xpos = xpos;
     block_info.max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
     block_info.max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
-    block_info.delta_qp = qp - encoder_info->frame_info.qp; //TODO: clip qp to 0,51
+    block_info.qp = qp;
+    block_info.delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
     block_info.block_context = &block_context;
+    if (encoder_info->params->max_delta_qp > 0)
+      block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[encoder_info->frame_info.qp];
+    else
+      block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
 
     /* Copy original data to smaller compact block */
     copy_frame_to_block(block_info.org_block,encoder_info->orig,&block_info.block_pos);
@@ -3022,6 +3026,12 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
       /* Store deblock information for this block to frame array */
       copy_deblock_data(encoder_info,&block_info);
+    }
+  }
+
+  if (size == MAX_BLOCK_SIZE) {
+    if (cost > cost_small || block_info.block_param.mode != MODE_SKIP) {
+      encoder_info->frame_info.prev_qp = qp;
     }
   }
 

@@ -200,7 +200,7 @@ int main(int argc, char **argv)
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
   putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
-  putbits(3,params->max_delta_qp,&stream);
+  putbits(1, params->max_delta_qp, &stream);
   putbits(1,params->deblocking,&stream);
   putbits(1,params->clpf,&stream);
   putbits(1,params->use_block_contexts,&stream);
@@ -219,6 +219,7 @@ int main(int argc, char **argv)
   if (params->frame_rate > 30) min_interp_depth--;
 
   last_PorI_frame = -1;
+
   for (frame_num0 = params->skip; frame_num0 < (params->skip + params->num_frames) && (frame_num0+1)*frame_size <= input_file_size; frame_num0+=sub_gop)
   {
     for (k=0; k<sub_gop; k++) {
@@ -514,6 +515,7 @@ int main(int argc, char **argv)
       /* Encode frame */
       start_bits = get_bit_pos(&stream);
       encode_frame(&encoder_info);
+
       rec_available[rec_buffer_idx]=1;
       end_bits =  get_bit_pos(&stream);
       num_bits = end_bits-start_bits;
@@ -655,6 +657,7 @@ int main(int argc, char **argv)
   }
   free(stream.bitstream);
   free(encoder_info.deblock_data);
+
   delete_config_params(params);
   return 0;
 }    

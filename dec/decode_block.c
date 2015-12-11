@@ -651,7 +651,12 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   if (size==MAX_BLOCK_SIZE && (split_flag || mode != MODE_SKIP) && decoder_info->max_delta_qp > 0){
     /* Read delta_qp */
     int delta_qp = read_delta_qp(stream);
-    decoder_info->frame_info.qpb = decoder_info->frame_info.qp + delta_qp;
+    int prev_qp;
+    if (yposY == 0 && xposY == 0)
+      prev_qp = decoder_info->frame_info.qp;
+    else
+      prev_qp = decoder_info->frame_info.qpb;
+    decoder_info->frame_info.qpb = prev_qp + delta_qp;
   }
 
   decoder_info->bit_count.super_mode[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);

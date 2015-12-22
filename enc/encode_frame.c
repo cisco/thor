@@ -94,6 +94,16 @@ void encode_frame(encoder_info_t *encoder_info)
   frame_info->lambda_coeff = lambda_coeff;
   frame_info->lambda = lambda_coeff*squared_lambda_QP[frame_info->qp];
 
+  int sb_idx = 0;
+  int start_bits_sb, end_bits_sb, num_bits_sb;
+  int start_bits_frame, end_bits_frame, num_bits_frame;
+  if (encoder_info->params->bitrate > 0) {
+    start_bits_frame = get_bit_pos(stream);
+    int max_qp = frame_info->frame_type == I_FRAME ? encoder_info->params->max_qpI : encoder_info->params->max_qp;
+    int min_qp = frame_info->frame_type == I_FRAME ? encoder_info->params->min_qpI : encoder_info->params->min_qp;
+    init_rate_control_per_frame(encoder_info->rc, min_qp, max_qp);
+  }
+
   putbits(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
   uint8_t qp = encoder_info->frame_info.qp;
   putbits(8,(int)qp,stream);
@@ -148,10 +158,21 @@ void encode_frame(encoder_info_t *encoder_info)
         process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,best_qp);
       }
       else{
-        process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
+        if (encoder_info->params->bitrate > 0) {
+          start_bits_sb = get_bit_pos(stream);
+          process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
+          end_bits_sb = get_bit_pos(stream);
+          num_bits_sb = end_bits_sb - start_bits_sb;
+          qp = update_rate_control_sb(encoder_info->rc, sb_idx, num_bits_sb, qp);
+          sb_idx++;
+        }
+        else {
+          process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
+        }
       }
     }
   }
+
   qp = encoder_info->frame_info.qp = encoder_info->frame_info.prev_qp; //TODO: Consider using average QP instead
 
   if (encoder_info->params->deblocking){
@@ -168,6 +189,12 @@ void encode_frame(encoder_info_t *encoder_info)
     putbits(1, !sb_signal, stream);
     clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream,
                sb_signal ? clpf_decision : clpf_true);
+  }
+
+  if (encoder_info->params->bitrate > 0) {
+    end_bits_frame = get_bit_pos(stream);
+    num_bits_frame = end_bits_frame - start_bits_frame;
+    update_rate_control_per_frame(encoder_info->rc, num_bits_frame);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

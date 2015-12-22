@@ -37,6 +37,7 @@ ENCODER_SOURCES = \
 	enc/strings.c \
 	enc/write_bits.c \
 	enc/enc_kernels.c \
+	enc/rc.c \
 	$(COMMON_SOURCES)
 
 DECODER_SOURCES = \

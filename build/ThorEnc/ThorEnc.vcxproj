@@ -34,6 +34,7 @@
     <ClCompile Include="..\..\enc\mainenc.c" />
     <ClCompile Include="..\..\enc\putbits.c" />
     <ClCompile Include="..\..\enc\putvlc.c" />
+    <ClCompile Include="..\..\enc\rc.c" />
     <ClCompile Include="..\..\enc\strings.c" />
     <ClCompile Include="..\..\enc\write_bits.c" />
   </ItemGroup>
@@ -55,6 +56,7 @@
     <ClInclude Include="..\..\enc\mainenc.h" />
     <ClInclude Include="..\..\enc\putbits.h" />
     <ClInclude Include="..\..\enc\putvlc.h" />
+    <ClInclude Include="..\..\enc\rc.h" />
     <ClInclude Include="..\..\enc\strings.h" />
     <ClInclude Include="..\..\enc\write_bits.h" />
   </ItemGroup>

@@ -336,6 +336,11 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-snrcalc",               "1", ARG_INTEGER,  &params->snrcalc);
   add_param_to_list(&list, "-use_block_contexts",    "0", ARG_INTEGER,  &params->use_block_contexts);
   add_param_to_list(&list, "-enable_bipred",         "0", ARG_INTEGER,  &params->enable_bipred);
+  add_param_to_list(&list, "-bitrate",               "0", ARG_INTEGER,  &params->bitrate);
+  add_param_to_list(&list, "-max_qp",               "51", ARG_INTEGER,  &params->max_qp);
+  add_param_to_list(&list, "-min_qp",                "1", ARG_INTEGER,  &params->min_qp);
+  add_param_to_list(&list, "-max_qpI",              "32", ARG_INTEGER,  &params->max_qpI);
+  add_param_to_list(&list, "-min_qpI",              "32", ARG_INTEGER,  &params->min_qpI);
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;
@@ -475,5 +480,9 @@ void check_parameters(enc_params *params)
 
   if (params->sync && params->encoder_speed<2) {
     fatalerror("Sync requires encoder_speed=2\n");
+  }
+
+  if (params->bitrate > 0 && params->num_reorder_pics > 0){
+    fatalerror("Current rate control doesn't work with frame reordering\n");
   }
 }

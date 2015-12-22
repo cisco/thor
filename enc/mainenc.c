@@ -43,6 +43,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "transform.h"
 #include "temporal_interp.h"
 #include "../common/simd.h"
+#include "rc.h"
 
 // Coding order to display order
 static const int cd1[1] = {0};
@@ -200,7 +201,7 @@ int main(int argc, char **argv)
   putbits(1,params->enable_tb_split,&stream);
   putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
   putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
-  putbits(1, params->max_delta_qp, &stream);
+  putbits(1, (params->max_delta_qp || params->bitrate), &stream);
   putbits(1,params->deblocking,&stream);
   putbits(1,params->clpf,&stream);
   putbits(1,params->use_block_contexts,&stream);
@@ -219,6 +220,14 @@ int main(int argc, char **argv)
   if (params->frame_rate > 30) min_interp_depth--;
 
   last_PorI_frame = -1;
+
+  rate_control_t rc;
+  encoder_info.rc = &rc;
+  if (params->bitrate > 0) {
+    int target_bits = params->bitrate / params->frame_rate;
+    int num_sb = ((width + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE) * ((height + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE);
+    init_rate_control_per_sequence(&rc, target_bits, num_sb);
+  }
 
   for (frame_num0 = params->skip; frame_num0 < (params->skip + params->num_frames) && (frame_num0+1)*frame_size <= input_file_size; frame_num0+=sub_gop)
   {
@@ -657,6 +666,10 @@ int main(int argc, char **argv)
   }
   free(stream.bitstream);
   free(encoder_info.deblock_data);
+
+  if (params->bitrate > 0) {
+    delete_rate_control_per_sequence(&rc);
+  }
 
   delete_config_params(params);
   return 0;

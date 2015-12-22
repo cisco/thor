@@ -2939,7 +2939,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     else if (frame_type != I_FRAME){
       putbits(1,0,stream); //Flag to signal either split or rectangular skip
     }
-    if (size==MAX_BLOCK_SIZE && encoder_info->params->max_delta_qp){
+    if (size == MAX_BLOCK_SIZE && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
       write_delta_qp(stream,block_info.delta_qp);
     }
     cost_small = 0; //TODO: Why not nbit * lambda?

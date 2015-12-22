@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdio.h>
 #include "putbits.h"
 #include "types.h"
+#include "rc.h"
 
 typedef struct
 {
@@ -85,6 +86,11 @@ typedef struct
   int snrcalc;
   int use_block_contexts;
   int enable_bipred;
+  int bitrate;
+  int max_qp;
+  int min_qp;
+  int max_qpI;
+  int min_qpI;
 } enc_params;
 
 typedef struct
@@ -152,6 +158,7 @@ typedef struct
   yuv_frame_t *interp_frames[MAX_SKIP_FRAMES];
   stream_t *stream;
   deblock_data_t *deblock_data;
+  rate_control_t *rc;
   int width;
   int height;
   int depth;

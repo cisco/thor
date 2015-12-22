@@ -72,6 +72,11 @@ static inline void fatalerror(char error_text[])
 
 #define DYADIC_CODING 1          // Support hierarchical B frames
 
+/* RATE CONTROL PARAMETERS */
+#define MAX_STEP_SIZE 228        //2^((MAX_QP-4)/6)
+#define INTRA_FIXED_QP 32
+
+
 /* Experimental */
 #define BIPRED_PART 0
 

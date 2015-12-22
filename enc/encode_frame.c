@@ -96,7 +96,7 @@ void encode_frame(encoder_info_t *encoder_info)
 
   int sb_idx = 0;
   int start_bits_sb, end_bits_sb, num_bits_sb;
-  int start_bits_frame, end_bits_frame, num_bits_frame;
+  int start_bits_frame=0, end_bits_frame, num_bits_frame;
   if (encoder_info->params->bitrate > 0) {
     start_bits_frame = get_bit_pos(stream);
     int max_qp = frame_info->frame_type == I_FRAME ? encoder_info->params->max_qpI : encoder_info->params->max_qp;

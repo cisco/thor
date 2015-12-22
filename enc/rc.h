@@ -56,6 +56,7 @@ typedef struct
 } rate_control_t;
 
 void init_rate_control_per_sequence(rate_control_t *rc, int target_bits, int num_sb);
+void delete_rate_control_per_sequence(rate_control_t *rc);
 void init_rate_control_per_frame(rate_control_t *rc, int minQP, int maxQP);
 void update_rate_control_per_frame(rate_control_t *rc, int num_bits_frame);
 int update_rate_control_sb(rate_control_t *rc, int sb_idx, int current_bits, int current_qp);

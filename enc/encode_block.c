@@ -75,7 +75,6 @@ static inline void add_mvcandidate(const mv_t *mv, mv_t *list, int *list_len, ui
 int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block_type, int rdoq)
 {
   int intra_block = (coeff_block_type>>1) & 1;
-  int chroma_flag = coeff_block_type & 1;
   int tr_log2size = log2i(size);
   int qsize = min(MAX_QUANT_SIZE,size); //Only quantize 16x16 low frequency coefficients
   int scale = gquant_table[qp%6];
@@ -83,6 +82,7 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
   int scoeffq[MAX_QUANT_SIZE*MAX_QUANT_SIZE];
   int i,j,c,sign,offset,level,cbp,pos,last_pos,level0,abs_coeff,offset0,offset1;
   int shift2 = 21 - tr_log2size + qp/6;
+  int level_mode = 1;
 
   int *zigzagptr = zigzag64;
   if (qsize==4)
@@ -124,360 +124,25 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
     sign = c < 0 ? -1 : 1;
     abs_coeff = scale*abs(c);
     level0 = (abs_coeff + 0)>>shift2;
-    offset = ((level0==0 || chroma_flag) ? offset0 : offset1);
+    offset = (level0 > (1 - level_mode)) ? offset1 : offset0;
     offset = offset<<(shift2-8);
     level = (abs_coeff + offset)>>shift2;
     scoeffq[pos] = sign * level;
     cbp = cbp || (level != 0);
+    if (level_mode) {
+      if (level == 0) level_mode = 0;
+    }
+    else {
+      if (level > 1) level_mode = 1;
+    }
+
   }
 
-  /* RDOQ light - adapted to coefficient encoding */
-  if (cbp){
-    int pos;
-    int N = chroma_flag ? last_pos+1 : qsize*qsize;
-    int K1,K2,K3,K4;
-
-    for (pos=2;pos<N;pos++){
-      int flag = 1;
-      if (pos>2){
-        if (abs(scoeffq[pos-3]) > 1) flag = 0;
-      }
-      if (pos>3){
-        if (abs(scoeffq[pos-4]) > 1 && abs(scoeffq[pos-3]) > 0) flag = 0;
-      }
-      if (pos==2 && (chroma_flag==0 || last_pos >= 6)){
-        flag = 0;
-      }
-      if (flag && scoeffq[pos-2]==0 && scoeffq[pos-1]==0 && abs(scoeffq[pos])>1){
-        K1 = abs(scoeff[pos]);
-        K2 = abs(scoeff[pos-1]);
-        K3 = abs(scoeff[pos-2]);
-        K4 = max(K2,K3);
-        int threshold = (73*gdequant_table[qp%6]<<(qp/6))>>(4+tr_log2size);
-        if (K1+K4 < threshold){
-          scoeffq[pos] = scoeff[pos] < 0 ? -1 : 1;
-        }
-        else{
-          if (K2 > K3)
-            scoeffq[pos-1] = scoeff[pos-1] < 0 ? -1 : 1;
-          else
-            scoeffq[pos-2] = scoeff[pos-2] < 0 ? -1 : 1;
-        }
-      }
+  for (i = 0; i < qsize; i++) {
+    for (j = 0; j < qsize; j++) {
+      coeffq[i*size + j] = scoeffq[zigzagptr[i*qsize + j]];
     }
   }
-
-  for(i=0;i<qsize;i++){
-    for (j=0;j<qsize;j++){
-      coeffq[i*size+j] = scoeffq[zigzagptr[i*qsize+j]];
-    }
-  }
-
-  if (rdoq==0)
-    return (cbp != 0);
-
-  /* RDOQ */
-  int nbit = 0;
-  if (cbp){
-    int N = qsize*qsize;
-    int bit,vlc,cn,run,maxrun,pos1;
-    int vlc_adaptive=0;
-
-    /* Decoder parameters */
-    int lshift = qp / 6;
-    int rshift = tr_log2size - 1;
-    int scale_dec = gdequant_table[qp % 6];
-    int add_dec = 1<<(rshift-1);
-    int rec,org;
-
-    /* RDOQ parameters */
-    int err,min_pos=0;
-    double lambda = 1.0 * squared_lambda_QP[qp] * (double)(1 << 2*(7-tr_log2size));
-    uint32_t cost0=0,cost1;
-    uint32_t min_cost = MAX_UINT32;
-
-    int level_mode = 1;
-    level = 1;
-    pos = 0;
-    while (pos <= last_pos){ //Outer loop for forward scan
-      if (level_mode){
-        /* Level-mode */
-        vlc_adaptive = (level > 3 && chroma_flag==0) ? 1 : 0;
-        while (pos <= last_pos && level > 0){
-          c = scoeffq[pos];
-          level = abs(c);
-          bit = quote_vlc(vlc_adaptive,level);
-          if (level > 0){
-            bit += 1;
-          }
-          nbit += bit;
-          if (chroma_flag==0)
-            vlc_adaptive = level > 3;
-
-          org = scoeff[pos];
-          rec = ((c * scale_dec << lshift) + add_dec) >> rshift;
-          err = (rec-org)*(rec-org);
-          if (chroma_flag==1 && pos==0 && level==1)
-            bit = 1;
-          cost0 += (err + (int)(lambda * (double)bit + 0.5));
-          cost1 = cost0;
-          for (pos1=pos+1;pos1<N;pos1++){
-            err = scoeff[pos1]*scoeff[pos1];
-            cost1 += err;
-          }
-          /* Bit usage for EOB */
-          bit = 0;
-          if (pos < N-1){
-            if (level > 1){
-              int tmp_vlc = (level > 3 && chroma_flag==0) ? 1 : 0;
-              bit += quote_vlc(tmp_vlc,0);
-              if (pos < N-2){
-                cn = find_code(0, 0, 0, chroma_flag, 1);
-                if (chroma_flag && size <= 8){
-                  vlc = 0;
-                  bit += quote_vlc(vlc,cn);
-                }
-                else{
-                  vlc = 2;
-                  if (cn == 0)
-                    bit += 2;
-                  else
-                    bit += quote_vlc(vlc,cn+1);
-                }
-              }
-            }
-            else{
-              cn = find_code(0, 0, 0, chroma_flag, 1);
-              if (chroma_flag && size <= 8){
-                vlc = 0;
-                bit += quote_vlc(vlc,cn);
-              }
-              else{
-                vlc = 2;
-                if (cn == 0)
-                  bit += 2;
-                else
-                  bit += quote_vlc(vlc,cn+1);
-              }
-            }  
-          }
-          cost1 += (int)(lambda * (double)bit + 0.5);
-          if (cost1 < min_cost){
-            min_cost = cost1;
-            min_pos = pos;
-          }
-          pos++;
-        }
-      }
-
-      /* Run-mode (run-level coding) */
-      maxrun = N - pos - 1;
-      run = 0;
-      c = 0;
-      while (c==0 && pos <= last_pos){
-        c = scoeffq[pos];
-        if (c==0){
-          run++;
-
-          org = scoeff[pos];
-          rec = 0;
-          bit = 0;
-          err = (rec-org)*(rec-org);
-          cost0 += (err + (int)(lambda * (double)bit + 0.5));
-        }
-        else{
-          level = abs(c);
-          sign = (c < 0) ? 1 : 0;
-
-          /* Code combined event of run and (level>1) */
-          cn = find_code(run, level, maxrun, chroma_flag, 0);
-          bit = 0;
-          if (chroma_flag && size <= 8){
-            vlc = 10;
-            bit += quote_vlc(vlc,cn);
-          }
-          else{
-            vlc = 2;
-            if (cn == 0)
-              bit += 2;
-            else
-              bit += quote_vlc(vlc,cn+1);
-          }
-          /* Code level and sign */
-          if (level > 1){
-            bit += quote_vlc(0,2*(level-2)+sign);
-          }
-          else{
-            bit += 1;
-          }
-          nbit += bit;
-          run = 0;
-
-          org = scoeff[pos];
-          rec = ((c * scale_dec << lshift) + add_dec) >> rshift;
-          err = (rec-org)*(rec-org);
-          cost0 += (err + (int)(lambda * (double)bit + 0.5));
-          cost1 = cost0;
-          for (pos1=pos+1;pos1<N;pos1++){
-            err = scoeff[pos1]*scoeff[pos1];
-            cost1 += err;
-          }
-          /* Bit usage for EOB */
-          bit = 0;
-          if (pos < N-1){
-            if (level > 1){
-              int tmp_vlc = (level > 3 && chroma_flag==0) ? 1 : 0;
-              bit += quote_vlc(tmp_vlc,0);
-              if (pos < N-2){
-                cn = find_code(0, 0, 0, chroma_flag, 1);
-                if (chroma_flag && size <= 8){
-                  vlc = 0;
-                  bit += quote_vlc(vlc,cn);
-                }
-                else{
-                  vlc = 2;
-                  if (cn == 0)
-                    bit += 2;
-                  else
-                    bit += quote_vlc(vlc,cn+1);
-                }
-              }
-            }
-            else{
-              cn = find_code(0, 0, 0, chroma_flag, 1);
-              if (chroma_flag && size <= 8){
-                vlc = 0;
-                bit += quote_vlc(vlc,cn);
-              }
-              else{
-                vlc = 2;
-                if (cn == 0)
-                  bit += 2;
-                else
-                  bit += quote_vlc(vlc,cn+1);
-              }
-            }
-          }
-          cost1 += (int)(lambda * (double)bit + 0.5);
-          if (cost1 < min_cost){
-            min_cost = cost1;
-            min_pos = pos;
-          }
-        }
-        pos++;
-        vlc_adaptive = (level > 3 && chroma_flag==0) ? 1 : 0;
-        level_mode = level > 1; //Set level_mode
-      } //while (c==0 && pos < last_pos)
-    } //while (pos <= last_pos){
-
-#if 0
-    /* Sanity check that bitcount() and write_coeff() are 100% in sync */
-    if (pos < N){
-      /* If terminated in level mode, code one extra zero before an EOB can be sent */
-      if (level_mode){
-        c = scoeffq[pos];
-        level = abs(c);
-        nbit += quote_vlc(vlc_adaptive,level);
-        if (level > 0){
-          nbit += 1;
-        }
-        pos++;
-      }
-    }
-
-    /* EOB */
-    if (pos < N){
-      cn = find_code(0, 0, 0, chroma_flag, 1);
-      if (chroma_flag && size <= 8){
-        vlc = 0;
-        nbit += quote_vlc(vlc,cn);
-      }
-      else{
-        vlc = 2;
-        if (cn == 0)
-          nbit += 2;
-        else
-          nbit += quote_vlc(vlc,cn+1);
-      }
-    }
-
-    if (chroma_flag){
-      if (last_pos==0 && abs(scoeffq[0])==1)
-        nbit = 2;
-      else
-        nbit += 1;
-    }
-
-    int start_bits,end_bits,write_bits;
-    stream_t tmp_stream;
-    tmp_stream.bitstream = (uint8_t *)malloc(2*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint8_t));
-    tmp_stream.bitbuf = 0;
-    tmp_stream.bitrest = 32;
-    tmp_stream.bytepos = 0;
-    tmp_stream.bytesize = 2*MAX_QUANT_SIZE*MAX_QUANT_SIZE;
-    stream_t *stream = &tmp_stream;
-
-    start_bits = get_bit_pos(stream);
-    write_coeff(stream,coeffq,size,coeff_block_type);
-    end_bits = get_bit_pos(stream);
-    write_bits = end_bits-start_bits;
-    if (write_bits != nbit){
-      printf("write_bits=%8d nbits=%8d\n",write_bits,nbit);
-    }
-
-    free (tmp_stream.bitstream);
-
-#endif
-
-    /* Evaluate cbp = 0 */
-    cost1 = 0;
-    for (pos1=0;pos1<N;pos1++){
-      err = scoeff[pos1]*scoeff[pos1];
-      cost1 += err;
-    }
-    if (cost1 < min_cost){
-      min_pos = -1;
-      min_cost = cost1;
-    }
-
-    if (chroma_flag){
-      /* Evaluate special DC case */
-      cost1 = 0;
-      sign = (scoeff[0] < 0) ? 1 : 0;
-      rec = ((sign * scale_dec << lshift) + add_dec) >> rshift;
-      err = (scoeff[0]-rec)*(scoeff[0]-rec);
-      bit = 1;
-      cost1 += (err + (int)(lambda * (double)bit + 0.5));
-      for (pos1=1;pos1<N;pos1++){
-        err = scoeff[pos1]*scoeff[pos1];
-        cost1 += err;
-      }
-      if (cost1 < min_cost){
-        min_pos = 0;
-        scoeffq[0] = sign;
-      }
-    }
-
-    /* Re-evaluate CBP */
-    for (pos=min_pos+1;pos<N;pos++){
-      scoeffq[pos] = 0;
-    }
-    int flag=0;
-    for (pos=0;pos<N;pos++){
-      if (scoeffq[pos] != 0)
-        flag = 1;
-    }
-    if (flag==0)
-      cbp = 0;
-  } //if (cbp)
-
-  /* Inverse zigzag scan */
-  for(i=0;i<qsize;i++){
-    for (j=0;j<qsize;j++){
-      coeffq[i*size+j] = scoeffq[zigzagptr[i*qsize+j]];
-    }
-  }
-
   return (cbp != 0);
 }
 

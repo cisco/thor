@@ -68,45 +68,6 @@ void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 
 }
 
-int find_code(int run, int level, int maxrun, int chroma_flag,int eob){
-
-  int cn,index;
-  int maxrun2 = max(4,maxrun);
-  index = run + (level>1)*(maxrun2+1);
-
-  if (chroma_flag){
-    if (eob)
-      cn = 0;
-    else if (index<=4)
-      cn = index + 1;
-    else if (index<=maxrun2)
-      cn = index + 3;
-    else if (index==(maxrun2+1))
-      cn = 6;
-    else if (index==(maxrun2+2))
-      cn = 7;
-    else
-      cn = index+1;
-  }
-  else{
-    if (eob)
-      cn = 2;
-    else if (index<2)
-      cn = index;
-    else if (index<=4)
-      cn = index + 1;
-    else if (index<=maxrun2)
-      cn = index + 3;
-    else if (index==(maxrun2+1))
-      cn = 6;
-    else if (index==(maxrun2+2))
-      cn = 7;
-    else
-      cn = index+1;
-  }
-  return cn;
-}
-
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
 {
   int16_t scoeff[MAX_QUANT_SIZE*MAX_QUANT_SIZE];
@@ -114,12 +75,13 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
   int qsize = min(MAX_QUANT_SIZE,size);
   unsigned int cn;
   int level,vlc,sign,last_pos;
-  int maxrun,run;
+  int run;
   int N = qsize*qsize;
   int level_mode;
   int chroma_flag = type&1;
   int intra_flag = (type>>1)&1;
   int vlc_adaptive = intra_flag && !chroma_flag;
+  int eob_pos = chroma_flag ? 0 : 2;
 
   /* Zigzag scan */
   int *zigzagptr = zigzag64;
@@ -160,6 +122,7 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
   /* Initiate forward scan */
   level_mode = 1;
   level = 1;
+
   while (pos <= last_pos){ //Outer loop for forward scan
     if (level_mode){
       /* Level-mode */
@@ -179,7 +142,6 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
     }
 
     /* Run-mode (run-level coding) */
-    maxrun = N - pos - 1;
     run = 0;
     c = 0;
     while (c==0 && pos <= last_pos){
@@ -192,18 +154,21 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
         sign = (c < 0) ? 1 : 0;
 
         /* Code combined event of run and (level>1) */
-        cn = find_code(run, level, maxrun, chroma_flag, 0);
-
-        if (chroma_flag && size <= 8){
+        if (level == 1)
+          cn = (run * 5) / 4;
+        else
+          cn = run * 5 + 4;
+        if (cn >= eob_pos) cn += 1;
+        if (chroma_flag && size <= 8) {
           vlc = 10;
-          len = put_vlc(vlc,cn,stream);
+          len = put_vlc(vlc, cn, stream);
         }
-        else{
+        else {
           vlc = 2;
           if (cn == 0)
-            putbits(2,2,stream);
+            putbits(2, 2, stream);
           else
-            put_vlc(vlc,cn+1,stream);
+            put_vlc(vlc, cn + 1, stream);
         }
         /* Code level and sign */
         if (level > 1){
@@ -237,17 +202,17 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
 
   /* EOB */
   if (pos < N){
-    cn = find_code(0, 0, 0, chroma_flag, 1);
-    if (chroma_flag && size <= 8){
+    cn = eob_pos;
+    if (chroma_flag && size <= 8) {
       vlc = 0;
-      put_vlc(vlc,cn,stream);
+      put_vlc(vlc, cn, stream);
     }
-    else{
+    else {
       vlc = 2;
       if (cn == 0)
-        putbits(2,2,stream);
+        putbits(2, 2, stream);
       else
-        put_vlc(vlc,cn+1,stream);
+        put_vlc(vlc, cn + 1, stream);
     }
   }
 }

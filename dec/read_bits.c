@@ -59,49 +59,10 @@ void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 
 int YPOS,XPOS;
 
-
-int find_index(int code, int maxrun, int type){
-
-  int index;
-  int maxrun2 = max(4,maxrun);
-
-  if (type){
-    if (code==0)
-      index = -1;
-    else if (code<=5)
-      index = code-1;
-    else if (code==6)
-      index = maxrun2+1;
-    else if (code==7)
-      index = maxrun2+2;
-    else if (code<=(maxrun2+3))
-      index = code-3;
-    else
-      index = code-1;
-  }
-  else{
-    if (code<=1)
-      index = code;
-    else if (code==2)
-      index = -1;
-    else if (code<=5)
-      index = code-1;
-    else if (code==6)
-      index = maxrun2+1;
-    else if (code==7)
-      index = maxrun2+2;
-    else if (code<=(maxrun2+3))
-      index = code-3;
-    else
-      index = code-1;
-  }
-  return index;
-}
-
 void read_coeff(stream_t *stream,int16_t *coeff,int size,int type){
 
   int16_t scoeff[MAX_QUANT_SIZE*MAX_QUANT_SIZE];
-  int i,j,levelFlag,sign,level,pos,index,run,tmp,vlc,maxrun,code;
+  int i,j,levelFlag,sign,level,pos,run,tmp,vlc,code;
   int qsize = min(size,MAX_QUANT_SIZE);
   int N = qsize*qsize;
   int level_mode;
@@ -130,7 +91,6 @@ void read_coeff(stream_t *stream,int16_t *coeff,int size,int type){
   while (pos < N){
     if (level_mode){
       /* Level-mode */
-      //vlc_adaptive = (level > 3 && type==0) ? 1 : 0;
       while (pos < N && level > 0){
         level = get_vlc(vlc_adaptive,stream);
         if (level){
@@ -149,33 +109,32 @@ void read_coeff(stream_t *stream,int16_t *coeff,int size,int type){
       break;
     }
 
-    /* Run-mode (run-level coding) */
-    maxrun = N - pos - 1;
-
-    /* Decode levelFlag (level > 1) and run */
-    if (chroma_flag && size <= 8){
+    /* Run-mode */
+    int eob;
+    int eob_pos = chroma_flag ? 0 : 2;
+    if (chroma_flag && size <= 8) {
       vlc = 10;
-      code = get_vlc(vlc,stream);
+      code = get_vlc(vlc, stream);
     }
-    else{
+    else {
       vlc = 2;
-      if (showbits(stream,2)==2){
-        code = getbits(stream,2) - 2;
+      if (showbits(stream, 2) == 2) {
+        code = getbits(stream, 2) - 2;
       }
-      else{
-        code = get_vlc(vlc,stream) - 1;
+      else {
+        code = get_vlc(vlc, stream) - 1;
       }
     }
-
-    index = find_index(code,maxrun,chroma_flag);
-    if (index == -1){
+    eob = code == eob_pos;
+    if (eob) {
       break;
     }
-
-    /* Extract levelFlag (level > 1) and run */
-    int maxrun2 = max(4,maxrun);
-    levelFlag =  index/(maxrun2+1);
-    run = index%(maxrun2+1);
+    if (code > eob_pos) code -= 1;
+    levelFlag = (code % 5) == 4;
+    if (levelFlag)
+      run = code / 5;
+    else
+      run = 4*(code/5) + code % 5;
     pos += run;
 
     /* Decode level and sign */

@@ -45,5 +45,4 @@ int write_delta_qp(stream_t *stream, int delta_qp);
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp);
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type);
 int write_block(stream_t *stream,encoder_info_t *encoder_info,block_info_t *block_info, block_param_t *block_param);
-int find_code(int run, int level, int maxrun, int type,int eob);
 void write_super_mode(stream_t *stream, encoder_info_t *encoder_info, block_info_t *block_info, block_param_t *block_param, int split_flag);

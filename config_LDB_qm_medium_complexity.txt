@@ -1,0 +1,18 @@
+-HQperiod           12                                            ; Period of high quality frames
+-mqpP               1.2                                           ; QP multiplier for low quality frames
+-dqpI              -2                                             ; QP offset for intra frames
+-lambda_coeffI      0.8                                           ; Multiplier for lambda - I frames
+-lambda_coeffP      1.2                                           ; Multiplier for lambda - P frames
+-qmtx               1                                             ; Use default quantisation matrices
+
+;
+;Medium complexity operating point
+;
+-intra_rdo          1                                             ; Use RDO for choosing intra mode
+-enable_tb_split    0                                             ; Enable splitting of a block in 4 transform blocks
+-enable_pb_split    0                                             ; Enable splitting of an inter block in 4 prediction blocks
+-early_skip_thr     0.8                                           ; Early skip threshold
+-max_num_ref        2                                             ; Number of reference frames
+-use_block_contexts 1                                             ; Use block contexts
+-enable_bipred      1                                             ; Enable biprediction
+-encoder_speed 	    1                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)

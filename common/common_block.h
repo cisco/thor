@@ -35,7 +35,7 @@ int get_up_available(int ypos, int xpos, int size, int width);
 int get_upright_available(int ypos, int xpos, int size, int width);
 int get_downleft_available(int ypos, int xpos, int size, int height);
 
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, unsigned int * wt_matrix, int ws);
+void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, uint16_t * wt_matrix, int ws);
 void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int stride);
 
 void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);

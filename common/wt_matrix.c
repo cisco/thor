@@ -29,13 +29,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <math.h>
 #include <assert.h>
 
-static unsigned int iwt_matrix_ref[52][3][2][64];
-static unsigned int wt_matrix_ref[52][3][2][64];
+static uint16_t iwt_matrix_ref[52][3][2][64];
+static uint16_t wt_matrix_ref[52][3][2][64];
 
-void alloc_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE])
+void alloc_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE])
 {
-  unsigned int * start = (unsigned int*) malloc(52*3*2*TR_SIZE_RANGE*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(unsigned int));
-  unsigned int * current=start;
+  uint16_t * start = (uint16_t*) malloc(52*3*2*TR_SIZE_RANGE*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(uint16_t));
+  uint16_t * current=start;
   int q, c, f, t;
   for (q=0; q<52; ++q) {
     for (c=0; c<3; ++c) {
@@ -50,12 +50,12 @@ void alloc_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE])
 
 }
 
-void free_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE])
+void free_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE])
 {
     free (&matrix[0][0][0][0][0]);
 }
 
-void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int* iwmatrix[52][3][2][TR_SIZE_RANGE])
+void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatrix[52][3][2][TR_SIZE_RANGE])
 {
   int c,f,t,i,j;
   int qp;
@@ -63,10 +63,10 @@ void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int
   int xp,yp,xoff,yoff;
   int wt;
   int iwt;
-  unsigned int* wm = NULL;
-  unsigned int* iwm = NULL;
-  unsigned int* wm8 = NULL;
-  unsigned int* iwm8 = NULL;
+  uint16_t* wm = NULL;
+  uint16_t* iwm = NULL;
+  uint16_t* wm8 = NULL;
+  uint16_t* iwm8 = NULL;
 
   for (qp=0; qp<52; ++qp){
     for (c=0; c<3; ++c) {
@@ -77,10 +77,10 @@ void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int
 
           if(wmatrix){
             wm = wmatrix[qp][c][f][t];
-            memset(wm,0,sizeof(unsigned)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
+            memset(wm,0,sizeof(uint16_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
           }
           iwm = iwmatrix[qp][c][f][t];
-          memset(iwm,0,sizeof(unsigned)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
+          memset(iwm,0,sizeof(uint16_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
 
           size = 4<<t;
           res = size / 8;
@@ -118,7 +118,7 @@ void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int
   }
 }
 
-static unsigned int iwt_matrix_ref[52][3][2][64]=
+static uint16_t iwt_matrix_ref[52][3][2][64]=
 {
   {
     {
@@ -3658,7 +3658,7 @@ static unsigned int iwt_matrix_ref[52][3][2][64]=
   }
 };
 
-static unsigned int wt_matrix_ref[52][3][2][64]=
+static uint16_t wt_matrix_ref[52][3][2][64]=
 {
   {
     {

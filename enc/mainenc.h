@@ -164,8 +164,8 @@ typedef struct
   int width;
   int height;
   int depth;
-  unsigned int *wmatrix[52][3][2][TR_SIZE_RANGE];
-  unsigned int *iwmatrix[52][3][2][TR_SIZE_RANGE];
+  uint16_t *wmatrix[52][3][2][TR_SIZE_RANGE];
+  uint16_t *iwmatrix[52][3][2][TR_SIZE_RANGE];
 } encoder_info_t;
 
 #endif

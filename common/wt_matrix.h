@@ -28,11 +28,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _WT_MATRIX_H_
 
 #include "global.h"
+#include <stdint.h>
 
-void alloc_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE]);
-void free_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE]);
+void alloc_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE]);
+void free_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE]);
 
-void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int* iwmatrix[52][3][2][TR_SIZE_RANGE]);
+void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatrix[52][3][2][TR_SIZE_RANGE]);
 
 
 #endif

@@ -32,10 +32,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static uint16_t iwt_matrix_ref[52][3][2][64];
 static uint16_t wt_matrix_ref[52][3][2][64];
 
-void alloc_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE])
+void alloc_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE])
 {
-  uint16_t * start = (uint16_t*) malloc(52*3*2*TR_SIZE_RANGE*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(uint16_t));
-  uint16_t * current=start;
+  qmtx_t * start = (qmtx_t*) malloc(52*3*2*TR_SIZE_RANGE*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(qmtx_t));
+  qmtx_t * current=start;
   int q, c, f, t;
   for (q=0; q<52; ++q) {
     for (c=0; c<3; ++c) {
@@ -50,12 +50,12 @@ void alloc_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE])
 
 }
 
-void free_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE])
+void free_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE])
 {
     free (&matrix[0][0][0][0][0]);
 }
 
-void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatrix[52][3][2][TR_SIZE_RANGE])
+void make_wmatrices(qmtx_t* wmatrix[52][3][2][TR_SIZE_RANGE], qmtx_t* iwmatrix[52][3][2][TR_SIZE_RANGE])
 {
   int c,f,t,i,j;
   int qp;
@@ -63,8 +63,8 @@ void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatr
   int xp,yp,xoff,yoff;
   int wt;
   int iwt;
-  uint16_t* wm = NULL;
-  uint16_t* iwm = NULL;
+  qmtx_t* wm = NULL;
+  qmtx_t* iwm = NULL;
   uint16_t* wm8 = NULL;
   uint16_t* iwm8 = NULL;
 
@@ -77,35 +77,37 @@ void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatr
 
           if(wmatrix){
             wm = wmatrix[qp][c][f][t];
-            memset(wm,0,sizeof(uint16_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
+            memset(wm,0,sizeof(qmtx_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
           }
           iwm = iwmatrix[qp][c][f][t];
-          memset(iwm,0,sizeof(uint16_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
+          memset(iwm,0,sizeof(qmtx_t)*MAX_QUANT_SIZE*MAX_QUANT_SIZE);
 
           size = 4<<t;
           res = size / 8;
           for (i=0; i<min(MAX_QUANT_SIZE, size); ++i) {
             for (j=0; j<min(MAX_QUANT_SIZE, size); ++j) {
               if (size == 4) {
-                iwt = (iwm8[2*i*8+2*j]+iwm8[2*i*8+2*j+1]+iwm8[(2*i+1)*8+2*j]+iwm8[(2*i+1)*8+(2*j+1)]+2)/4;
-                wt = (wm8[2*i*8+2*j]+wm8[2*i*8+2*j+1]+wm8[(2*i+1)*8+2*j]+wm8[(2*i+1)*8+(2*j+1)]+2)/4;
+                iwt = (iwm8[2*i*8+2*j]+iwm8[2*i*8+2*j+1]+iwm8[(2*i+1)*8+2*j]+iwm8[(2*i+1)*8+(2*j+1)]+(1<<(8-INV_WEIGHT_SHIFT+1)))>>(8-INV_WEIGHT_SHIFT+2);
+                wt = (wm8[2*i*8+2*j]+wm8[2*i*8+2*j+1]+wm8[(2*i+1)*8+2*j]+wm8[(2*i+1)*8+(2*j+1)]+(1<<(8-WEIGHT_SHIFT+1)))>>(8-WEIGHT_SHIFT+2);
               } else if (size==8) {
-                iwt = iwm8[i*8+j];
-                wt = wm8[i*8+j];
+                iwt = (iwm8[i*8+j]+(1<<(8-INV_WEIGHT_SHIFT))/2)>>(8-INV_WEIGHT_SHIFT);
+                wt = (wm8[i*8+j]+(1<<(8-INV_WEIGHT_SHIFT))/2)>>(8-INV_WEIGHT_SHIFT);
               } else {
                 xp = j/res;
                 xoff = j%res;
                 yp = i/res;
                 yoff = i%res;
-                iwt = ( iwm8[yp*8+xp]*(res-xoff)*(res-yoff) +
-                    iwm8[8*min(yp+1,7)+xp]*(res-xoff)*yoff +
-                    iwm8[8*yp+min(xp+1,7)]*xoff*(res-yoff)+
-                    iwm8[8*min(yp+1,7)+min(xp+1,7)]*xoff*yoff+(res*res/2)) / (res*res);
-                wt = ( wm8[yp*8+xp]*(res-xoff)*(res-yoff) +
-                    wm8[8*min(yp+1,7)+xp]*(res-xoff)*yoff +
-                    wm8[8*yp+min(xp+1,7)]*xoff*(res-yoff)+
-                    wm8[8*min(yp+1,7)+min(xp+1,7)]*xoff*yoff+(res*res/2)) / (res*res);
+                iwt = iwm8[yp*8+xp]*(res-xoff)*(res-yoff) +
+                      iwm8[8*min(yp+1,7)+xp]*(res-xoff)*yoff +
+                      iwm8[8*yp+min(xp+1,7)]*xoff*(res-yoff)+
+                      iwm8[8*min(yp+1,7)+min(xp+1,7)]*xoff*yoff;
+                wt = wm8[yp*8+xp]*(res-xoff)*(res-yoff) +
+                     wm8[8*min(yp+1,7)+xp]*(res-xoff)*yoff +
+                     wm8[8*yp+min(xp+1,7)]*xoff*(res-yoff)+
+                     wm8[8*min(yp+1,7)+min(xp+1,7)]*xoff*yoff;
 
+                iwt = (iwt + ((res*res/2)<<(8-INV_WEIGHT_SHIFT)))/(res*res<<(8-INV_WEIGHT_SHIFT));
+                wt = (wt + ((res*res/2)<<(8-WEIGHT_SHIFT)))/(res*res<<(8-WEIGHT_SHIFT));
               }
               iwm[i*MAX_QUANT_SIZE+j] = iwt;
               if (wmatrix)

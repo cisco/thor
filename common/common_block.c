@@ -127,7 +127,7 @@ int get_downleft_available(int ypos, int xpos, int size, int height){
   return downleft_available;
 }
 
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, uint16_t * wt_matrix, int ws)
+void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix, int ws)
 {
   int tr_log2size = log2i(size);
   const int lshift = qp / 6;

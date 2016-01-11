@@ -72,7 +72,7 @@ static inline void add_mvcandidate(const mv_t *mv, mv_t *list, int *list_len, ui
   *mask |= m;
 }
 
-int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block_type, uint16_t* wmatrix, int ws)
+int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block_type, qmtx_t* wmatrix, int ws)
 {
   int intra_block = (coeff_block_type>>1) & 1;
   int tr_log2size = log2i(size);
@@ -1066,7 +1066,7 @@ int search_inter_prediction_params(uint8_t *org_y,yuv_frame_t *ref,block_pos_t *
 
 int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, uint8_t* rec, int rec_stride, int ypos, int xpos, int size, int qp,
     uint8_t *pblock, int16_t *coeffq, uint8_t *rec_block, int coeff_type, int tb_split,int rdoq, int width, intra_mode_t intra_mode, int upright_available,int downleft_available,
-    uint16_t ** wmatrix, uint16_t ** iwmatrix)
+    qmtx_t ** wmatrix, qmtx_t ** iwmatrix)
 {
     int cbp,cbpbit;
     int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
@@ -1136,7 +1136,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
     return cbp;
 }
 
-int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, int size, int qp, uint8_t *pblock, int16_t *coeffq, uint8_t *rec, int coeff_type, int tb_split,int rdoq, uint16_t ** wmatrix, uint16_t ** iwmatrix)
+int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, int size, int qp, uint8_t *pblock, int16_t *coeffq, uint8_t *rec, int coeff_type, int tb_split,int rdoq, qmtx_t ** wmatrix, qmtx_t ** iwmatrix)
 {
     int cbp,cbpbit;
     int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);

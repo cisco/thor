@@ -30,10 +30,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include <stdint.h>
 
-void alloc_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE]);
-void free_wmatrices(uint16_t* matrix[52][3][2][TR_SIZE_RANGE]);
+void alloc_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE]);
+void free_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE]);
 
-void make_wmatrices(uint16_t* wmatrix[52][3][2][TR_SIZE_RANGE], uint16_t* iwmatrix[52][3][2][TR_SIZE_RANGE]);
+void make_wmatrices(qmtx_t* wmatrix[52][3][2][TR_SIZE_RANGE], qmtx_t* iwmatrix[52][3][2][TR_SIZE_RANGE]);
 
 
 #endif

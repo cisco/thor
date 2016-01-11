@@ -47,7 +47,7 @@ extern int chroma_qp[52];
 
 void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock, int16_t *coeffq,
     int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp, 
-    unsigned int iwmatrix[TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE]){
+    unsigned int ** iwmatrix){
 
   int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
@@ -89,8 +89,7 @@ void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int
 }
 
 void decode_and_reconstruct_block_inter (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock,
-    int16_t *coeffq,int tb_split, unsigned int iwmatrix[TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE]
-        ){
+    int16_t *coeffq,int tb_split, unsigned int ** iwmatrix){
 
   int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);

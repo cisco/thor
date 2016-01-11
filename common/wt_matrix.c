@@ -32,8 +32,30 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static unsigned int iwt_matrix_ref[52][3][2][64];
 static unsigned int wt_matrix_ref[52][3][2][64];
 
-void make_wmatrices(unsigned int wmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE],
-                    unsigned int iwmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE])
+void alloc_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE])
+{
+  unsigned int * start = (unsigned int*) malloc(52*3*2*TR_SIZE_RANGE*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(unsigned int));
+  unsigned int * current=start;
+  int q, c, f, t;
+  for (q=0; q<52; ++q) {
+    for (c=0; c<3; ++c) {
+      for (f=0; f<2; ++f) {
+        for (t=0; t<TR_SIZE_RANGE; ++t) {
+          matrix[q][c][f][t] = current;
+          current += MAX_QUANT_SIZE*MAX_QUANT_SIZE;
+        }
+      }
+    }
+  }
+
+}
+
+void free_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE])
+{
+    free (&matrix[0][0][0][0][0]);
+}
+
+void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int* iwmatrix[52][3][2][TR_SIZE_RANGE])
 {
   int c,f,t,i,j;
   int qp;

@@ -147,8 +147,10 @@ int main(int argc, char** argv)
     decoder_info.qmtx = getbits(&stream,1);
     printf("use quant matrix = %d\n", decoder_info.qmtx);
 
-    if (decoder_info.qmtx)
+    if (decoder_info.qmtx){
+      alloc_wmatrices(decoder_info.iwmatrix);
       make_wmatrices(NULL /*only for enc*/, decoder_info.iwmatrix);
+    }
 
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
@@ -336,6 +338,9 @@ int main(int argc, char** argv)
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
       close_yuv_frame(&ref[r]);
+    }
+    if (decoder_info.qmtx){
+      free_wmatrices(decoder_info.iwmatrix);
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){

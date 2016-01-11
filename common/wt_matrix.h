@@ -29,8 +29,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "global.h"
 
-void make_wmatrices(unsigned int wmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE],
-                    unsigned int iwmatrix[52][3][2][TR_SIZE_RANGE][MAX_QUANT_SIZE*MAX_QUANT_SIZE]);
+void alloc_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE]);
+void free_wmatrices(unsigned int* matrix[52][3][2][TR_SIZE_RANGE]);
+
+void make_wmatrices(unsigned int* wmatrix[52][3][2][TR_SIZE_RANGE], unsigned int* iwmatrix[52][3][2][TR_SIZE_RANGE]);
 
 
 #endif

@@ -53,19 +53,59 @@ void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
     mv_t mvd;
     mvd.x = mv->x - mvp->x;
     mvd.y = mv->y - mvp->y;
+    int code,len;
 
-    int code;
-
+    /* MVX */
     mvabs = abs(mvd.x);
     mvsign = mvd.x < 0 ? 1 : 0;
-    code = 2*mvabs - mvsign;
-    put_vlc(10,code,stream);
+    if (mvabs < 1) {
+      code = 2;
+      len = 2;
+    }
+    else if (mvabs < (1 + 4)) {
+      code = mvabs - 1;
+      len = 4;
+      code = 12 + code;
+    }
+    else if (mvabs < (1 + 4 + 4*8)) {
+      code = mvabs - (1 + 4);
+      len = 5 + (code>>3);
+      code = 8 + (code & 7);
+    }
+    else{
+      code = mvabs - (1 + 4 + 4*8);
+      len = 10 + (code >> 4);
+      code = 16 + (code & 15);
+    }
+    putbits(len, code, stream);
+    if (mvabs>0)
+      putbits(1, mvsign, stream);
 
+    /* MVY */
     mvabs = abs(mvd.y);
     mvsign = mvd.y < 0 ? 1 : 0;
-    code = 2*mvabs - mvsign;
-    put_vlc(10,code,stream);
-
+    if (mvabs < 1) {
+      code = 2;
+      len = 2;
+    }
+    else if (mvabs < (1 + 4)) {
+      code = mvabs - 1;
+      len = 4;
+      code = 12 + code;
+    }
+    else if (mvabs < (1 + 4 + 4 * 8)) {
+      code = mvabs - (1 + 4);
+      len = 5 + (code >> 3);
+      code = 8 + (code & 7);
+    }
+    else {
+      code = mvabs - (1 + 4 + 4 * 8);
+      len = 10 + (code >> 4);
+      code = 16 + (code & 15);
+    }
+    putbits(len, code, stream);
+    if (mvabs>0)
+      putbits(1, mvsign, stream);
 }
 
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)

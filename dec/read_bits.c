@@ -43,21 +43,83 @@ extern int zigzag64[64];
 extern int zigzag256[256];
 extern int super_table[8][20];
 
+int YPOS, XPOS;
+
 void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 {
     mv_t mvd;
     int code;
+    int mvabs, mvsign = 0;
+    int tmp,count;
 
-    code = get_vlc(10,stream);
-    mvd.x = code&1 ? -((code+1)/2) : code/2;
+    /* MVX */
+    tmp = getbits(stream, 1);
+    if (tmp == 1) {
+      count = -1;
+      tmp = getbits(stream, 1);
+      if (tmp == 0)
+        mvabs = 0;
+      else {
+        tmp = getbits(stream, 2);
+        mvabs = 1 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+    }
+    else {
+      count = 0;
+      while (tmp == 0) {
+        tmp = getbits(stream, 1);
+        count++;
+      }
+      if (count < 5) {
+        tmp = getbits(stream, 3);
+        mvabs = 1 + 4 + (count - 1) * 8 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+      else {
+        tmp = getbits(stream, 4);
+        mvabs = 1 + 4 + 4 * 8 + (count - 5) * 16 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+    }
+    mvd.x = mvabs * (mvsign ? -1 : 1);
     mv->x = mvp->x + mvd.x;
 
-    code = get_vlc(10,stream);
-    mvd.y = code&1 ? -((code+1)/2) : code/2;
+    /* MVY */
+    tmp = getbits(stream, 1);
+    if (tmp == 1) {
+      count = -1;
+      tmp = getbits(stream, 1);
+      if (tmp == 0)
+        mvabs = 0;
+      else {
+        tmp = getbits(stream, 2);
+        mvabs = 1 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+    }
+    else {
+      count = 0;
+      while (tmp == 0) {
+        tmp = getbits(stream, 1);
+        count++;
+      }
+      if (count < 5) {
+        tmp = getbits(stream, 3);
+        mvabs = 1 + 4 + (count - 1) * 8 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+      else {
+        tmp = getbits(stream, 4);
+        mvabs = 1 + 4 + 4 * 8 + (count - 5) * 16 + tmp;
+        mvsign = getbits(stream, 1);
+      }
+    }
+    mvd.y = mvabs * (mvsign ? -1 : 1);
     mv->y = mvp->y + mvd.y;
 }
 
-int YPOS,XPOS;
+
 
 void read_coeff(stream_t *stream,int16_t *coeff,int size,int type){
 

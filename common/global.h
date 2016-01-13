@@ -101,7 +101,7 @@ static inline void fatalerror(char error_text[])
 
 #define LOW_RES_QM 1
 #if LOW_RES_QM
-#define qmtx_t uint8_t
+#define qmtx_t uint16_t
 #define INV_WEIGHT_SHIFT 6      // Bit accuracy of inverse weights
 #define WEIGHT_SHIFT 6          // Bit accuracy of forward weights
 #else

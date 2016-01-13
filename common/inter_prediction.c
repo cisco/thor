@@ -69,7 +69,21 @@ static const int8_t filter_coeffsC[8][4] = {
     {-2, 10, 58, -2}
 };
 
-void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign)
+void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int size, int sign) {
+
+  int max_mv_ext = PADDING_Y - 16; //max MV extension outside frame boundaries in integer pixel resolution
+  int mvy, mvx;
+  mvy = sign ? -mv_cand->y : mv_cand->y;
+  mvx = sign ? -mv_cand->x : mv_cand->x;
+  if (ypos + mvy / 4 < -max_mv_ext) mvy = 4 * (-max_mv_ext - ypos);
+  if (ypos + mvy / 4 + size > fheight + max_mv_ext) mvy = 4 * (fheight + max_mv_ext - ypos - size);
+  if (xpos + mvx / 4 < -max_mv_ext) mvx = 4 * (-max_mv_ext - xpos);
+  if (xpos + mvx / 4 > fwidth + max_mv_ext) mvx = 4 * (fwidth + max_mv_ext - xpos - size);
+  mv_cand->y = sign ? -mvy : mvy;
+  mv_cand->x = sign ? -mvx : mvx;
+}
+
+void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int pic_width2, int pic_height2, int xpos, int ypos)
 {
   int i,j;
 
@@ -81,6 +95,10 @@ void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int h
   int hor_frac = (mvtemp.x)&7;
   int ver_int = (mvtemp.y)>>3;
   int hor_int = (mvtemp.x)>>3;
+  ver_int = min(ver_int,pic_height2-ypos);
+  ver_int = max(ver_int,-xpos-height);
+  hor_int = min(hor_int,pic_width2-xpos);
+  hor_int = max(hor_int,-xpos-width);
   int16_t tmp[80][80];
 
   if (ver_frac==0 && hor_frac==0){
@@ -117,7 +135,7 @@ void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int h
   }
 }
 
-void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred)
+void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos) 
 {
   int i,j;
   int m,i_off,j_off;
@@ -128,6 +146,10 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   int hor_frac = (mvtemp.x)&3;
   int ver_int = (mvtemp.y)>>2;
   int hor_int = (mvtemp.x)>>2;
+  ver_int = min(ver_int,pic_height-ypos);
+  ver_int = max(ver_int,-xpos-height);
+  hor_int = min(hor_int,pic_width-xpos);
+  hor_int = max(hor_int,-xpos-width);
   int32_t tmp[MAX_BLOCK_SIZE+16][MAX_BLOCK_SIZE + 16]; //7-bit filter exceeds 16 bit temporary storage
   /* Integer position */
   if (ver_frac==0 && hor_frac==0){

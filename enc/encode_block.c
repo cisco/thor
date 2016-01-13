@@ -482,20 +482,6 @@ int quote_mv_bits(int mv_diff_y, int mv_diff_x)
   return bits;
 }
 
-void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int size, int sign) {
-
-  int max_mv_ext = PADDING_Y - 16; //max MV extension outside frame boundaries in integer pixel resolution
-  int mvy, mvx;
-  mvy = sign ? -mv_cand->y : mv_cand->y;
-  mvx = sign ? -mv_cand->x : mv_cand->x;
-  if (ypos + mvy / 4 < -max_mv_ext) mvy = 4 * (-max_mv_ext - ypos);
-  if (ypos + mvy / 4 + size > fheight + max_mv_ext) mvy = 4 * (fheight + max_mv_ext - ypos - size);
-  if (xpos + mvx / 4 < -max_mv_ext) mvx = 4 * (-max_mv_ext - xpos);
-  if (xpos + mvx / 4 > fwidth + max_mv_ext) mvx = 4 * (fwidth + max_mv_ext - xpos - size);
-  mv_cand->y = sign ? -mvy : mvy;
-  mv_cand->x = sign ? -mvx : mvx;
-}
-
 int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda,enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred){
   unsigned int sad;
   uint32_t min_sad;
@@ -613,7 +599,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
 
       mv_cand.y = mv_ref.y + hmpos[i];
       mv_cand.x = mv_ref.x + hnpos[i];
-      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred);
+      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
       sad = sad_calc(orig,rf,size,width,width,height);
       sad += (unsigned int)(lambda * (double)quote_mv_bits(mv_cand.y - mvp->y, mv_cand.x - mvp->x) + 0.5);
 
@@ -634,7 +620,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
     for (int i = 1; i <= 8; i++) {
       mv_cand.y = mv_opt.y + qmpos[i];
       mv_cand.x = mv_opt.x + qnpos[i];
-      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred);
+      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
       sad = sad_calc(orig,rf,size,width,width,height);
       sad += (int)(lambda * (double)quote_mv_bits(mv_cand.y - mvp->y, mv_cand.x - mvp->x) + 0.5);
       if (sad < cmin) {
@@ -729,7 +715,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
         mv_cand.x = mv_ref.x + l;
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-        get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign, enable_bipred);
+        get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
         sad = sad_calc(orig,rf,size,width,width,height);
         mv_diff_y = mv_cand.y - mvp->y;
         mv_diff_x = mv_cand.x - mvp->x;
@@ -752,7 +738,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
     mv_cand = mvcand[idx];
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-    get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred);
+    get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
     sad = sad_calc(orig,rf,size,width,width,height);
     mv_diff_y = mv_cand.y - mvp->y;
     mv_diff_x = mv_cand.x - mvp->x;
@@ -815,10 +801,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
         mv_cand.x = mv_ref.x + l;
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-        get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred);
+        get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
-        get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred);
+        get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos);
 
         int i, j;
         for (i = 0; i < size; i++) {
@@ -855,10 +841,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
     mv_cand = mvcand[idx];
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-    get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred);
+    get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
-    get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred);
+    get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos);
 
     int i, j;
     for (i = 0; i < size; i++) {
@@ -1230,9 +1216,9 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     int offsetrC = idy*bheight*rstride_c/2 + idx*bwidth/2;
     mv = mv_arr[index];
     clip_mv(&mv, yposY, xposY, width, height, size, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred);
-    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign);
-    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign);
+    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY);
+    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
+    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
   }
 }
 
@@ -1259,6 +1245,8 @@ void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t 
 
 int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *block_info,block_param_t *block_param)
 {
+  int width = encoder_info->width;
+  int height = encoder_info->height;
   int size = block_info->block_pos.size;
   int yposY = block_info->block_pos.ypos;
   int xposY = block_info->block_pos.xpos;
@@ -1334,8 +1322,6 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
 
   if (mode==MODE_INTRA){
     intra_mode = block_param->intra_mode;
-    int width = encoder_info->width;
-    int height = encoder_info->height;
     int upright_available = get_upright_available(yposY,xposY,sizeY,width);
     int downleft_available = get_downleft_available(yposY,xposY,sizeY,height);
     uint8_t* yrec = &rec->y[yposY*rec->stride_y+xposY];
@@ -2339,10 +2325,10 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         /* Y */
         mv = block_param->mv_arr0[0];
         clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign0);
-        get_inter_prediction_luma (pblock0,ref0_y,size0,size0,ref->stride_y,size0,&mv,sign0,enable_bipred);
+        get_inter_prediction_luma (pblock0,ref0_y,size0,size0,ref->stride_y,size0,&mv,sign0,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
         mv = block_param->mv_arr1[0];
         clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign1);
-        get_inter_prediction_luma (pblock1,ref1_y,size0,size0,ref->stride_y,size0,&mv,sign1,enable_bipred);
+        get_inter_prediction_luma (pblock1,ref1_y,size0,size0,ref->stride_y,size0,&mv,sign1,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
         for (k=0;k<size0;k++){
           for (l=0;l<size0;l++){
             pblock[k*size0+l] = (uint8_t)(((int)pblock0[k*size0+l] + (int)pblock1[k*size0+l])>>1);
@@ -2352,9 +2338,9 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
 
         /* U */
         mv = block_param->mv_arr0[0];
-        get_inter_prediction_chroma(pblock0,ref0_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0);
+        get_inter_prediction_chroma(pblock0,ref0_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         mv = block_param->mv_arr1[0];
-        get_inter_prediction_chroma(pblock1,ref1_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1);
+        get_inter_prediction_chroma(pblock1,ref1_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         for (k=0;k<size0/2;k++){
           for (l=0;l<size0/2;l++){
             pblock[k*size0/2+l] = (uint8_t)(((int)pblock0[k*size0/2+l] + (int)pblock1[k*size0/2+l])>>1);
@@ -2364,9 +2350,9 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
 
         /* V */
         mv = block_param->mv_arr0[0];
-        get_inter_prediction_chroma(pblock0,ref0_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0);
+        get_inter_prediction_chroma(pblock0,ref0_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         mv = block_param->mv_arr1[0];
-        get_inter_prediction_chroma(pblock1,ref1_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1);
+        get_inter_prediction_chroma(pblock1,ref1_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         for (k=0;k<size0/2;k++){
           for (l=0;l<size0/2;l++){
             pblock[k*size0/2+l] = (uint8_t)(((int)pblock0[k*size0/2+l] + (int)pblock1[k*size0/2+l])>>1);
@@ -2393,15 +2379,15 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
 
         /* Y */
         clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign);
-        get_inter_prediction_luma  (pblock,ref_y,size0,size0,ref->stride_y,size0,&mv,sign,enable_bipred);
+        get_inter_prediction_luma  (pblock,ref_y,size0,size0,ref->stride_y,size0,&mv,sign,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y,size,size0,qpY,pblock,early_skip_threshold);
 
         /* U */
-        get_inter_prediction_chroma(pblock,ref_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign);
+        get_inter_prediction_chroma(pblock,ref_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign, encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
 
         /* V */
-        get_inter_prediction_chroma(pblock,ref_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign);
+        get_inter_prediction_chroma(pblock,ref_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
       }
     }

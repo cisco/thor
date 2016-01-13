@@ -243,6 +243,8 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   }
   else
   {
+    int tb_split = block_info.block_param.tb_split;
+
     if (mode==MODE_SKIP){
       if (block_info.block_param.dir==2){
         uint8_t *ref0_y,*ref0_u,*ref0_v;
@@ -263,13 +265,15 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int sign1 = ref1->frame_num >= rec->frame_num;
 
         mv = block_info.block_param.mv_arr0[0];
-        get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0, bipred);
-        get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
-        get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign0);
+        get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0, width/2, height/2, xposC, yposC);
         mv = block_info.block_param.mv_arr1[0];
-        get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1, bipred);
-        get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
-        get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign1);
+        get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1, width/2, height/2, xposC, yposC);
 
         int i,j;
         for (i=0;i<bheight;i++){
@@ -292,12 +296,13 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign);
         ref_y = ref->y + ref_posY;
         ref_u = ref->u + ref_posC;
         ref_v = ref->v + ref_posC;
-        get_inter_prediction_luma  (pblock_y, ref_y, bwidth, bheight, ref->stride_y, sizeY, &mv, sign, bipred);
-        get_inter_prediction_chroma(pblock_u, ref_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign);
-        get_inter_prediction_chroma(pblock_v, ref_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign);
+        get_inter_prediction_luma  (pblock_y, ref_y, bwidth, bheight, ref->stride_y, sizeY, &mv, sign, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock_u, ref_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock_v, ref_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign, width/2, height/2, xposC, yposC);
 
         int j;
         for (j=0;j<bheight;j++){
@@ -332,13 +337,15 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int sign1 = ref1->frame_num >= rec->frame_num;
 
         mv = block_info.block_param.mv_arr0[0];
-        get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0, bipred);
-        get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
-        get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign0);
+        get_inter_prediction_luma  (pblock0_y, ref0_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign0, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock0_u, ref0_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock0_v, ref0_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign0, width/2, height/2, xposC, yposC);
         mv = block_info.block_param.mv_arr1[0];
-        get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1, bipred);
-        get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
-        get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign1);
+        get_inter_prediction_luma  (pblock1_y, ref1_y, bwidth,   bheight,   ref->stride_y, sizeY, &mv, sign1, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock1_u, ref1_u, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock1_v, ref1_v, bwidth/2, bheight/2, ref->stride_c, sizeC, &mv, sign1, width/2, height/2, xposC, yposC);
 
         int i,j;
         for (i=0;i<sizeY;i++){
@@ -359,19 +366,21 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign);
         ref_y = ref->y + ref_posY;
         ref_u = ref->u + ref_posC;
         ref_v = ref->v + ref_posC;
-        get_inter_prediction_luma  (pblock_y, ref_y, sizeY, sizeY, ref->stride_y, sizeY, &mv, sign, bipred);
-        get_inter_prediction_chroma(pblock_u, ref_u, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign);
-        get_inter_prediction_chroma(pblock_v, ref_v, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign);
+        get_inter_prediction_luma  (pblock_y, ref_y, sizeY, sizeY, ref->stride_y, sizeY, &mv, sign, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock_u, ref_u, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock_v, ref_v, sizeC, sizeC, ref->stride_c, sizeC, &mv, sign, width/2, height/2, xposC, yposC);
 
       }
     }
     else if (mode == MODE_INTER){
       int index;
-      int psizeY = sizeY/2;
-      int psizeC = sizeC/2;
+      int div = decoder_info->tb_split_enable+1;
+      int psizeY = sizeY/div;
+      int psizeC = sizeC/div;
       int pstrideY = sizeY;
       int pstrideC = sizeC;
       int ref_idx = block_info.block_param.ref_idx0;
@@ -381,7 +390,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       ref_y = ref->y + ref_posY;
       ref_u = ref->u + ref_posC;
       ref_v = ref->v + ref_posC;
-      for (index=0;index<4;index++){
+      for (index=0;index<div*div;index++){
         int idx = (index>>0)&1;
         int idy = (index>>1)&1;
         int offsetpY = idy*psizeY*pstrideY + idx*psizeY;
@@ -389,15 +398,15 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int offsetrY = idy*psizeY*ref->stride_y + idx*psizeY;
         int offsetrC = idy*psizeC*ref->stride_c + idx*psizeC;
         mv = block_info.block_param.mv_arr0[index];
-        get_inter_prediction_luma  (pblock_y + offsetpY, ref_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign, bipred);
-        get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign);
-        get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign);
+        get_inter_prediction_luma  (pblock_y + offsetpY, ref_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign, width/2, height/2, xposC, yposC);
       }
     }
     else if (mode == MODE_BIPRED){
       int index;
-      int psizeY = sizeY/2;
-      int psizeC = sizeC/2;
+      int div = decoder_info->tb_split_enable+1;
       int pstrideY = sizeY;
       int pstrideC = sizeC;
 
@@ -419,7 +428,9 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int sign0 = ref0->frame_num >= rec->frame_num;
       int sign1 = ref1->frame_num >= rec->frame_num;
 
-      for (index=0;index<4;index++){
+      for (index=0;index<div*div;index++){
+        int psizeY = sizeY/div;
+        int psizeC = sizeC/div;
         int idx = (index>>0)&1;
         int idy = (index>>1)&1;
         int offsetpY = idy*psizeY*pstrideY + idx*psizeY;
@@ -427,13 +438,15 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int offsetrY = idy*psizeY*ref->stride_y + idx*psizeY;
         int offsetrC = idy*psizeC*ref->stride_c + idx*psizeC;
         mv = block_info.block_param.mv_arr0[index];
-        get_inter_prediction_luma  (pblock0_y + offsetpY, ref0_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign0, bipred);
-        get_inter_prediction_chroma(pblock0_u + offsetpC, ref0_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0);
-        get_inter_prediction_chroma(pblock0_v + offsetpC, ref0_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign0);
+        get_inter_prediction_luma  (pblock0_y + offsetpY, ref0_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign0, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock0_u + offsetpC, ref0_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock0_v + offsetpC, ref0_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign0, width/2, height/2, xposC, yposC);
         mv = block_info.block_param.mv_arr1[index];
-        get_inter_prediction_luma  (pblock1_y + offsetpY, ref1_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign1, bipred);
-        get_inter_prediction_chroma(pblock1_u + offsetpC, ref1_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1);
-        get_inter_prediction_chroma(pblock1_v + offsetpC, ref1_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1);
+        clip_mv(&mv, yposY, xposY, width, height, sizeY, sign1);
+        get_inter_prediction_luma  (pblock1_y + offsetpY, ref1_y + offsetrY, psizeY, psizeY, ref->stride_y, pstrideY, &mv, sign1, bipred, width, height, xposY, yposY);
+        get_inter_prediction_chroma(pblock1_u + offsetpC, ref1_u + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1, width/2, height/2, xposC, yposC);
+        get_inter_prediction_chroma(pblock1_v + offsetpC, ref1_v + offsetrC, psizeC, psizeC, ref->stride_c, pstrideC, &mv, sign1, width/2, height/2, xposC, yposC);
       }
       int i,j;
       for (i=0;i<sizeY;i++){
@@ -450,7 +463,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     }
 
     /* Dequantize, invere tranform and reconstruct */
-    int tb_split = block_info.block_param.tb_split;
+
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[qpY][0][0] : NULL);
     decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[qpY][1][0] : NULL);
     decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[qpY][2][0] : NULL);

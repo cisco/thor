@@ -132,16 +132,28 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
   int tr_log2size = log2i(size);
   const int lshift = qp / 6;
   const int rshift = tr_log2size - 1 + (wt_matrix!=NULL ? INV_WEIGHT_SHIFT : 0);
-  const int scale = gdequant_table[qp % 6];
-  const int add = 1<<(rshift-1);
+  const int64_t scale = gdequant_table[qp % 6];
+  const int64_t add = lshift < rshift ? (1<<(rshift-lshift-1)) : 0;
 
-  for (int i = 0; i < size ; i++){
-    for (int j = 0; j < size; j++){
-      int c = coeff[i*size+j];
-      if (wt_matrix)
-        c = c*wt_matrix[i*ws+j];
-      rcoeff[i*size+j] = ((c * scale << lshift) + add) >> rshift;
+  if (lshift >= rshift) {
+    for (int i = 0; i < size ; i++){
+      for (int j = 0; j < size; j++){
+        int c = coeff[i*size+j];
+        if (wt_matrix)
+          c = c*wt_matrix[i*ws+j];
+        rcoeff[i*size+j] = (c * scale) << (lshift-rshift);// needs clipping?
+      }
     }
+  } else {
+    for (int i = 0; i < size ; i++){
+      for (int j = 0; j < size; j++){
+        int c = coeff[i*size+j];
+        if (wt_matrix)
+          c = c*wt_matrix[i*ws+j];
+        rcoeff[i*size+j] = (c * scale + add) >> (rshift - lshift);//needs clipping
+      }
+    }
+
   }
 }
 

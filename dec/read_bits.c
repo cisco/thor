@@ -48,7 +48,6 @@ int YPOS, XPOS;
 void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 {
     mv_t mvd;
-    int code;
     int mvabs, mvsign = 0;
     int tmp,count;
 

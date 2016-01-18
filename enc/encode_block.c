@@ -468,7 +468,7 @@ int ssd_calc(uint8_t *a, uint8_t *b, int astride, int bstride, int width,int hei
 int quote_mv_bits(int mv_diff_y, int mv_diff_x)
 {
   int bits = 0;
-  int code,mvabs,mvsign;
+  int code,mvabs;
 
   /* mvx */
   mvabs = abs(mv_diff_x);

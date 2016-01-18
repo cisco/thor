@@ -470,15 +470,42 @@ int quote_mv_bits(int mv_diff_y, int mv_diff_x)
   int bits = 0;
   int code,mvabs,mvsign;
 
+  /* mvx */
   mvabs = abs(mv_diff_x);
-  mvsign = mv_diff_x < 0 ? 1 : 0;
-  code = 2*mvabs - mvsign;
-  bits += quote_vlc(10,code);
+  int len;
+  if (mvabs < 1) {
+    len = 2;
+  }
+  else if (mvabs < (1 + 4)) {
+    len = 4 + 1;
+  }
+  else if (mvabs < (1 + 4 + 4 * 8)) {
+    code = mvabs - (1 + 4);
+    len = 5 + (code >> 3) + 1;
+  }
+  else {
+    code = mvabs - (1 + 4 + 4 * 8);
+    len = 10 + (code >> 4) + 1;
+  }
+  bits += len;
 
+  /* mvy */
   mvabs = abs(mv_diff_y);
-  mvsign = mv_diff_y < 0 ? 1 : 0;
-  code = 2*mvabs - mvsign;
-  bits += quote_vlc(10,code);
+  if (mvabs < 1) {
+    len = 2;
+  }
+  else if (mvabs < (1 + 4)) {
+    len = 4 + 1;
+  }
+  else if (mvabs < (1 + 4 + 4 * 8)) {
+    code = mvabs - (1 + 4);
+    len = 5 + (code >> 3) + 1;
+  }
+  else {
+    code = mvabs - (1 + 4 + 4 * 8);
+    len = 10 + (code >> 4) + 1;
+  }
+  bits += len;
   return bits;
 }
 

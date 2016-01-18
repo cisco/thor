@@ -379,8 +379,6 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
       read_mv(stream,&mv_arr[2],&mvp2);
       read_mv(stream,&mv_arr[3],&mvp2);
     }
-    if (xpos==16 && ypos==304)
-      fprintf(stdout,"%d %d Reading mv %d %d, mvp is %d %d\n",xpos,ypos,mv_arr[0].x,mv_arr[1].y,mvp.x,mvp.y);
     decoder_info->bit_count.mv[stat_frame_type] += (stream->bitcnt - bit_start);
     block_info->block_param.ref_idx0 = ref_idx;
     block_info->block_param.ref_idx1 = ref_idx;

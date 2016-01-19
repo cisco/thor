@@ -476,15 +476,18 @@ int quote_mv_bits(int mv_diff_y, int mv_diff_x)
   if (mvabs < 1) {
     len = 2;
   }
-  else if (mvabs < (1 + 4)) {
+  else if (mvabs < (1 + 1)) {
+    len = 3 + 1;
+  }
+  else if (mvabs < (1 + 1 + 2)) {
     len = 4 + 1;
   }
-  else if (mvabs < (1 + 4 + 4 * 8)) {
-    code = mvabs - (1 + 4);
+  else if (mvabs < (1 + 1 + 2 + 4 * 8)) {
+    code = mvabs - (1 + 1 + 2);
     len = 5 + (code >> 3) + 1;
   }
   else {
-    code = mvabs - (1 + 4 + 4 * 8);
+    code = mvabs - (1 + 1 + 2 + 4 * 8);
     len = 10 + (code >> 4) + 1;
   }
   bits += len;
@@ -494,15 +497,18 @@ int quote_mv_bits(int mv_diff_y, int mv_diff_x)
   if (mvabs < 1) {
     len = 2;
   }
-  else if (mvabs < (1 + 4)) {
+  else if (mvabs < (1 + 1)) {
+    len = 3 + 1;
+  }
+  else if (mvabs < (1 + 1 + 2)) {
     len = 4 + 1;
   }
-  else if (mvabs < (1 + 4 + 4 * 8)) {
-    code = mvabs - (1 + 4);
+  else if (mvabs < (1 + 1 + 2 + 4 * 8)) {
+    code = mvabs - (1 + 1 + 2);
     len = 5 + (code >> 3) + 1;
   }
   else {
-    code = mvabs - (1 + 4 + 4 * 8);
+    code = mvabs - (1 + 1 + 2 + 4 * 8);
     len = 10 + (code >> 4) + 1;
   }
   bits += len;

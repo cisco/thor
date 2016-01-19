@@ -60,9 +60,16 @@ void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       if (tmp == 0)
         mvabs = 0;
       else {
-        tmp = getbits(stream, 2);
-        mvabs = 1 + tmp;
-        mvsign = getbits(stream, 1);
+        tmp = getbits(stream, 1);
+        if (tmp == 0) {
+          mvabs = 1;
+          mvsign = getbits(stream, 1);
+        }
+        else {
+          tmp = getbits(stream, 1);
+          mvabs = 2 + tmp;
+          mvsign = getbits(stream, 1);
+        }
       }
     }
     else {
@@ -73,12 +80,12 @@ void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       }
       if (count < 5) {
         tmp = getbits(stream, 3);
-        mvabs = 1 + 4 + (count - 1) * 8 + tmp;
+        mvabs = 1 + 1 + 2 + (count - 1) * 8 + tmp;
         mvsign = getbits(stream, 1);
       }
       else {
         tmp = getbits(stream, 4);
-        mvabs = 1 + 4 + 4 * 8 + (count - 5) * 16 + tmp;
+        mvabs = 1 + 1 + 2 + 4 * 8 + (count - 5) * 16 + tmp;
         mvsign = getbits(stream, 1);
       }
     }
@@ -93,9 +100,16 @@ void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       if (tmp == 0)
         mvabs = 0;
       else {
-        tmp = getbits(stream, 2);
-        mvabs = 1 + tmp;
-        mvsign = getbits(stream, 1);
+        tmp = getbits(stream, 1);
+        if (tmp == 0) {
+          mvabs = 1;
+          mvsign = getbits(stream, 1);
+        }
+        else {
+          tmp = getbits(stream, 1);
+          mvabs = 2 + tmp;
+          mvsign = getbits(stream, 1);
+        }
       }
     }
     else {
@@ -106,12 +120,12 @@ void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       }
       if (count < 5) {
         tmp = getbits(stream, 3);
-        mvabs = 1 + 4 + (count - 1) * 8 + tmp;
+        mvabs = 1 + 1 + 2 + (count - 1) * 8 + tmp;
         mvsign = getbits(stream, 1);
       }
       else {
         tmp = getbits(stream, 4);
-        mvabs = 1 + 4 + 4 * 8 + (count - 5) * 16 + tmp;
+        mvabs = 1 + 1 + 2 + 4 * 8 + (count - 5) * 16 + tmp;
         mvsign = getbits(stream, 1);
       }
     }

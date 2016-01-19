@@ -62,18 +62,22 @@ void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       code = 2;
       len = 2;
     }
-    else if (mvabs < (1 + 4)) {
-      code = mvabs - 1;
-      len = 4;
-      code = 12 + code;
+    else if (mvabs < (1 + 1)) {
+      code = 6;
+      len = 3;
     }
-    else if (mvabs < (1 + 4 + 4*8)) {
-      code = mvabs - (1 + 4);
-      len = 5 + (code>>3);
+    else if (mvabs < (1 + 1 + 2)) {
+      code = mvabs - (1 + 1);
+      len = 4;
+      code = 14 + code;
+    }
+    else if (mvabs < (1 + 1 + 2 + 4 * 8)) {
+      code = mvabs - (1 + 1 + 2);
+      len = 5 + (code >> 3);
       code = 8 + (code & 7);
     }
-    else{
-      code = mvabs - (1 + 4 + 4*8);
+    else {
+      code = mvabs - (1 + 1 + 2 + 4 * 8);
       len = 10 + (code >> 4);
       code = 16 + (code & 15);
     }
@@ -88,18 +92,22 @@ void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
       code = 2;
       len = 2;
     }
-    else if (mvabs < (1 + 4)) {
-      code = mvabs - 1;
-      len = 4;
-      code = 12 + code;
+    else if (mvabs < (1 + 1)) {
+      code = 6;
+      len = 3;
     }
-    else if (mvabs < (1 + 4 + 4 * 8)) {
-      code = mvabs - (1 + 4);
+    else if (mvabs < (1 + 1 + 2)) {
+      code = mvabs - (1 + 1);
+      len = 4;
+      code = 14 + code;
+    }
+    else if (mvabs < (1 + 1 + 2 + 4 * 8)) {
+      code = mvabs - (1 + 1 + 2);
       len = 5 + (code >> 3);
       code = 8 + (code & 7);
     }
     else {
-      code = mvabs - (1 + 4 + 4 * 8);
+      code = mvabs - (1 + 1 + 2 + 4 * 8);
       len = 10 + (code >> 4);
       code = 16 + (code & 15);
     }

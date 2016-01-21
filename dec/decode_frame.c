@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_frame.h"
 #include "temporal_interp.h"
 #include "wt_matrix.h"
+#include "getvlc.h"
 
 extern int chroma_qp[52];
 
@@ -40,7 +41,7 @@ static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock
 }
 
 static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream) {
-  return getbits((stream_t*)stream, 1);
+  return get_flc(1, (stream_t*)stream);
 }
 
 void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
@@ -56,28 +57,28 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int bit_start = stream->bitcnt;
   int rec_buffer_idx;
 
-  decoder_info->frame_info.frame_type = getbits(stream,1);
+  decoder_info->frame_info.frame_type = get_flc(1, stream);
   decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
-  int qp = getbits(stream,8);
+  int qp = get_flc(8, stream);
 
-  decoder_info->frame_info.num_intra_modes = getbits(stream,4);
+  decoder_info->frame_info.num_intra_modes = get_flc(4, stream);
 
   decoder_info->frame_info.interp_ref = 0;
   if (decoder_info->frame_info.frame_type != I_FRAME) {
-    decoder_info->frame_info.num_ref = getbits(stream,2)+1;
+    decoder_info->frame_info.num_ref = get_flc(2, stream)+1;
     int r;
     for (r=0;r<decoder_info->frame_info.num_ref;r++){
-      decoder_info->frame_info.ref_array[r] = getbits(stream,6)-1;
+      decoder_info->frame_info.ref_array[r] = get_flc(6, stream)-1;
       if (decoder_info->frame_info.ref_array[r]==-1)
         decoder_info->frame_info.interp_ref = 1;
     }
     if (decoder_info->frame_info.num_ref==2 && decoder_info->frame_info.ref_array[0]==-1) {
-      decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = getbits(stream,5)-1;
+      decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = get_flc(5, stream)-1;
     }
   } else {
     decoder_info->frame_info.num_ref = 0;
   }
-  decoder_info->frame_info.display_frame_num = getbits(stream,16);
+  decoder_info->frame_info.display_frame_num = get_flc(16, stream);
   for (r=0; r<decoder_info->frame_info.num_ref; ++r){
     if (decoder_info->frame_info.ref_array[r]!=-1) {
       if (decoder_info->ref[decoder_info->frame_info.ref_array[r]]->frame_num > decoder_info->frame_info.display_frame_num) {
@@ -131,9 +132,9 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     deblock_frame_uv(decoder_info->rec, decoder_info->deblock_data, width, height, qpc);
   }
 
-  if (decoder_info->clpf && getbits(stream, 1)){
+  if (decoder_info->clpf && get_flc(1, stream)){
     clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream,
-               getbits(stream, 1) ? clpf_true : clpf_bit);
+               get_flc(1, stream) ? clpf_true : clpf_bit);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

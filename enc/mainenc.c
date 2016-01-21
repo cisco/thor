@@ -201,18 +201,18 @@ int main(int argc, char **argv)
 
   /* Write sequence header */ //TODO: Separate function for sequence header
   start_bits = get_bit_pos(&stream);
-  putbits(16,width,&stream);
-  putbits(16,height,&stream);
-  putbits(1,params->enable_pb_split,&stream);
-  putbits(1,params->enable_tb_split,&stream);
-  putbits(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
-  putbits(1,params->interp_ref,&stream);// Use an interpolated reference frame
-  putbits(1, (params->max_delta_qp || params->bitrate), &stream);
-  putbits(1,params->deblocking,&stream);
-  putbits(1,params->clpf,&stream);
-  putbits(1,params->use_block_contexts,&stream);
-  putbits(1,params->enable_bipred,&stream);
-  putbits(1,params->qmtx,&stream);
+  put_flc(16,width,&stream);
+  put_flc(16,height,&stream);
+  put_flc(1,params->enable_pb_split,&stream);
+  put_flc(1,params->enable_tb_split,&stream);
+  put_flc(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
+  put_flc(1,params->interp_ref,&stream);// Use an interpolated reference frame
+  put_flc(1, (params->max_delta_qp || params->bitrate), &stream);
+  put_flc(1,params->deblocking,&stream);
+  put_flc(1,params->clpf,&stream);
+  put_flc(1,params->use_block_contexts,&stream);
+  put_flc(1,params->enable_bipred,&stream);
+  put_flc(1,params->qmtx,&stream);
 
   end_bits = get_bit_pos(&stream);
   num_bits = end_bits-start_bits;

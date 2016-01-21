@@ -39,7 +39,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "snr.h"
 #include "mainenc.h"
 #include "write_bits.h"
-#include "putbits.h"
 #include "putvlc.h"
 #include "transform.h"
 #include "common_block.h"
@@ -2587,7 +2586,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
       early_skip_flag = search_early_skip_candidates(encoder_info,&block_info);
 
-      /* Revind stream to start position of this block size */
+      /* Rewind stream to start position of this block size */
       write_stream_pos(stream,&stream_pos_ref);
       if (early_skip_flag){
 
@@ -2624,14 +2623,9 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
   if (encode_smaller_size){
     int new_size = size/2;
-    if (encode_this_size){
-      int split_flag = 1;
-      block_param_t block_param;
-      write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag);
-    }
-    else if (frame_type != I_FRAME){
-      putbits(1,0,stream); //Flag to signal either split or rectangular skip
-    }
+    int split_flag = 1;
+    block_param_t block_param;
+    write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
     if (size == MAX_BLOCK_SIZE && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
       write_delta_qp(stream,block_info.delta_qp);
     }
@@ -2673,7 +2667,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       int new_size = size/2;
       int split_flag = 1;
       block_param_t block_param;
-      write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag);
+      write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
       cost_small = 0; //TODO: Why not nbit * lambda?
       cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
       cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp);
@@ -2683,7 +2677,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
     if (cost <= cost_small){
 
-      /* Revind bitstream to reference position of this block size */
+      /* Rewind bitstream to reference position of this block size */
       write_stream_pos(stream,&stream_pos_ref);
 
       block_info.final_encode = 1;
@@ -2707,7 +2701,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     cost = mode_decision_rdo(encoder_info,&block_info);
 
     if (cost <= cost_small){
-      /* Revind bitstream to reference position of this block size */
+      /* Rewind bitstream to reference position of this block size */
       write_stream_pos(stream,&stream_pos_ref);
       block_info.final_encode = 1;
       block_info.block_param.mode = MODE_SKIP;

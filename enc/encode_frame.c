@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "encode_block.h"
 #include "common_block.h"
 #include "common_frame.h"
+#include "putvlc.h"
 #include "wt_matrix.h"
 #include "enc_kernels.h"
 
@@ -59,7 +60,7 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
         (use_simd ? detect_clpf_simd : detect_clpf)(rec->y,org->y,xpos,ypos,rec->width,rec->height,org->stride_y,rec->stride_y,&sum0,&sum1);
     }
   }
-  putbits(1, sum1 < sum0, (stream_t*)stream);
+  put_flc(1, sum1 < sum0, (stream_t*)stream);
   return sum1 < sum0;
 }
 
@@ -107,20 +108,20 @@ void encode_frame(encoder_info_t *encoder_info)
     init_rate_control_per_frame(encoder_info->rc, min_qp, max_qp);
   }
 
-  putbits(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
-  putbits(8,(int)qp,stream);
-  putbits(4,(int)encoder_info->frame_info.num_intra_modes,stream);
+  put_flc(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
+  put_flc(8,(int)qp,stream);
+  put_flc(4,(int)encoder_info->frame_info.num_intra_modes,stream);
 
   // Signal actual number of reference frames
   if (frame_info->frame_type!=I_FRAME)
-    putbits(2,encoder_info->frame_info.num_ref-1,stream);
+    put_flc(2,encoder_info->frame_info.num_ref-1,stream);
 
   int r;
   for (r=0;r<encoder_info->frame_info.num_ref;r++){
-    putbits(6,encoder_info->frame_info.ref_array[r]+1,stream);
+    put_flc(6,encoder_info->frame_info.ref_array[r]+1,stream);
   }
   // 16 bit frame number for now
-  putbits(16,encoder_info->frame_info.frame_num,stream);
+  put_flc(16,encoder_info->frame_info.frame_num,stream);
 
   // Initialize prev_qp to qp used in frame header
   encoder_info->frame_info.prev_qp = encoder_info->frame_info.qp;
@@ -187,8 +188,8 @@ void encode_frame(encoder_info_t *encoder_info)
   int sb_signal = 1;
 
   if (encoder_info->params->clpf){
-    putbits(1, 1, stream);
-    putbits(1, !sb_signal, stream);
+    put_flc(1, 1, stream);
+    put_flc(1, !sb_signal, stream);
     clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream,
                sb_signal ? clpf_decision : clpf_true);
   }

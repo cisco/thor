@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "maindec.h"
 #include "decode_frame.h"
 #include "common_frame.h"
-#include "getbits.h"
+#include "getvlc.h"
 #include "../common/simd.h"
 #include "wt_matrix.h"
 
@@ -122,29 +122,29 @@ int main(int argc, char** argv)
 
     int bit_start = stream.bitcnt;
     /* Read sequence header */
-    width = getbits(&stream,16);
-    height = getbits(&stream,16);
+    width = get_flc(16, &stream);
+    height = get_flc(16, &stream);
 
     decoder_info.width = width;
     decoder_info.height = height;
     printf("width=%4d height=%4d\n",width,height);
 
-    decoder_info.pb_split = getbits(&stream,1);
+    decoder_info.pb_split = get_flc(1, &stream);
     printf("pb_split_enable=%1d\n",decoder_info.pb_split); //TODO: Rename variable to pb_split_enable
 
-    decoder_info.tb_split_enable = getbits(&stream,1);
+    decoder_info.tb_split_enable = get_flc(1, &stream);
     printf("tb_split_enable=%1d\n",decoder_info.tb_split_enable);
 
-    decoder_info.max_num_ref = getbits(&stream,2) + 1;
+    decoder_info.max_num_ref = get_flc(2, &stream) + 1;
     fprintf(stderr,"num refs is %d\n",decoder_info.max_num_ref);
 
-    decoder_info.interp_ref = getbits(&stream,1);
-    decoder_info.max_delta_qp = getbits(&stream, 1);
-    decoder_info.deblocking = getbits(&stream,1);
-    decoder_info.clpf = getbits(&stream,1);
-    decoder_info.use_block_contexts = getbits(&stream,1);
-    decoder_info.bipred = getbits(&stream,1);
-    decoder_info.qmtx = getbits(&stream,1);
+    decoder_info.interp_ref = get_flc(1, &stream);
+    decoder_info.max_delta_qp = get_flc(1, &stream);
+    decoder_info.deblocking = get_flc(1, &stream);
+    decoder_info.clpf = get_flc(1, &stream);
+    decoder_info.use_block_contexts = get_flc(1, &stream);
+    decoder_info.bipred = get_flc(1, &stream);
+    decoder_info.qmtx = get_flc(1, &stream);
     printf("use quant matrix = %d\n", decoder_info.qmtx);
 
     if (decoder_info.qmtx){
@@ -350,6 +350,10 @@ int main(int argc, char** argv)
     }
 
     free(decoder_info.deblock_data);
-
+    if (infile)
+      fclose(infile);
+    if (outfile)
+      fclose(outfile);
+        
     return 0;
 }

@@ -34,7 +34,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "global.h"
 #include "snr.h"
-#include "getbits.h"
 #include "getvlc.h"
 #include "read_bits.h"
 #include "transform.h"
@@ -503,22 +502,23 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
   if (frame_type==I_FRAME){
     decoder_info->mode = MODE_INTRA;
     if (size > MIN_BLOCK_SIZE && decode_this_size)
-      split_flag = getbits(stream, 1);
+      split_flag = get_flc(1, stream);
     else
       split_flag = !decode_this_size;
     return split_flag;
   }
-  else{
-    if (!decode_this_size) {
-      split_flag = !getbits(stream, 1);
-      return split_flag;
-    }
+
+  if (!decode_this_size) {
+    split_flag = !get_flc(1, stream);
+    return split_flag;
   }
+
   if (size > MAX_TR_SIZE) {
-    split_flag = !getbits(stream, 1);
+    split_flag = !get_flc(1, stream);
     if (!split_flag)  decoder_info->mode = MODE_SKIP;
     return split_flag;
   }
+
 
   num_ref = decoder_info->frame_info.num_ref;
   int bipred_possible_flag = num_ref > 1 && decoder_info->bipred;
@@ -527,7 +527,7 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
 
   int interp_ref = decoder_info->frame_info.interp_ref;
 
-  code = get_vlc0_limit(maxbit,stream);
+  code = get_vlc(10 + maxbit, stream);
 
   if (interp_ref) {
 

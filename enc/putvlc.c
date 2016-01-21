@@ -31,19 +31,100 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "putvlc.h"
 #include "simd.h"
 
-int put_vlc(unsigned int n,unsigned int cn,stream_t *str)
+
+void flush_bytebuf(stream_t *str, FILE *outfile)
 {
+  if (outfile)
+  {
+    if (fwrite(str->bitstream,sizeof(unsigned char),str->bytepos,outfile) != str->bytepos)
+    {
+      fatalerror("Problem writing bitstream to file.");
+    }
+  }
+  str->bytepos = 0;
+}
+
+static void flush_bitbuf(stream_t *str)
+{
+  if ((str->bytepos+4) > str->bytesize)
+  {
+    fatalerror("Run out of bits in stream buffer.");
+  }
+  str->bitstream[str->bytepos++] = (str->bitbuf >> 24) & 0xff;
+  str->bitstream[str->bytepos++] = (str->bitbuf >> 16) & 0xff;
+  str->bitstream[str->bytepos++] = (str->bitbuf >> 8) & 0xff;
+  str->bitstream[str->bytepos++] = str->bitbuf & 0xff;
+  str->bitbuf = 0;
+  str->bitrest = 32;
+}
+
+static unsigned int mask(unsigned int n)
+{
+  return (1 << n) - 1;
+}
+
+static void putbits(unsigned int n, unsigned int val, stream_t *str)
+{
+  unsigned int rest;
+
+  if (n <= str->bitrest)
+  {
+    str->bitbuf |= ((val & mask(n)) << (str->bitrest-n));
+    str->bitrest -= n;
+  }
+  else
+  {
+    rest = n-str->bitrest;
+    str->bitbuf |= (val >> rest) & mask(n-rest);
+    flush_bitbuf(str);
+    str->bitbuf |= (val & mask(rest)) << (32-rest);
+    str->bitrest -= rest;
+  }
+}
+
+
+unsigned int put_vlc(int n,unsigned int cn,stream_t *str)
+{
+  if (n < 0) {
+    putbits(-n, cn, str);
+    return -n;
+  }
+
   unsigned int len,tmp;
   unsigned int code;
+  unsigned int e = 5;
 
   switch (n) {
+  case 6:
+  case 7:
+    if (!cn) {
+      putbits(2, 2, str);
+      return 2;
+    }
+    if (n == 6) {
+      cn++;
+      n = 2;
+    } else {
+      if (cn == 1)  {
+        putbits(3, 6, str);
+        return 3;
+      }
+      if (cn < 4) {
+        putbits(3, 7, str);
+        putbits(1, cn & 1, str);
+        return 4;
+      }
+      cn += 4;
+      n = 3;
+    }
+    // Intentional fallthrough
   case 0:
   case 1:
   case 2:
   case 3:
   case 4:
   case 5:
-    if ((int)cn < (6 * (1 << n)))
+    if ((int)cn < (e * (1 << n)))
     {
       tmp = 1<<n;
       code = tmp+(cn & (tmp-1));
@@ -51,60 +132,19 @@ int put_vlc(unsigned int n,unsigned int cn,stream_t *str)
     }
     else
     {
-      code = cn - (6 * (1 << n)) + (1 << n);
-      len = (6-n)+1+2*log2i(code);
+      code = cn - (e * (1 << n)) + (1 << n);
+      len = (e-n)+1+2*log2i(code);
     }
     break;
-  case 6:
-  case 7: //TODO: Remove this if not used
-    tmp = 1<<(n-4);
-    code = tmp+cn%tmp;
-    len = 1+(n-4)+(cn>>(n-4));
-      break;
   case 8:
-    if (cn == 0)
-    {
-      code = 1;
-      len = 1;
-    }
-    else if (cn == 1)
-    {
-      code = 1;
-      len = 2;
-    }
-    else if (cn == 2)
-    {
-      code = 0;
-      len = 2;
-    }
-    else fatalerror("Code number too large for VLC8.");
-    break;
-  case 9:
-    if (cn == 0)
-    {
-      code = 4;
-      len = 3;
-    }
-    else if (cn == 1)
-    {
-      code = 10;
-      len = 4;
-    }
-    else if (cn == 2)
-    {
-      code = 11;
-      len = 4;
-    }
-    else if (cn < 11)
-    {
-      code = cn+21;
+    if (cn > 9)
+      fatalerror("Code too large for VLC.");
+    if (cn < 6) {
+      len = 2 + (cn >> 1);
+      code = 2 + (cn & 1);
+    } else {
       len = 5;
-    }
-    else
-    {
-      tmp = 1<<4;
-      code = tmp+(cn+5)%tmp;
-      len = 5+((cn+5)>>4);
+      code = (cn - 6);
     }
     break;
   case 10:
@@ -112,118 +152,22 @@ int put_vlc(unsigned int n,unsigned int cn,stream_t *str)
     len = 1+2*log2i(code);
     break;
   case 11:
-    len = cn < 2 ? cn + 1 : cn/2 + 3;
-    code = cn < 2 ? 1 : 2 + (cn&1);
-    break;
   case 12:
-    len = min(4,cn+1);
-    code = cn != 4;
-    break;
   case 13:
-    len = min(6,cn+1);
-    code = cn != 6;
+  case 14:
+  case 15:
+  case 16:
+  case 17:
+  case 18:
+    if (cn > n - 10)
+      fatalerror("Code too large for VLC.");
+    len = cn == n - 10 ? n - 10 : cn + 1;
+    code = cn != n - 10;
     break;
   default:
-    fatalerror("No such VLC table, only 0-13 allowed.");
+    fatalerror("No such VLC table, only 0-18 allowed.");
   }
   putbits(len,code,str);
   return len;
 }
 
-int quote_vlc(unsigned int n,unsigned int cn)
-{
-    unsigned int len,tmp;
-    unsigned int code;
-
-    switch (n) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-      if ((int)cn < (6 * (1 << n)))
-      {
-        tmp = 1<<n;
-        code = tmp+(cn & (tmp-1));
-        len = 1+n+(cn>>n);
-      }
-      else
-      {
-        code = cn - (6 * (1 << n)) + (1 << n);
-        len = (6-n)+1+2*log2i(code);
-      }
-      break;
-    case 6:
-    case 7:
-      tmp = 1<<(n-4);
-      code = tmp+cn%tmp;
-      len = 1+(n-4)+(cn>>(n-4));
-      break;
-    case 8:
-      if (cn == 0)
-      {
-        code = 1;
-        len = 1;
-      }
-      else if (cn == 1)
-      {
-        code = 1;
-        len = 2;
-      }
-      else if (cn == 2)
-      {
-        code = 0;
-        len = 2;
-      }
-      else fatalerror("Code number too large for VLC8.");
-      break;
-    case 9:
-      if (cn == 0)
-      {
-        code = 4;
-        len = 3;
-      }
-      else if (cn == 1)
-      {
-        code = 10;
-        len = 4;
-      }
-      else if (cn == 2)
-      {
-        code = 11;
-        len = 4;
-      }
-      else if (cn < 11)
-      {
-        code = cn+21;
-        len = 5;
-      }
-      else
-      {
-        tmp = 1<<4;
-        code = tmp+(cn+5)%tmp;
-        len = 5+((cn+5)>>4);
-      }
-      break;
-    case 10:
-      code = cn+1;
-      len = 1+2*log2i(code);
-      break;
-    case 11:
-      len = cn < 2 ? cn + 1 : cn/2 + 3;
-      code = cn < 2 ? 1 : 2 + (cn&1);
-      break;
-    case 12:
-      len = min(4,cn+1);
-      code = cn==4 ? 0 : 1;
-      break;
-    case 13:
-      len = min(6,cn+1);
-      code = cn==6 ? 0 : 1;
-      break;
-    default:
-      fatalerror("No such VLC table, only 0-10 allowed.");
-    }
-    return len;
-}

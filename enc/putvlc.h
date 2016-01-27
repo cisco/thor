@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "putbits.h"
 #include "mainenc.h"
 
-void flush_bytebuf(stream_t *str, FILE *outfile);
 unsigned int put_vlc(int n, unsigned int cn, stream_t *str);
 
 static inline unsigned int put_flc(int n, unsigned int cn, stream_t *str)

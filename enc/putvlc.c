@@ -31,19 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "putvlc.h"
 #include "simd.h"
 
-
-void flush_bytebuf(stream_t *str, FILE *outfile)
-{
-  if (outfile)
-  {
-    if (fwrite(str->bitstream,sizeof(unsigned char),str->bytepos,outfile) != str->bytepos)
-    {
-      fatalerror("Problem writing bitstream to file.");
-    }
-  }
-  str->bytepos = 0;
-}
-
 static void flush_bitbuf(stream_t *str)
 {
   if ((str->bytepos+4) > str->bytesize)

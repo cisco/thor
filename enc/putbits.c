@@ -30,6 +30,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include "putbits.h"
 
+static void flush_bytebuf(stream_t *str, FILE *outfile)
+{
+  if (outfile)
+  {
+    if (fwrite(str->bitstream, sizeof(unsigned char), str->bytepos, outfile) != str->bytepos)
+    {
+      fatalerror("Problem writing bitstream to file.");
+    }
+  }
+  str->bytepos = 0;
+}
+
 void flush_all_bits(stream_t *str, FILE *outfile)
 {
   uint32_t frame_bytes;

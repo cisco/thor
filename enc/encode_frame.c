@@ -55,8 +55,8 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
     for (int n=0;n<MAX_BLOCK_SIZE/block_size;n++){
       int xpos = l*MAX_BLOCK_SIZE + n*block_size;
       int ypos = k*MAX_BLOCK_SIZE + m*block_size;
-      int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE); //Z
-      if (deblock_data[index].mode != MODE_SKIP) //Z
+      int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
+      if (deblock_data[index].mode != MODE_SKIP)
         (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1);
     }
   }

@@ -44,7 +44,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern int zigzag16[16];
 extern int zigzag64[64];
 extern int zigzag256[256];
-extern int super_table[8][20];
 extern int YPOS,XPOS;
 
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)

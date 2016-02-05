@@ -616,8 +616,7 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
           numNoskip += deblock_data[index].mode != MODE_SKIP;
         }
       }
-      //if (numNoskip > 16*enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) {
-      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) { //Y
+      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) {
         uint8_t tmp[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE*3/2];
         for (m=0; m<MAX_BLOCK_SIZE; m++)
           memcpy(tmp + m*MAX_BLOCK_SIZE, rec->y + (k*MAX_BLOCK_SIZE+m)*stride_y + l*MAX_BLOCK_SIZE, MAX_BLOCK_SIZE);
@@ -634,8 +633,7 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
             xpos = l*MAX_BLOCK_SIZE + n*block_size;
             ypos = k*MAX_BLOCK_SIZE + m*block_size;
             index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-            //int filter = enable_sb_flag ? 1 : deblock_data[index].mode != MODE_BIPRED;
-            int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED; //Z
+            int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED;
             if (filter) {
               if (deblock_data[index].cbp.y || enable_sb_flag)
                 (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_BLOCK_SIZE, xpos, ypos, block_size, width, height);

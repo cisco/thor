@@ -332,7 +332,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-encoder_speed",         "0", ARG_INTEGER,  &params->encoder_speed);
   add_param_to_list(&list, "-sync",                  "0", ARG_INTEGER,  &params->sync);
   add_param_to_list(&list, "-deblocking",            "1", ARG_INTEGER,  &params->deblocking);
-  add_param_to_list(&list, "-clpf",                  "1", ARG_INTEGER,  &params->clpf);
+  add_param_to_list(&list, "-clpf",                  "1", ARG_INTEGER,  &params->clpf); //0: off, 1: SB-level, 2: frame-level
   add_param_to_list(&list, "-snrcalc",               "1", ARG_INTEGER,  &params->snrcalc);
   add_param_to_list(&list, "-use_block_contexts",    "0", ARG_INTEGER,  &params->use_block_contexts);
   add_param_to_list(&list, "-enable_bipred",         "0", ARG_INTEGER,  &params->enable_bipred);

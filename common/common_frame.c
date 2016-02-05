@@ -592,9 +592,8 @@ void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
 
 }
 
-void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,
-                int (*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, void *)) {
-
+void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag,
+                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, void *)) {
   /* Constrained low-pass filter (CLPF) */
   int width = rec->width;
   int height = rec->height;
@@ -608,19 +607,17 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int cand = 0;
-
+      int numNoskip = 0;
       for (m=0;m<MAX_BLOCK_SIZE/block_size;m++){
         for (n=0;n<MAX_BLOCK_SIZE/block_size;n++){
           xpos = l*MAX_BLOCK_SIZE + n*block_size;
           ypos = k*MAX_BLOCK_SIZE + m*block_size;
           index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-          cand |= deblock_data[index].mode != MODE_BIPRED &&
-            (deblock_data[index].cbp.y || deblock_data[index].cbp.u || deblock_data[index].cbp.v);
+          numNoskip += deblock_data[index].mode != MODE_SKIP;
         }
       }
-
-      if (cand && decision(k, l, rec, org, deblock_data, block_size, stream)) {
+      //if (numNoskip > 16*enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) {
+      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) { //Y
         uint8_t tmp[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE*3/2];
         for (m=0; m<MAX_BLOCK_SIZE; m++)
           memcpy(tmp + m*MAX_BLOCK_SIZE, rec->y + (k*MAX_BLOCK_SIZE+m)*stride_y + l*MAX_BLOCK_SIZE, MAX_BLOCK_SIZE);
@@ -637,24 +634,20 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
             xpos = l*MAX_BLOCK_SIZE + n*block_size;
             ypos = k*MAX_BLOCK_SIZE + m*block_size;
             index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-            int filter = deblock_data[index].mode != MODE_BIPRED;
-
+            //int filter = enable_sb_flag ? 1 : deblock_data[index].mode != MODE_BIPRED;
+            int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED; //Z
             if (filter) {
-              /* Y */
-              if (deblock_data[index].cbp.y)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->y,tmp,stride_y,MAX_BLOCK_SIZE, xpos,ypos,block_size,width, height);
-
-              /* C */
-              if (deblock_data[index].cbp.u)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->u,tmp+MAX_BLOCK_SIZE*MAX_BLOCK_SIZE,stride_c,MAX_BLOCK_SIZE/2,xpos/2,ypos/2,block_size/2,width/2,height/2);
-              if (deblock_data[index].cbp.v)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->v,tmp+MAX_BLOCK_SIZE*MAX_BLOCK_SIZE*5/4,stride_c,MAX_BLOCK_SIZE/2,xpos/2,ypos/2,block_size/2,width/2,height/2);
+              if (deblock_data[index].cbp.y || enable_sb_flag)
+                (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_BLOCK_SIZE, xpos, ypos, block_size, width, height);
+              if (deblock_data[index].cbp.u || enable_sb_flag)
+                (use_simd ? clpf_block_simd : clpf_block)(rec->u, tmp + MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, stride_c, MAX_BLOCK_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2);
+              if (deblock_data[index].cbp.v || enable_sb_flag)
+                (use_simd ? clpf_block_simd : clpf_block)(rec->v, tmp + MAX_BLOCK_SIZE*MAX_BLOCK_SIZE * 5 / 4, stride_c, MAX_BLOCK_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2);
             }
           }
         }
         for (m=0; m<MAX_BLOCK_SIZE; m++)
           memcpy(rec->y + (k*MAX_BLOCK_SIZE+m)*stride_y + l*MAX_BLOCK_SIZE, tmp + m*MAX_BLOCK_SIZE, MAX_BLOCK_SIZE);
-
         for (m=0; m<MAX_BLOCK_SIZE/2; m++) {
           memcpy(rec->u + (k*MAX_BLOCK_SIZE/2+m)*stride_c + l*MAX_BLOCK_SIZE/2,
                  tmp+MAX_BLOCK_SIZE*MAX_BLOCK_SIZE + m*MAX_BLOCK_SIZE/2, MAX_BLOCK_SIZE/2);

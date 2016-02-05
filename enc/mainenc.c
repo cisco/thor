@@ -209,7 +209,7 @@ int main(int argc, char **argv)
   put_flc(1,params->interp_ref,&stream);// Use an interpolated reference frame
   put_flc(1, (params->max_delta_qp || params->bitrate), &stream);
   put_flc(1,params->deblocking,&stream);
-  put_flc(1,params->clpf,&stream);
+  put_flc(1,params->clpf ? 1 : 0,&stream);
   put_flc(1,params->use_block_contexts,&stream);
   put_flc(1,params->enable_bipred,&stream);
   put_flc(1,params->qmtx,&stream);

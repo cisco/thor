@@ -42,4 +42,6 @@ void find_block_contexts(int ypos, int xpos, int height, int width, int size, de
 
 void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height);
 
+int clpf_sample(int X, int A, int B, int C, int D);
+
 #endif

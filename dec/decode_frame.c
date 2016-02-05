@@ -133,8 +133,8 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   }
 
   if (decoder_info->clpf && get_flc(1, stream)){
-    clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream,
-               get_flc(1, stream) ? clpf_true : clpf_bit);
+    int enable_sb_flag = !get_flc(1, stream);
+    clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_bit : clpf_true);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

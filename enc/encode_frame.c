@@ -50,14 +50,14 @@ static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock
 }
 
 static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream) {
-    int sum0 = 0, sum1 = 0;
+  int sum0 = 0, sum1 = 0;
   for (int m=0;m<MAX_BLOCK_SIZE/block_size;m++){
     for (int n=0;n<MAX_BLOCK_SIZE/block_size;n++){
       int xpos = l*MAX_BLOCK_SIZE + n*block_size;
       int ypos = k*MAX_BLOCK_SIZE + m*block_size;
-      int index = (ypos/MIN_PB_SIZE)*(rec->width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-      if (deblock_data[index].cbp.y && deblock_data[index].mode != MODE_BIPRED)
-        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y,org->y,xpos,ypos,rec->width,rec->height,org->stride_y,rec->stride_y,&sum0,&sum1);
+      int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE); //Z
+      if (deblock_data[index].mode != MODE_SKIP) //Z
+        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1);
     }
   }
   put_flc(1, sum1 < sum0, (stream_t*)stream);
@@ -185,13 +185,11 @@ void encode_frame(encoder_info_t *encoder_info)
     deblock_frame_uv(encoder_info->rec, encoder_info->deblock_data, width, height, qpc);
   }
 
-  int sb_signal = 1;
-
   if (encoder_info->params->clpf){
+    int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
     put_flc(1, 1, stream);
-    put_flc(1, !sb_signal, stream);
-    clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream,
-               sb_signal ? clpf_decision : clpf_true);
+    put_flc(1, !enable_sb_flag, stream);
+    clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_decision : clpf_true);
   }
 
   if (encoder_info->params->bitrate > 0) {

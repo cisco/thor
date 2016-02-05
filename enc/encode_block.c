@@ -2745,7 +2745,7 @@ void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width
       int B = x == left ? X : rec[(y+0)*stride + x-1];
       int C = x == right ? X : rec[(y+0)*stride + x+1];
       int D = y == bottom ? X : rec[(y+1)*stride + x+0];
-      int delta = ((A>X)+(B>X)+(C>X)+(D>X) > 2) - ((A<X)+(B<X)+(C<X)+(D<X) > 2);
+      int delta = clpf_sample(X, A, B, C, D);
       int F = X + delta;
       *sum0 += (O-X)*(O-X);
       *sum1 += (O-F)*(O-F);

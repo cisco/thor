@@ -186,10 +186,14 @@ void encode_frame(encoder_info_t *encoder_info)
   }
 
   if (encoder_info->params->clpf){
-    int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
-    put_flc(1, 1, stream);
-    put_flc(1, !enable_sb_flag, stream);
-    clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_decision : clpf_true);
+    if (qp < 12) // CLPF will have no effect if the quality is very high quality
+      put_flc(1, 0, stream);
+    else {
+      int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
+      put_flc(1, 1, stream);
+      put_flc(1, !enable_sb_flag, stream);
+      clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_decision : clpf_true);
+    }
   }
 
   if (encoder_info->params->bitrate > 0) {

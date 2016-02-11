@@ -2639,7 +2639,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   if (encode_this_size){
     YPOS = ypos;
     XPOS = xpos;
-#if TEST_AVAILABILITY
+#if TEST_AVAILABILITY //Note: Does not work with top_down
     int ur = get_upright_available(ypos,xpos,size,width);
     int dl = get_downleft_available(ypos,xpos,size,height);
     if (ur != frame_info->ur[by][bx+bs])
@@ -2647,7 +2647,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     if (dl != frame_info->dl[by+bs][bx])
       printf("Error in upright availability: ypos=%4d xpos=%4d size=%4d bur=%4d ur=%4d\n",ypos,xpos,size,frame_info->dl[by+bs][bx],dl);
     frame_info->ur[by+1][bx] = 1;
-    frame_info->dl[by][bx+1] = 1; 
+    frame_info->dl[by][bx+1] = 1;
 #endif
 
     /* RDO-based mode decision */

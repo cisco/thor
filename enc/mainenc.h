@@ -138,10 +138,6 @@ typedef struct
   double lambda;
   int num_intra_modes;
   int frame_num;
-#if TEST_AVAILABILITY
-  int ur[9][9];
-  int dl[9][9];
-#endif
   int interp_ref;
   int b_level;
   double lambda_coeff;

@@ -150,7 +150,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   ver_int = max(ver_int,-xpos-height);
   hor_int = min(hor_int,pic_width-xpos);
   hor_int = max(hor_int,-xpos-width);
-  int32_t tmp[MAX_BLOCK_SIZE+16][MAX_BLOCK_SIZE + 16]; //7-bit filter exceeds 16 bit temporary storage
+  int32_t tmp[MAX_SB_SIZE+16][MAX_SB_SIZE + 16]; //7-bit filter exceeds 16 bit temporary storage
   /* Integer position */
   if (ver_frac==0 && hor_frac==0){
     j_off = 0 + hor_int;

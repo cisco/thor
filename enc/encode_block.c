@@ -517,7 +517,7 @@ int quote_mv_bits(int mv_diff_y, int mv_diff_x)
 int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda,enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred){
   unsigned int sad;
   uint32_t min_sad;
-  uint8_t *rf = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *rf = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   mv_t mv_cand;
   mv_t mv_opt;
   mv_t mv_ref;
@@ -705,7 +705,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
 int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda,enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred){
   int k,l,sad,range,step;
   uint32_t min_sad;
-  uint8_t *rf = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *rf = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   mv_t mv_cand;
   mv_t mv_opt;
   mv_t mv_ref;
@@ -789,9 +789,9 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
 int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda, enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred) {
   int k, l, sad, range, step;
   uint32_t min_sad;
-  uint8_t *rf = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *rf0 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *rf1 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *rf = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *rf0 = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *rf1 = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   mv_t mv_cand;
   mv_t mv_opt;
   mv_t mv_ref;
@@ -920,7 +920,7 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
   int yposY = block_pos->ypos;
   int xposY = block_pos->xpos;
   int sad,min_sad;
-  uint8_t *pblock = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t* left = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
   uint8_t* top = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
   uint8_t top_left;
@@ -1308,9 +1308,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     return nbits;
   }
 
-  uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
 
   int ref_idx = (frame_type==I_FRAME) ? 0 : block_param->ref_idx0;
   int r = encoder_info->frame_info.ref_array[ref_idx];
@@ -1320,12 +1320,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   ref = NULL;
 
   /* Variables for bipred */
-  uint8_t *pblock0_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock0_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock0_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   int r0,r1;
   yuv_frame_t *ref0;
   yuv_frame_t *ref1;
@@ -1748,10 +1748,10 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
   yuv_frame_t *ref;
   yuv_frame_t *rec = encoder_info->rec;
   yuv_block_t *org_block = block_info->org_block;
-  uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *org8 = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *org8 = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
 
   int width = encoder_info->width;
   int height = encoder_info->height;
@@ -2323,7 +2323,7 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
   float early_skip_threshold = encoder_info->params->early_skip_thr;
   int enable_bipred = encoder_info->params->enable_bipred;
 
-  if (encoder_info->params->encoder_speed > 1 && size == MAX_BLOCK_SIZE)
+  if (encoder_info->params->encoder_speed > 1 && size == (1<<encoder_info->params->log2_sb_size))
     early_skip_threshold = 1.3*early_skip_threshold;
 
   if (block_param->dir==2){
@@ -2483,6 +2483,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   stream_t *stream = encoder_info->stream;
   double lambda = encoder_info->frame_info.lambda;
   int nbit,early_skip_flag;
+  int sb_size = 1 << encoder_info->params->log2_sb_size;
   frame_type_t frame_type = encoder_info->frame_info.frame_type;
 
   if (ypos >= height || xpos >= width)
@@ -2590,7 +2591,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     int split_flag = 1;
     block_param_t block_param;
     write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
-    if (size == MAX_BLOCK_SIZE && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
+    if (size == sb_size && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
       write_delta_qp(stream,block_info.delta_qp);
     }
     cost_small = 0; //TODO: Why not nbit * lambda?
@@ -2670,7 +2671,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     }
   }
 
-  if (size == MAX_BLOCK_SIZE) {
+  if (size == sb_size) {
     if (cost > cost_small || block_info.block_param.mode != MODE_SKIP) {
       encoder_info->frame_info.prev_qp = qp;
     }
@@ -2686,10 +2687,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
 void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1)
 {
-  int left = x0 & ~(MAX_BLOCK_SIZE-1);
-  int top = y0 & ~(MAX_BLOCK_SIZE-1);
-  int right = min(width-1, left + MAX_BLOCK_SIZE-1);
-  int bottom = min(height-1, top + MAX_BLOCK_SIZE-1);
+  int left = x0 & ~(MAX_SB_SIZE-1);
+  int top = y0 & ~(MAX_SB_SIZE-1);
+  int right = min(width-1, left + MAX_SB_SIZE-1);
+  int bottom = min(height-1, top + MAX_SB_SIZE-1);
 
   for (int y=y0;y<y0+8;y++){
     for (int x=x0;x<x0+8;x++) {

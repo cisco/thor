@@ -179,20 +179,20 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   int qpC = chroma_qp[qpY];
 
   /* Intermediate block variables */
-  uint8_t *pblock_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   int16_t *coeff_y = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *coeff_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *coeff_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
   /* Block variables for bipred */
-  uint8_t *pblock0_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock0_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock0_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_y = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_u = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
-  uint8_t *pblock1_v = thor_alloc(MAX_BLOCK_SIZE*MAX_BLOCK_SIZE, 16);
+  uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   yuv_frame_t *rec = decoder_info->rec;
   yuv_frame_t *ref = decoder_info->ref[0];
 
@@ -664,7 +664,7 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   mode = decoder_info->mode;
   
   /* Read delta_qp and set block-level qp */
-  if (size==MAX_BLOCK_SIZE && (split_flag || mode != MODE_SKIP) && decoder_info->max_delta_qp > 0){
+  if (size == (1<<decoder_info->log2_sb_size) && (split_flag || mode != MODE_SKIP) && decoder_info->max_delta_qp > 0) {
     /* Read delta_qp */
     int delta_qp = read_delta_qp(stream);
     int prev_qp;

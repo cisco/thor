@@ -248,82 +248,64 @@ static const int16_t *transform_table[5] = { &g1mat_hevc[0][0], &g2mat_hevc[0][0
 
 void transform (const int16_t *block, int16_t *coeff, int size, int fast)
 {
-  if (use_simd)
+  if (use_simd && size <= 64) //TODO: SIMD implementation of 128x128 transform
     transform_simd(block, coeff, size, fast);
   else {
-    int dsize = size;
     int16_t tmp[MAX_TR_SIZE][MAX_TR_SIZE];
     int16_t tmp2[32*32];
-    int tr_log2size = log2i(size);
-    int tr = tr_log2size - 2;
-    const int16_t * tr_matrix = transform_table[tr];
-
-    const int bit_depth = 8;
-
-    int shift_1 = tr_log2size + bit_depth - 8;
-    int add_1 = 1 << (shift_1 - 1);
-
-    int shift_2 = tr_log2size + 5;
-    int add_2 = 1 << (shift_2 -1);
-
-    int qsize = min(size,MAX_QUANT_SIZE);
+    const int16_t * tr_matrix;
     const int16_t *in = block;
+    int tr_log2size = log2i(size);
+    int qsize = min(size, MAX_QUANT_SIZE);
+    int shift_1, shift_2, add_1, add_2;
+    int i, j, m, n, sum, size1, scale;
 
-    /* Add into 16x16 block and do a 16x16 transform */
-    if (size > 16 && fast) {
-      tr_matrix = transform_table[2];
-      shift_1 += 1 + (size == 64);
-      add_1 = 1 << (shift_1 - 1);
-      shift_2 = 9;
-      add_2 = 256;
-      for (int i = 0; i < 16; i++)
-        for (int j = 0; j < 16; j++)
-          if (size == 32)
-            tmp2[i*16+j] =
-              block[(i*2+0)*32+j*2+0] + block[(i*2+1)*32+j*2+0] +
-              block[(i*2+0)*32+j*2+1] + block[(i*2+1)*32+j*2+1];
-          else
-            tmp2[i*16+j] =
-              block[(i*4+0)*64+j*4+0] + block[(i*4+1)*64+j*4+0] + block[(i*4+2)*64+j*4+0] + block[(i*4+3)*64+j*4+0] +
-              block[(i*4+0)*64+j*4+1] + block[(i*4+1)*64+j*4+1] + block[(i*4+2)*64+j*4+1] + block[(i*4+3)*64+j*4+1] +
-              block[(i*4+0)*64+j*4+2] + block[(i*4+1)*64+j*4+2] + block[(i*4+2)*64+j*4+2] + block[(i*4+3)*64+j*4+2] +
-              block[(i*4+0)*64+j*4+3] + block[(i*4+1)*64+j*4+3] + block[(i*4+2)*64+j*4+3] + block[(i*4+3)*64+j*4+3];
-      size = 16;
+    size1 = size;
+    scale = 1;
+    if (size > (32>>fast)) {
+      /* Simplification of larger transforms */
+      size1 = 32 >> fast;
+      scale = size / size1;
+      for (i = 0; i < size1; i++) {
+        for (j = 0; j < size1; j++) {
+          sum = 0;
+          for (m = 0; m < scale; m++) {
+            for (n = 0; n < scale; n++) {
+              sum += block[(i * scale + m) * size + j * scale + n];
+            }
+          }
+          tmp2[i * size1 + j] = sum;
+        }
+      }
       in = tmp2;
     }
-    else if (size == 64) {
-      tr_matrix = transform_table[3];
-      shift_1 = 7;
-      add_1 = 1 << (shift_1 - 1);
-      shift_2 = 10;
-      add_2 = 1 << (shift_2 - 1);
-      for (int i = 0; i < 32; i++)
-        for (int j = 0; j < 32; j++)
-          tmp2[i * 32 + j] =
-          block[(i * 2 + 0) * 64 + j * 2 + 0] + block[(i * 2 + 1) * 64 + j * 2 + 0] +
-          block[(i * 2 + 0) * 64 + j * 2 + 1] + block[(i * 2 + 1) * 64 + j * 2 + 1];
-      size = 32;
-      in = tmp2;
-    }
+
+    /* Set up core transform parameters */
+    tr_log2size = log2i(size1);
+    tr_matrix = transform_table[tr_log2size - 2];
+    shift_1 = log2i(size*scale); //averaging of scale*scale pixels in simplified transform implies increase of shift_1 by log2i(scale) bits
+    add_1 = 1 << (shift_1 - 1);
+    shift_2 = tr_log2size + 5;
+    add_2 = 1 << (shift_2 - 1);
+
     /* 1st dimension */
     for (int i = 0; i < qsize; i++){
-      for (int j = 0; j < size; j++){
+      for (int j = 0; j < size1; j++){
         int sum = 0;
-        for (int k = 0; k < size; k++){
-          sum += tr_matrix[i*size + k] * in[j*size + k];
+        for (int k = 0; k < size1; k++){
+          sum += tr_matrix[i*size1 + k] * in[j*size1 + k];
         }
         tmp[i][j] = (sum + add_1) >> shift_1;
       }
     }
-
     /* 2nd dimension */
     for (int i = 0; i < qsize; i++){
       for (int j = 0; j < qsize; j++){
         int sum = 0;
-        for (int k = 0; k < size; k++){
-          sum += tr_matrix[i*size + k] * tmp[j][k];
+        for (int k = 0; k < size1; k++){
+          sum += tr_matrix[i*size1 + k] * tmp[j][k];
         }
-        coeff[i*dsize + j] = (sum + add_2) >> shift_2;
+        coeff[i*size + j] = (sum + add_2) >> shift_2;
       }
     }
   }
@@ -444,7 +426,7 @@ void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
 
   /* 1st dimension */
   for (i = 0; i<qsize; i++) {
-    if (size >= MAX_QUANT_SIZE) {
+    if (size == 64) {
       /* Partial factorization */
       transform_1d_even_l0(coeff, tr_matrix, size, i, out);
     }
@@ -465,7 +447,7 @@ void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
 
   /* 2nd dimension */
   for (i = 0; i < size; i++) {
-    if (size >= MAX_QUANT_SIZE) {
+    if (size == 64) {
       /* Partial factorization */
       transform_1d_even_l0(tmp, tr_matrix, size, i, out);
     }
@@ -494,22 +476,27 @@ void inverse_transform (const int16_t * coeff, int16_t *block, int size)
       inverse_transform_non_simd(coeff, block, size);
   }
   else {
-    int i, j;
+    /* Larger transforms are implemented as a 32x32 kernel followed by scale*scale duplication */
+    int i, j, m, n, tmp, scale;
     int16_t *coeff2 = thor_alloc(2 * 32 * 32, 16);
     int16_t *block2 = thor_alloc(2 * 32 * 32, 16);
     for (i = 0; i < 32; i++) {
-      memcpy(coeff2 + i * 32, coeff + i * 64, 32 * sizeof(int16_t));
+      memcpy(coeff2 + i * 32, coeff + i * size, 32 * sizeof(int16_t));
     }
-    if (use_simd)
+    if (use_simd && size == 64)
       inverse_transform_simd(coeff2, block2, 32);
     else
       inverse_transform_non_simd(coeff2, block2, 32);
+
+    scale = size / 32;
     for (i = 0; i < 32; i++) {
       for (j = 0; j < 32; j++) {
-        block[(2 * i + 0) * 64 + 2 * j + 0] =
-        block[(2 * i + 0) * 64 + 2 * j + 1] =
-        block[(2 * i + 1) * 64 + 2 * j + 0] =
-        block[(2 * i + 1) * 64 + 2 * j + 1] = block2[i * 32 + j];
+        tmp = block2[i * 32 + j];
+        for (m = 0; m < scale; m++) {
+          for (n = 0; n < scale; n++) {
+            block[(scale * i + m) * size + scale * j + n] = tmp;
+          }
+        }
       }
     }
     thor_free(coeff2);

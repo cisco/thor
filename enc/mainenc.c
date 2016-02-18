@@ -203,6 +203,7 @@ int main(int argc, char **argv)
   start_bits = get_bit_pos(&stream);
   put_flc(16,width,&stream);
   put_flc(16,height,&stream);
+  put_flc(3,params->log2_sb_size, &stream);
   put_flc(1,params->enable_pb_split,&stream);
   put_flc(1,params->enable_tb_split,&stream);
   put_flc(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
@@ -232,7 +233,8 @@ int main(int argc, char **argv)
   encoder_info.rc = &rc;
   if (params->bitrate > 0) {
     int target_bits = params->bitrate / params->frame_rate;
-    int num_sb = ((width + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE) * ((height + MAX_BLOCK_SIZE - 1) / MAX_BLOCK_SIZE);
+    int sb_size = 1 << params->log2_sb_size;
+    int num_sb = ((width + sb_size - 1) / sb_size) * ((height + sb_size - 1) / sb_size);
     init_rate_control_per_sequence(&rc, target_bits, num_sb);
   }
 

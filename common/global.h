@@ -54,13 +54,13 @@ static inline void fatalerror(char error_text[])
 #define clip255(n) min(255, max(0, (n)))
 #define clip(n, low, high) min ((high), max ((n), (low)))
 
-#define MAX_BLOCK_SIZE 64        //Maximum block size
+#define MAX_SB_SIZE 128          //Maximum block size
 #define MIN_BLOCK_SIZE 8         //Minimum block size
-#define NUM_BLOCK_SIZES 4        //Number of distinct block sizes (=log2(MAX_BLOCK_SIZE/MIN_BLOCK_SIZE)+1)
+#define NUM_BLOCK_SIZES 5        //Number of distinct block sizes (=log2(MAX_SB_SIZE/MIN_BLOCK_SIZE)+1)
 #define MIN_PB_SIZE 4            //Minimum pu block size
 #define MAX_QUANT_SIZE 16        //Maximum quantization block size
 #define MAX_BUFFER_SIZE 4000000  //Maximum compressed buffer size per frame
-#define MAX_TR_SIZE 64           //Maximum transform size
+#define MAX_TR_SIZE 128          //Maximum transform size
 #define TR_SIZE_RANGE (NUM_BLOCK_SIZES+1)
 #define PADDING_Y 96             //One-sided padding range for luma
 #define MAX_UINT32 1<<31         //Used e.g. to initialize search for minimum cost

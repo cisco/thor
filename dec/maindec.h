@@ -82,6 +82,7 @@ typedef struct
     int bipred;
     int depth;
     int qmtx;
+    int log2_sb_size;
     qmtx_t *iwmatrix[52][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 

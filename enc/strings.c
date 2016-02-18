@@ -294,7 +294,8 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-skip",                  "0", ARG_INTEGER,  &params->skip);
   add_param_to_list(&list, "-width",              "1920", ARG_INTEGER,  &params->width);
   add_param_to_list(&list, "-height",             "1080", ARG_INTEGER,  &params->height);
-  add_param_to_list(&list, "-qp",                   "32", ARG_INTEGER,  &params->qp);  
+  add_param_to_list(&list, "-qp",                   "32", ARG_INTEGER,  &params->qp);
+  add_param_to_list(&list, "-log2_sb_size",          "6", ARG_INTEGER,  &params->log2_sb_size);
   add_param_to_list(&list, "-f",                    "60", ARG_FLOAT,    &params->frame_rate);
   add_param_to_list(&list, "-lambda_coeffI",       "1.0", ARG_FLOAT,    &params->lambda_coeffI);
   add_param_to_list(&list, "-lambda_coeffP",       "1.0", ARG_FLOAT,    &params->lambda_coeffP);
@@ -485,5 +486,9 @@ void check_parameters(enc_params *params)
 
   if (params->bitrate > 0 && params->num_reorder_pics > 0){
     fatalerror("Current rate control doesn't work with frame reordering\n");
+  }
+
+  if (params->log2_sb_size < 6 || params->log2_sb_size > MAX_SB_SIZE) {
+    fatalerror("Illegal value for log2_sb_size\n");
   }
 }

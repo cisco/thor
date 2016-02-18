@@ -51,10 +51,10 @@ static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock
 
 static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream) {
   int sum0 = 0, sum1 = 0;
-  for (int m=0;m<MAX_BLOCK_SIZE/block_size;m++){
-    for (int n=0;n<MAX_BLOCK_SIZE/block_size;n++){
-      int xpos = l*MAX_BLOCK_SIZE + n*block_size;
-      int ypos = k*MAX_BLOCK_SIZE + m*block_size;
+  for (int m=0;m<MAX_SB_SIZE/block_size;m++){
+    for (int n=0;n<MAX_SB_SIZE/block_size;n++){
+      int xpos = l*MAX_SB_SIZE + n*block_size;
+      int ypos = k*MAX_SB_SIZE + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP)
         (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1);
@@ -69,8 +69,9 @@ void encode_frame(encoder_info_t *encoder_info)
   int k,l;
   int width = encoder_info->width;
   int height = encoder_info->height;  
-  int num_sb_hor = (width + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
-  int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
+  int sb_size = 1 << encoder_info->params->log2_sb_size;
+  int num_sb_hor = (width + sb_size - 1) / sb_size;
+  int num_sb_ver = (height + sb_size - 1) / sb_size;
   stream_t *stream = encoder_info->stream;
 
   memset(encoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
@@ -128,9 +129,8 @@ void encode_frame(encoder_info_t *encoder_info)
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int xposY = l*MAX_BLOCK_SIZE;
-      int yposY = k*MAX_BLOCK_SIZE;
-
+      int xposY = l*sb_size;
+      int yposY = k*sb_size;
       for (int ref_idx = 0; ref_idx <= frame_info->num_ref - 1; ref_idx++){
         frame_info->mvcand_num[ref_idx] = 0;
         frame_info->mvcand_mask[ref_idx] = 0;
@@ -150,7 +150,7 @@ void encode_frame(encoder_info_t *encoder_info)
         max_qp = qp+max_delta_qp;
         int pqp = encoder_info->frame_info.prev_qp; // Save prev_qp in local variable
         for (qp0=min_qp;qp0<=max_qp;qp0+=encoder_info->params->delta_qp_step){
-          cost = process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,qp0);
+          cost = process_block(encoder_info, sb_size, yposY, xposY, qp0);
           if (cost < min_cost){
             min_cost = cost;
             best_qp = qp0;
@@ -158,19 +158,19 @@ void encode_frame(encoder_info_t *encoder_info)
         }
         encoder_info->frame_info.prev_qp = pqp; // Restore prev_qp from local variable
         write_stream_pos(stream,&stream_pos_ref);
-        process_block(encoder_info,MAX_BLOCK_SIZE,yposY,xposY,best_qp);
+        process_block(encoder_info, sb_size, yposY, xposY, best_qp);
       }
       else{
         if (encoder_info->params->bitrate > 0) {
           start_bits_sb = get_bit_pos(stream);
-          process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
+          process_block(encoder_info, sb_size, yposY, xposY, qp);
           end_bits_sb = get_bit_pos(stream);
           num_bits_sb = end_bits_sb - start_bits_sb;
           qp = update_rate_control_sb(encoder_info->rc, sb_idx, num_bits_sb, qp);
           sb_idx++;
         }
         else {
-          process_block(encoder_info, MAX_BLOCK_SIZE, yposY, xposY, qp);
+          process_block(encoder_info, sb_size, yposY, xposY, qp);
         }
       }
     }

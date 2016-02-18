@@ -342,7 +342,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
     block_info->block_pos.xpos + size <= encoder_info->width;
   write_super_mode(stream, encoder_info, block_info, block_param, split_flag, encode_this_size);
 
-  if (size == MAX_BLOCK_SIZE && mode != MODE_SKIP && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
+  if (size == (1<< encoder_info->params->log2_sb_size) && mode != MODE_SKIP && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
     write_delta_qp(stream, block_info->delta_qp);
   }
   /* Code intra mode */

@@ -129,6 +129,8 @@ int main(int argc, char** argv)
     decoder_info.height = height;
     printf("width=%4d height=%4d\n",width,height);
 
+    decoder_info.log2_sb_size = get_flc(3, &stream);
+
     decoder_info.pb_split = get_flc(1, &stream);
     printf("pb_split_enable=%1d\n",decoder_info.pb_split); //TODO: Rename variable to pb_split_enable
 
@@ -253,6 +255,7 @@ int main(int argc, char** argv)
     printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][1],bit_count.size[0][1]/ni,bit_count.size[1][1],bit_count.size[1][1]/np,bit_count.size[2][1],bit_count.size[2][1]/nb);
     printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][2],bit_count.size[0][2]/ni,bit_count.size[1][2],bit_count.size[1][2]/np,bit_count.size[2][2],bit_count.size[2][2]/nb);
     printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][3],bit_count.size[0][3]/ni,bit_count.size[1][3],bit_count.size[1][3]/np,bit_count.size[2][3],bit_count.size[2][3]/nb);
+    printf("128x128-blocks (8x8):  %9d  %9d  %9d  %9d  %9d  %9d\n",bit_count.size[0][4],bit_count.size[0][4]/ni,bit_count.size[1][4],bit_count.size[1][4]/np,bit_count.size[2][4],bit_count.size[2][4]/nb);
 
     printf("\n");
     printf("Mode and size distribution for P pictures:\n");
@@ -261,6 +264,8 @@ int main(int argc, char** argv)
     printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][1][0],bit_count.size_and_mode[P_FRAME][1][1],bit_count.size_and_mode[P_FRAME][1][2],bit_count.size_and_mode[P_FRAME][1][3],bit_count.size_and_mode[P_FRAME][1][4]);
     printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][2][0],bit_count.size_and_mode[P_FRAME][2][1],bit_count.size_and_mode[P_FRAME][2][2],bit_count.size_and_mode[P_FRAME][2][3],bit_count.size_and_mode[P_FRAME][2][4]);
     printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][3][0],bit_count.size_and_mode[P_FRAME][3][1],bit_count.size_and_mode[P_FRAME][3][2],bit_count.size_and_mode[P_FRAME][3][3],bit_count.size_and_mode[P_FRAME][3][4]);
+    printf("128x128-blocks (8x8):  %9d  %9d  %9d  %9d  %9d\n",bit_count.size_and_mode[P_FRAME][4][0],bit_count.size_and_mode[P_FRAME][4][1],bit_count.size_and_mode[P_FRAME][4][2],bit_count.size_and_mode[P_FRAME][4][3],bit_count.size_and_mode[P_FRAME][4][4]);
+
 
     printf("\n");
     printf("Mode and size distribution for B pictures:\n");
@@ -269,6 +274,7 @@ int main(int argc, char** argv)
     printf("16x16-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][1][0], bit_count.size_and_mode[B_FRAME][1][1], bit_count.size_and_mode[B_FRAME][1][2], bit_count.size_and_mode[B_FRAME][1][3], bit_count.size_and_mode[B_FRAME][1][4]);
     printf("32x32-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][2][0], bit_count.size_and_mode[B_FRAME][2][1], bit_count.size_and_mode[B_FRAME][2][2], bit_count.size_and_mode[B_FRAME][2][3], bit_count.size_and_mode[B_FRAME][2][4]);
     printf("64x64-blocks (8x8):    %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][3][0], bit_count.size_and_mode[B_FRAME][3][1], bit_count.size_and_mode[B_FRAME][3][2], bit_count.size_and_mode[B_FRAME][3][3], bit_count.size_and_mode[B_FRAME][3][4]);
+    printf("128x128-blocks (8x8):  %9d  %9d  %9d  %9d  %9d\n", bit_count.size_and_mode[B_FRAME][4][0], bit_count.size_and_mode[B_FRAME][4][1], bit_count.size_and_mode[B_FRAME][4][2], bit_count.size_and_mode[B_FRAME][4][3], bit_count.size_and_mode[B_FRAME][4][4]);
 
     int idx;
     int num = 5 + decoder_info.max_num_ref;
@@ -278,7 +284,7 @@ int main(int argc, char** argv)
     printf("\n");
     for (idx=0;idx<NUM_BLOCK_SIZES;idx++){
       int size = 8<<idx;
-      printf("%2d x %2d-blocks: ",size,size);
+      printf("%3d x %3d-blocks: ",size,size);
       for (i=0;i<num;i++){
         printf("%8d",bit_count.super_mode_stat[P_FRAME][idx][i]);
       }
@@ -291,7 +297,7 @@ int main(int argc, char** argv)
     printf("\n");
     for (idx = 0; idx<NUM_BLOCK_SIZES; idx++) {
       int size = 8 << idx;
-      printf("%2d x %2d-blocks: ", size, size);
+      printf("%3d x %3d-blocks: ", size, size);
       for (i = 0; i<num; i++) {
         printf("%8d", bit_count.super_mode_stat[B_FRAME][idx][i]);
       }
@@ -304,7 +310,7 @@ int main(int argc, char** argv)
     printf("Ref_idx and size distribution for P pictures:\n");
     for (i=0;i<NUM_BLOCK_SIZES;i++){
       size = 1<<(i+3);
-      printf("%2d x %2d-blocks: ",size,size);
+      printf("%3d x %3d-blocks: ",size,size);
       for (j=0;j<decoder_info.max_num_ref;j++){
         printf("%6d",bit_count.size_and_ref_idx[P_FRAME][i][j]);
       }
@@ -315,7 +321,7 @@ int main(int argc, char** argv)
     printf("Ref_idx and size distribution for B pictures:\n");
     for (i = 0; i<NUM_BLOCK_SIZES; i++) {
       size = 1 << (i + 3);
-      printf("%2d x %2d-blocks: ", size, size);
+      printf("%3d x %3d-blocks: ", size, size);
       for (j = 0; j<decoder_info.max_num_ref; j++) {
         printf("%6d", bit_count.size_and_ref_idx[B_FRAME][i][j]);
       }

@@ -164,9 +164,9 @@ typedef struct
   cbp_t cbp;
   int tb_param;
   int tb_split;
-  int16_t coeff_y[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
-  int16_t coeff_u[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
-  int16_t coeff_v[MAX_BLOCK_SIZE / 2 * MAX_BLOCK_SIZE / 2];
+  int16_t coeff_y[MAX_SB_SIZE*MAX_SB_SIZE];
+  int16_t coeff_u[MAX_SB_SIZE / 2 * MAX_SB_SIZE / 2];
+  int16_t coeff_v[MAX_SB_SIZE / 2 * MAX_SB_SIZE / 2];
 } block_param_t;
 
 typedef struct

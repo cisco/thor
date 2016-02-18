@@ -49,8 +49,9 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int height = decoder_info->height;
   int width = decoder_info->width;
   int k,l,r;
-  int num_sb_hor = (width + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
-  int num_sb_ver = (height + MAX_BLOCK_SIZE - 1)/MAX_BLOCK_SIZE;
+  int sb_size = 1 << decoder_info->log2_sb_size;
+  int num_sb_hor = (width + sb_size - 1) / sb_size;
+  int num_sb_ver = (height + sb_size - 1) / sb_size;
   stream_t *stream = decoder_info->stream;
   memset(decoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
@@ -118,9 +119,9 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int xposY = l*MAX_BLOCK_SIZE;
-      int yposY = k*MAX_BLOCK_SIZE;
-      process_block_dec(decoder_info,MAX_BLOCK_SIZE,yposY,xposY);
+      int xposY = l*sb_size;
+      int yposY = k*sb_size;
+      process_block_dec(decoder_info, sb_size, yposY, xposY);
     }
   }
 

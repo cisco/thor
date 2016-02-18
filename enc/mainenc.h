@@ -36,6 +36,7 @@ typedef struct
 {
   unsigned int width;
   unsigned int height;
+  int log2_sb_size;
   unsigned int qp;
   char *infilestr;
   char *outfilestr;
@@ -96,9 +97,9 @@ typedef struct
 
 typedef struct
 {
-  uint8_t y[MAX_BLOCK_SIZE*MAX_BLOCK_SIZE];
-  uint8_t u[MAX_BLOCK_SIZE/2*MAX_BLOCK_SIZE/2];
-  uint8_t v[MAX_BLOCK_SIZE/2*MAX_BLOCK_SIZE/2];
+  uint8_t y[MAX_SB_SIZE*MAX_SB_SIZE];
+  uint8_t u[MAX_SB_SIZE/2*MAX_SB_SIZE/2];
+  uint8_t v[MAX_SB_SIZE/2*MAX_SB_SIZE/2];
 } yuv_block_t;
 
 typedef struct

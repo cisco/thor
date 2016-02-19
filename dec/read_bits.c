@@ -219,9 +219,8 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     /* Derive skip vector candidates and number of skip vector candidates from neighbour blocks */
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
-    int bipred_copy = decoder_info->frame_info.interp_ref || stat_frame_type == P_FRAME ? 0 : 1;
     inter_pred_t skip_candidates[MAX_NUM_SKIP];
-    num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, decoder_info->deblock_data, skip_candidates, bipred_copy);
+    num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, decoder_info->deblock_data, skip_candidates);
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = skip_candidates[idx].mv0;
     }

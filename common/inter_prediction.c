@@ -468,7 +468,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_
   return num_merge_vec;
 }
 
-int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates, int bipred_copy)
+int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
 {
   int num_skip_vec=0;
   int i,idx,duplicate;

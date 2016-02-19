@@ -2473,6 +2473,11 @@ int search_early_skip_candidates(encoder_info_t *encoder_info,block_info_t *bloc
   return early_skip_flag;
 }
 
+static const uint16_t iq_8x8[52] =
+{ 6, 7, 8, 8, 10, 11, 12, 13, 15, 17, 19, 21, 24, 27, 30, 34,
+38, 43, 48, 54, 60, 68, 76, 86, 96, 108, 121, 136, 152, 171,
+192, 216, 242, 272, 305, 342, 384, 431, 484, 543, 610, 684,
+768, 862, 968, 1086, 1219, 1368, 1536, 1724, 1935, 2172 };
 
 
 int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp){
@@ -2482,19 +2487,19 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   uint32_t cost,cost_small;
   stream_t *stream = encoder_info->stream;
   double lambda = encoder_info->frame_info.lambda;
-  int nbit,early_skip_flag;
+  int nbit,early_skip_flag,split_flag,new_size;
   int sb_size = 1 << encoder_info->params->log2_sb_size;
   frame_type_t frame_type = encoder_info->frame_info.frame_type;
 
-  if (ypos >= height || xpos >= width)
+  if (ypos + MIN_BLOCK_SIZE > height || xpos + MIN_BLOCK_SIZE > width)
     return 0;
 
+  int encode_smaller_size = size > MIN_BLOCK_SIZE;
   int encode_this_size = ypos + size <= height && xpos + size <= width;
-  int encode_smaller_size = size > MIN_BLOCK_SIZE*(encode_this_size && frame_type != I_FRAME && !encoder_info->params->sync && encoder_info->params->encoder_speed > 0 ? 2 : 1);
-  int top_down = !encode_smaller_size && size > MIN_BLOCK_SIZE;
   int encode_rectangular_size = !encode_this_size && frame_type != I_FRAME;
-  if (encode_this_size==0 && encode_smaller_size==0)
-    return 0;
+  int top_down = size == 2 * MIN_BLOCK_SIZE && encode_this_size && frame_type != I_FRAME && !encoder_info->params->sync && encoder_info->params->encoder_speed > 0;
+  int top_down_threshold = size * size * iq_8x8[qp] / 8;
+
   cost_small = 1<<28;
   cost = 1<<28;
 
@@ -2503,93 +2508,77 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   read_stream_pos(&stream_pos_ref,stream);
 
   /* Initialize some block-level parameters */
-  block_info_t block_info;
   yuv_block_t *org_block = thor_alloc(sizeof(yuv_block_t),16);
   yuv_block_t *rec_block = thor_alloc(sizeof(yuv_block_t),16);
   yuv_block_t *rec_block_best = thor_alloc(sizeof(yuv_block_t),16);
   block_context_t block_context;
-  find_block_contexts(ypos, xpos, height, width, size, encoder_info->deblock_data, &block_context,encoder_info->params->use_block_contexts);
+  block_info_t block_info;
+  block_param_t block_param;
 
-  if (ypos < height && xpos < width){
-    block_info.org_block = org_block;
-    block_info.rec_block = rec_block;
-    block_info.rec_block_best = rec_block_best;
-    block_info.block_pos.size = size;
-    block_info.block_pos.bwidth = min(size,width-xpos);
-    block_info.block_pos.bheight = min(size,height-ypos);
-    block_info.block_pos.ypos = ypos;
-    block_info.block_pos.xpos = xpos;
-    block_info.max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
-    block_info.max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
-    block_info.qp = qp;
-    block_info.delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
-    block_info.block_context = &block_context;
-    if (encoder_info->params->max_delta_qp > 0)
-      block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[encoder_info->frame_info.qp];
-    else
-      block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
+  block_info.org_block = org_block;
+  block_info.rec_block = rec_block;
+  block_info.rec_block_best = rec_block_best;
+  block_info.block_pos.size = size;
+  block_info.block_pos.bwidth = min(size,width-xpos);
+  block_info.block_pos.bheight = min(size,height-ypos);
+  block_info.block_pos.ypos = ypos;
+  block_info.block_pos.xpos = xpos;
+  block_info.max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
+  block_info.max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
+  block_info.qp = qp;
+  block_info.delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
+  block_info.block_context = &block_context;
+  if (encoder_info->params->max_delta_qp > 0)
+    block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[encoder_info->frame_info.qp];
+  else
+    block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
 
-    /* Copy original data to smaller compact block */
-    copy_frame_to_block(block_info.org_block,encoder_info->orig,&block_info.block_pos);
+  /* Copy original data to smaller compact block */
+  copy_frame_to_block(block_info.org_block,encoder_info->orig,&block_info.block_pos);
 
-    if (encoder_info->frame_info.frame_type != I_FRAME) {
-      /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
-      int bipred_copy = encoder_info->frame_info.interp_ref || frame_type == P_FRAME ? 0 : 1;
-      inter_pred_t skip_candidates[MAX_NUM_SKIP];
-      block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, encoder_info->deblock_data, skip_candidates, bipred_copy);
-      for (int idx = 0; idx < block_info.num_skip_vec; idx++) {
-        memcpy(&block_info.skip_candidates[idx], &skip_candidates[idx], sizeof(inter_pred_t));
-      }
-      inter_pred_t merge_candidates[MAX_NUM_SKIP];
-      block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, encoder_info->deblock_data, merge_candidates);
-      for (int idx = 0; idx < block_info.num_merge_vec; idx++) {
-        memcpy(&block_info.merge_candidates[idx], &merge_candidates[idx], sizeof(inter_pred_t));
-      }
-    }
+  find_block_contexts(ypos, xpos, height, width, size, encoder_info->deblock_data, &block_context, encoder_info->params->use_block_contexts);
+
+  if (frame_type != I_FRAME && (encode_this_size || encode_rectangular_size)) {
+    /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
+    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, encoder_info->deblock_data, block_info.skip_candidates);
+    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, encoder_info->deblock_data, block_info.merge_candidates);
   }
 
-  if (encode_this_size){
+  if (encode_this_size && frame_type != I_FRAME && encoder_info->params->early_skip_thr > 0.0){
+
     YPOS = ypos;
     XPOS = xpos;
 
-    if (encoder_info->frame_info.frame_type != I_FRAME && encoder_info->params->early_skip_thr > 0.0){
+    /* Search through all skip candidates for early skip */
+    block_info.final_encode = 2;
+    early_skip_flag = search_early_skip_candidates(encoder_info,&block_info);
 
-      /* Search through all skip candidates for early skip */
-      block_info.final_encode = 2;
+    /* Rewind stream to start position of this block size */
+    write_stream_pos(stream,&stream_pos_ref);
 
-      early_skip_flag = search_early_skip_candidates(encoder_info,&block_info);
+    if (early_skip_flag){
 
-      /* Rewind stream to start position of this block size */
-      write_stream_pos(stream,&stream_pos_ref);
-      if (early_skip_flag){
+      /* Encode block with final choice of skip_idx */
+      block_info.final_encode = 3;
+      nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param);
+      cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
 
-        /* Encode block with final choice of skip_idx */
-        block_info.final_encode = 3;
+      /* Copy reconstructed data from smaller compact block to frame array */
+      copy_block_to_frame(encoder_info->rec,rec_block,&block_info.block_pos);
 
-        block_info.block_param.mode = MODE_SKIP;
-        block_info.block_param.tb_param = 0;
-        nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param);
+      /* Store deblock information for this block to frame array */
+      copy_deblock_data(encoder_info,&block_info);
 
-        cost = cost_calc(org_block,rec_block,size,size,size,nbit,lambda);
-
-        /* Copy reconstructed data from smaller compact block to frame array */
-        copy_block_to_frame(encoder_info->rec,rec_block,&block_info.block_pos);
-
-        /* Store deblock information for this block to frame array */
-        copy_deblock_data(encoder_info,&block_info);
-
-        thor_free(org_block);
-        thor_free(rec_block);
-        thor_free(rec_block_best);
-        return cost;
-      }
+      thor_free(org_block);
+      thor_free(rec_block);
+      thor_free(rec_block_best);
+      return cost;
     }
   }
 
-  if (encode_smaller_size){
-    int new_size = size/2;
-    int split_flag = 1;
-    block_param_t block_param;
+  if (encode_smaller_size && !top_down){
+    new_size = size/2;
+    split_flag = 1;
     write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
     if (size == sb_size && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
       write_delta_qp(stream,block_info.delta_qp);
@@ -2601,27 +2590,17 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp);
   }
 
-  if (encode_this_size){
+  if (encode_this_size || encode_rectangular_size){
     YPOS = ypos;
     XPOS = xpos;
 
     /* RDO-based mode decision */
     block_info.final_encode = 0;
-
     cost = mode_decision_rdo(encoder_info,&block_info);
 
-    static const uint16_t iq_8x8[52] =
-      {6, 7, 8, 8, 10, 11, 12, 13, 15, 17, 19, 21, 24, 27, 30, 34,
-       38, 43, 48, 54, 60, 68, 76, 86, 96, 108, 121, 136, 152, 171,
-       192, 216, 242, 272, 305, 342, 384, 431, 484, 543, 610, 684,
-       768, 862, 968, 1086, 1219, 1368, 1536, 1724, 1935, 2172};
-
-    int me_threshold = size * size * iq_8x8[qp] / 8;
-
-    if (top_down && cost > me_threshold) {
-      int new_size = size/2;
-      int split_flag = 1;
-      block_param_t block_param;
+    if (top_down && cost > top_down_threshold) {
+      new_size = size/2;
+      split_flag = 1;
       write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
       cost_small = 0; //TODO: Why not nbit * lambda?
       cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
@@ -2630,44 +2609,17 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp);
     }
 
-    if (cost <= cost_small){
-
+    if (cost <= cost_small) {
       /* Rewind bitstream to reference position of this block size */
-      write_stream_pos(stream,&stream_pos_ref);
-
+      write_stream_pos(stream, &stream_pos_ref);
       block_info.final_encode = 1;
-
-      encode_block(encoder_info,stream,&block_info,&block_info.block_param);
+      encode_block(encoder_info, stream, &block_info, &block_info.block_param);
 
       /* Copy reconstructed data from smaller compact block to frame array */
       copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);
 
       /* Store deblock information for this block to frame array */
-      copy_deblock_data(encoder_info,&block_info);
-    }    
-  }
-  else if (encode_rectangular_size){
-
-    YPOS = ypos;
-    XPOS = xpos;
-
-    /* Find best skip_idx */
-    block_info.final_encode = 0;
-    cost = mode_decision_rdo(encoder_info,&block_info);
-
-    if (cost <= cost_small){
-      /* Rewind bitstream to reference position of this block size */
-      write_stream_pos(stream,&stream_pos_ref);
-      block_info.final_encode = 1;
-      block_info.block_param.mode = MODE_SKIP;
-      block_info.block_param.tb_param = 0;
-      encode_block(encoder_info,stream,&block_info,&block_info.block_param);
-
-      /* Copy reconstructed data from smaller compact block to frame array */
-      copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);
-
-      /* Store deblock information for this block to frame array */
-      copy_deblock_data(encoder_info,&block_info);
+      copy_deblock_data(encoder_info, &block_info);
     }
   }
 

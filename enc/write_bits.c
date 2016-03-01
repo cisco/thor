@@ -82,121 +82,87 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
   int intra_flag = (type>>1)&1;
   int vlc_adaptive = intra_flag && !chroma_flag;
   int eob_pos = chroma_flag ? 0 : 2;
+  static int *zigzag[] = { 0, 0, zigzag16, zigzag64, zigzag256 };
+  int *zigzagptr = zigzag[log2i(qsize)];
+  int runs = 0;
 
   /* Zigzag scan */
-  int *zigzagptr = zigzag64;
-  if (qsize==4)
-    zigzagptr = zigzag16;
-  else if (qsize==8)
-    zigzagptr = zigzag64;
-  else if (qsize==16)
-    zigzagptr = zigzag256;
-
-  for(i=0;i<qsize;i++){
-    for (j=0;j<qsize;j++){
+  for (i = 0; i < qsize; i++)
+    for (j = 0; j < qsize; j++)
       scoeff[zigzagptr[i*qsize+j]] = coeff[i*size+j];
-    }
-  }
 
   /* Find last_pos to determine when to send EOB */
-  pos = N-1;
-  while (scoeff[pos]==0 && pos>0) pos--;
-  if (pos==0 && scoeff[0]==0)
+  for (pos = N-1; !scoeff[pos] && pos; pos--);
+  if (!pos && !scoeff[0])
     fatalerror("No coeffs even if cbp nonzero. Exiting.");
   last_pos = pos;
 
   /* Use one bit to signal chroma/last_pos=1/level=1 */
   pos = 0;
-  if (chroma_flag){
+  if (chroma_flag) {
     if (last_pos==0 && abs(scoeff[0])==1){
-      put_flc(1,1,stream);
-      sign = (scoeff[0] < 0) ? 1 : 0;
-      put_flc(1,sign,stream);
+      put_flc(2, 2 + (scoeff[0] < 0), stream);
       pos = N;
-    }
-    else{
-      put_flc(1,0,stream);
-    }
+    } else
+      put_flc(1, 0, stream);
   }
 
   /* Initiate forward scan */
-  level_mode = 1;
-  level = 1;
+  level_mode = level = 1;
 
-  while (pos <= last_pos){ //Outer loop for forward scan
-    if (level_mode){
+  while (pos <= last_pos) { //Outer loop for forward scan
+    if (level_mode) {
       /* Level-mode */
       while (pos <= last_pos && level > 0){
-        c = scoeff[pos];
+        c = scoeff[pos++];
         level = abs(c);
         put_vlc(vlc_adaptive,level,stream);
-        if (level > 0){
-          sign = (c < 0) ? 1 : 0;
-          put_flc(1,sign,stream);
-        }
+        if (level > 0)
+          put_flc(1,c < 0,stream);
+
         if (chroma_flag==0)
           vlc_adaptive = level > 3;
-        pos++;
       }
     }
 
     /* Run-mode (run-level coding) */
-    run = 0;
-    c = 0;
-    while (c==0 && pos <= last_pos){
-      c = scoeff[pos];
-      if (c==0){
-        run++;
-      }
-      else{
+    run = c = 0;
+    while (c==0 && pos <= last_pos) {
+      c = scoeff[pos++];
+      run += !c;
+      if (c) {
+        int interval = 5;
         level = abs(c);
-        sign = (c < 0) ? 1 : 0;
+        sign = c < 0;
 
         /* Code combined event of run and (level>1) */
         if (level == 1)
-          cn = (run * 5) / 4;
+          cn = (run * interval) / (interval - 1);
         else
-          cn = run * 5 + 4;
-        if (cn >= eob_pos) cn += 1;
-        if (chroma_flag && size <= 8)
-          put_vlc(10, cn, stream);
-        else
-          put_vlc(6, cn, stream);
+          cn = run * interval + interval - 1;
+        put_vlc(chroma_flag && size <= 8 ? 10 : 6, cn + (cn >= eob_pos), stream);
+        level_mode = level > 1; //Set level_mode
 
         /* Code level and sign */
         if (level > 1)
-          put_vlc(0,2*(level-2)+sign,stream);
+          put_vlc(0, (level-2)*2+sign, stream);
         else
           put_flc(1,sign,stream);
         run = 0;
+        runs++;
       }
-      pos++;
-      level_mode = level > 1; //Set level_mode
     } //while (c==0 && pos < last_pos)
   } //while (pos <= last_pos){
 
-  if (pos < N){
-    /* If terminated in level mode, code one extra zero before an EOB can be sent */
-    if (level_mode){
-      c = scoeff[pos];
-      level = abs(c);
-      put_vlc(vlc_adaptive,level,stream);
-      if (level > 0) {
-        sign = (c < 0) ? 1 : 0;
-        put_flc(1,sign,stream);
-      }
-      pos++;
-    }
+  /* If terminated in level mode, code one extra zero before an EOB can be sent */
+  if (pos < N && level_mode){
+    put_vlc(vlc_adaptive, 0, stream);
+    pos++;
   }
 
   /* EOB */
-  if (pos < N){
-    cn = eob_pos;
-    if (chroma_flag && size <= 8)
-      put_vlc(10, cn, stream);
-    else
-      put_vlc(6, cn, stream);
-  }
+  if (pos < N)
+    put_vlc(chroma_flag && size <= 8 ? 10 : 6, eob_pos, stream);
 }
 
 int write_delta_qp(stream_t *stream, int delta_qp){

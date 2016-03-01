@@ -246,6 +246,16 @@ SIMD_INLINE c_v64 c_v64_ssub_u8(c_v64 a, c_v64 b) {
   return t;
 }
 
+SIMD_INLINE c_v64 c_v64_ssub_s8(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 8; c++) {
+    int16_t d = (int16_t)a.s8[c] - (int16_t)b.s8[c];
+    t.s8[c] = d > 127 ? 127 : (d < -128 ? -128 : d);
+  }
+  return t;
+}
+
 SIMD_INLINE c_v64 c_v64_sub_16(c_v64 a, c_v64 b) {
   c_v64 t;
   int c;
@@ -690,6 +700,22 @@ SIMD_INLINE c_v64 c_v64_max_u8(c_v64 a, c_v64 b) {
   int c;
   for (c = 0; c < 8; c++)
     t.u8[c] = a.u8[c] > b.u8[c] ? a.u8[c] : b.u8[c];
+  return t;
+}
+
+SIMD_INLINE c_v64 c_v64_min_s8(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 8; c++)
+    t.s8[c] = a.s8[c] > b.s8[c] ? b.s8[c] : a.s8[c];
+  return t;
+}
+
+SIMD_INLINE c_v64 c_v64_max_s8(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 8; c++)
+    t.s8[c] = a.s8[c] > b.s8[c] ? a.s8[c] : b.s8[c];
   return t;
 }
 

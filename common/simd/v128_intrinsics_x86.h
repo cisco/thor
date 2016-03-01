@@ -144,6 +144,10 @@ SIMD_INLINE v128 v128_ssub_u8(v128 a, v128 b) {
   return _mm_subs_epu8(a, b);
 }
 
+SIMD_INLINE v128 v128_ssub_s8(v128 a, v128 b) {
+  return _mm_subs_epi8(a, b);
+}
+
 SIMD_INLINE v128 v128_sub_16(v128 a, v128 b) {
   return _mm_sub_epi16(a, b);
 }
@@ -450,6 +454,24 @@ SIMD_INLINE v128 v128_min_u8(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_max_u8(v128 a, v128 b) {
   return _mm_max_epu8(a, b);
+}
+
+SIMD_INLINE v128 v128_min_s8(v128 a, v128 b) {
+#if defined (__SSE4_1__)
+  return _mm_min_epi8(a, b);
+#else
+  v128 mask = _mm_cmplt_epi8(a, b);
+  return _mm_or_si128(_mm_andnot_si128(mask, b), _mm_and_si128(mask, a));
+#endif
+}
+
+SIMD_INLINE v128 v128_max_s8(v128 a, v128 b) {
+#if defined (__SSE4_1__)
+  return _mm_max_epi8(a, b);
+#else
+  v128 mask = _mm_cmplt_epi8(b, a);
+  return _mm_or_si128(_mm_andnot_si128(mask, b), _mm_and_si128(mask, a));
+#endif
 }
 
 SIMD_INLINE v128 v128_min_s16(v128 a, v128 b) {

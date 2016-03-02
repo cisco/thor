@@ -45,11 +45,11 @@ const double squared_lambda_QP [52] = {
     1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
 };
 
-static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream) {
+static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream, unsigned int strength) {
   return 1;
 }
 
-static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream) {
+static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream, unsigned int strength) {
   int sum0 = 0, sum1 = 0;
   for (int m=0;m<MAX_SB_SIZE/block_size;m++){
     for (int n=0;n<MAX_SB_SIZE/block_size;n++){
@@ -57,7 +57,7 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
       int ypos = k*MAX_SB_SIZE + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP)
-        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1);
+        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength);
     }
   }
   put_flc(1, sum1 < sum0, (stream_t*)stream);
@@ -186,13 +186,14 @@ void encode_frame(encoder_info_t *encoder_info)
   }
 
   if (encoder_info->params->clpf){
-    if (qp < 12) // CLPF will have no effect if the quality is very high quality
+    if (qp <= 16) // CLPF will have no effect if the quality is very high quality
       put_flc(1, 0, stream);
     else {
       int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
+      int strength = enable_sb_flag ? 1 + (qp > 28) + (qp > 32) + (qp > 36) + (qp > 40) : 1;
       put_flc(1, 1, stream);
       put_flc(1, !enable_sb_flag, stream);
-      clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_decision : clpf_true);
+      clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_decision : clpf_true);
     }
   }
 

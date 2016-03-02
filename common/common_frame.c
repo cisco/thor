@@ -592,9 +592,13 @@ void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
 
 }
 
-void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag,
-                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, void *)) {
+void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength,
+                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, void *, unsigned int)) {
+
   /* Constrained low-pass filter (CLPF) */
+  if (!strength)
+    return;
+
   int width = rec->width;
   int height = rec->height;
   int xpos,ypos,index;
@@ -617,7 +621,7 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
           numNoskip += deblock_data[index].mode != MODE_SKIP;
         }
       }
-      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream)) {
+      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, stream, strength)) {
         uint8_t tmp[MAX_SB_SIZE*MAX_SB_SIZE*3/2];
         for (m=0; m<MAX_SB_SIZE; m++)
           memcpy(tmp + m*MAX_SB_SIZE, rec->y + (k*MAX_SB_SIZE+m)*stride_y + l*MAX_SB_SIZE, MAX_SB_SIZE);
@@ -637,11 +641,11 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
             int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED;
             if (filter) {
               if (deblock_data[index].cbp.y || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_SB_SIZE, xpos, ypos, block_size, width, height);
+                (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_SB_SIZE, xpos, ypos, block_size, width, height, strength + (deblock_data[index].mode == MODE_INTRA));
               if (deblock_data[index].cbp.u || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->u, tmp + MAX_SB_SIZE*MAX_SB_SIZE, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2);
+                (use_simd ? clpf_block_simd : clpf_block)(rec->u, tmp + MAX_SB_SIZE*MAX_SB_SIZE, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength + (deblock_data[index].mode == MODE_INTRA));
               if (deblock_data[index].cbp.v || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->v, tmp + MAX_SB_SIZE*MAX_SB_SIZE * 5 / 4, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2);
+                (use_simd ? clpf_block_simd : clpf_block)(rec->v, tmp + MAX_SB_SIZE*MAX_SB_SIZE * 5 / 4, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength + (deblock_data[index].mode == MODE_INTRA));
             }
           }
         }

@@ -121,16 +121,18 @@ int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size)
   }
 }
 
-void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1)
+void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength)
 {
   int left = (x0 & ~(MAX_SB_SIZE-1)) - x0;
   int top = (y0 & ~(MAX_SB_SIZE-1)) - y0;
   int right = min(width-1, left + MAX_SB_SIZE-1);
   int bottom = min(height-1, top + MAX_SB_SIZE-1);
-  v64 c2 = v64_dup_8(-2);
+  v64 c2 = v64_dup_8(2);
   v64 c128 = v64_dup_8(128);
   v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
   v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
+  v64 sp = v64_dup_8(strength);
+  v64 sm = v64_dup_8(-strength);
   ssd64_internal ssd0 = v64_ssd_u8_init();
   ssd64_internal ssd1 = v64_ssd_u8_init();
 
@@ -140,17 +142,17 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
   for (int y = 0; y < 8; y++) {
     v64 o = v64_load_aligned(org);
     v64 q = v64_load_aligned(rec);
-    v64 x = v64_sub_8(q, c128);
-    v64 a = v64_sub_8(v64_load_aligned(rec - (y!=top)*stride), c128);
-    v64 b = v64_shuffle_8(v64_sub_8(v64_load_unaligned(rec - !!left), c128), s1);
-    v64 c = v64_shuffle_8(v64_sub_8(v64_load_unaligned(rec + (right != 7)), c128), s2);
-    v64 d = v64_sub_8(v64_load_aligned(rec + (y!=bottom)*stride), c128);
-    v64 r1 = v64_add_8(v64_add_8(v64_cmplt_s8(a, x), v64_cmplt_s8(b, x)),
-                       v64_add_8(v64_cmplt_s8(c, x), v64_cmplt_s8(d, x)));
-    v64 r2 = v64_add_8(v64_add_8(v64_cmpgt_s8(a, x), v64_cmpgt_s8(b, x)),
-                       v64_add_8(v64_cmpgt_s8(c, x), v64_cmpgt_s8(d, x)));
+    v64 x = v64_add_8(c128, q);
+    v64 a = v64_add_8(c128, v64_load_aligned(rec - (y!=top)*stride));
+    v64 b = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(rec - !!left), s1));
+    v64 c = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(rec + (right != 7)), s2));
+    v64 d = v64_add_8(c128, v64_load_aligned(rec + (y!=bottom)*stride));
+    v64 delta = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(a, x), sp), sm),
+				    v64_max_s8(v64_min_s8(v64_ssub_s8(b, x), sp), sm)),
+			  v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(c, x), sp), sm),
+				    v64_max_s8(v64_min_s8(v64_ssub_s8(d, x), sp), sm)));
     ssd0 = v64_ssd_u8(ssd0, o, q);
-    ssd1 = v64_ssd_u8(ssd1, o, v64_add_8(q, v64_sub_8(v64_cmplt_s8(r1, c2), v64_cmplt_s8(r2, c2))));
+    ssd1 = v64_ssd_u8(ssd1, o, v64_add_8(q, v64_shr_s8(v64_add_8(c2, v64_add_8(delta, v64_cmplt_s8(delta, v64_zero()))), 2)));
     rec += stride;
     org += so;
   }

@@ -2274,7 +2274,7 @@ void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size)
     inverse_transform32(coeff, block);
 }
 
-void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height) {
+void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
   int left = (x0 & ~(MAX_SB_SIZE/2-1)) - x0;
   int top = (y0 & ~(MAX_SB_SIZE/2-1)) - y0;
   int right = min(width-1, left + MAX_SB_SIZE/2-1);
@@ -2290,33 +2290,32 @@ void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   uint32_t l5 = *(uint32_t*)(src + (3+(bottom != 3))*sstride);
   v128 c128 = v128_dup_8(128);
   v128 o = v128_from_32(l1, l2, l3, l4);
-  v128 a = v128_from_32(l0, l1, l2, l3);
-  v128 b = v128_from_32(*(uint32_t*)(src - !!left),
-                        *(uint32_t*)(src + sstride - !!left),
-                        *(uint32_t*)(src + 2*sstride - !!left),
-                        *(uint32_t*)(src + 3*sstride - !!left));
-  v128 c = v128_from_32(*(uint32_t*)(src + (right != 3)),
-                        *(uint32_t*)(src + sstride + (right != 3)),
-                        *(uint32_t*)(src + 2*sstride + (right != 3)),
-                        *(uint32_t*)(src + 3*sstride + (right != 3)));
-  v128 d = v128_from_32(l2, l3, l4, l5);
-  v128 x = v128_sub_8(o, c128);
-  a = v128_sub_8(a, c128);
-  b = v128_sub_8(b, c128);
-  c = v128_sub_8(c, c128);
-  d = v128_sub_8(d, c128);
+  v128 x = v128_add_8(c128, o);
+  v128 a = v128_add_8(c128, v128_from_32(l0, l1, l2, l3));
+  v128 b = v128_add_8(c128, v128_from_32(*(uint32_t*)(src - !!left),
+                                         *(uint32_t*)(src + sstride - !!left),
+                                         *(uint32_t*)(src + 2*sstride - !!left),
+                                         *(uint32_t*)(src + 3*sstride - !!left)));
+  v128 c = v128_add_8(c128, v128_from_32(*(uint32_t*)(src + (right != 3)),
+                                         *(uint32_t*)(src + sstride + (right != 3)),
+                                         *(uint32_t*)(src + 2*sstride + (right != 3)),
+                                         *(uint32_t*)(src + 3*sstride + (right != 3))));
+  v128 d = v128_add_8(c128, v128_from_32(l2, l3, l4, l5));
   if (!left)
     b = v128_shuffle_8(b, v128_from_v64(v64_from_64(0x0e0d0c0c0a090808LL),
                                         v64_from_64(0x0605040402010000LL)));
   if (right == 3)
     c = v128_shuffle_8(c, v128_from_v64(v64_from_64(0x0f0f0e0d0b0b0a09LL),
                                         v64_from_64(0x0707060503030201LL)));
-  v128 c2 = v128_dup_8(-2);
-  v128 r1 = v128_add_8(v128_add_8(v128_cmplt_s8(a, x), v128_cmplt_s8(b, x)),
-                       v128_add_8(v128_cmplt_s8(c, x), v128_cmplt_s8(d, x)));
-  v128 r2 = v128_add_8(v128_add_8(v128_cmpgt_s8(a, x), v128_cmpgt_s8(b, x)),
-                       v128_add_8(v128_cmpgt_s8(c, x), v128_cmpgt_s8(d, x)));
-  v128 delta = v128_sub_8(v128_cmplt_s8(r1, c2), v128_cmplt_s8(r2, c2));
+  v128 c2 = v128_dup_8(2);
+  v128 sp = v128_dup_8(strength);
+  v128 sm = v128_dup_8(-strength);
+
+  v128 delta = v128_add_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
+				     v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm)),
+			  v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
+				     v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm)));
+  delta = v128_shr_s8(v128_add_8(c2, v64_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 2);
   v128 r = v128_add_8(o, delta);
   *(uint32_t*)dst = v128_low_u32(v128_shr_n_byte(r, 12));
   *(uint32_t*)(dst + dstride) = v128_low_u32(v128_shr_n_byte(r, 8));
@@ -2324,12 +2323,12 @@ void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   *(uint32_t*)(dst + 3*dstride) = v128_low_u32(r);
 }
 
-void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height) {
+void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
   int left = (x0 & ~(MAX_SB_SIZE-1)) - x0;
   int top = (y0 & ~(MAX_SB_SIZE-1)) - y0;
   int right = min(width-1, left + MAX_SB_SIZE-1);
   int bottom = min(height-1, top + MAX_SB_SIZE-1);
-  v64 c2 = v64_dup_8(-2);
+  v64 c2 = v64_dup_8(2);
   v64 c128 = v64_dup_8(128);
   v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
   v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
@@ -2337,18 +2336,21 @@ void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   dst -= left + top*dstride;
   src += x0 + y0*sstride;
 
+  v64 sp = v64_dup_8(strength);
+  v64 sm = v64_dup_8(-strength);
+
   for (int y = 0; y < 8; y++) {
     v64 o = v64_load_aligned(src);
-    v64 x = v64_sub_8(o, c128);
-    v64 a = v64_sub_8(v64_load_aligned(src - (y!=top)*sstride), c128);
-    v64 b = v64_shuffle_8(v64_sub_8(v64_load_unaligned(src - !!left), c128), s1);
-    v64 c = v64_shuffle_8(v64_sub_8(v64_load_unaligned(src + (right != 7)), c128), s2);
-    v64 d = v64_sub_8(v64_load_aligned(src + (y!=bottom)*sstride), c128);
-    v64 r1 = v64_add_8(v64_add_8(v64_cmplt_s8(a, x), v64_cmplt_s8(b, x)),
-                       v64_add_8(v64_cmplt_s8(c, x), v64_cmplt_s8(d, x)));
-    v64 r2 = v64_add_8(v64_add_8(v64_cmpgt_s8(a, x), v64_cmpgt_s8(b, x)),
-                       v64_add_8(v64_cmpgt_s8(c, x), v64_cmpgt_s8(d, x)));
-    v64 delta = v64_sub_8(v64_cmplt_s8(r1, c2), v64_cmplt_s8(r2, c2));
+    v64 x = v64_add_8(c128, o);
+    v64 a = v64_add_8(c128, v64_load_aligned(src - (y!=top)*sstride));
+    v64 b = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(src - !!left), s1));
+    v64 c = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(src + (right != 7)), s2));
+    v64 d = v64_add_8(c128, v64_load_aligned(src + (y!=bottom)*sstride));
+    v64 delta = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(a, x), sp), sm),
+                                    v64_max_s8(v64_min_s8(v64_ssub_s8(b, x), sp), sm)),
+                          v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(c, x), sp), sm),
+                                    v64_max_s8(v64_min_s8(v64_ssub_s8(d, x), sp), sm)));
+    delta = v64_shr_s8(v64_add_8(c2, v64_add_8(delta, v64_cmplt_s8(delta, v64_zero()))), 2);
     v64_store_aligned(dst, v64_add_8(o, delta));
     src += sstride;
     dst += dstride;

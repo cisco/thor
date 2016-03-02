@@ -176,12 +176,12 @@ void find_block_contexts(int ypos, int xpos, int height, int width, int size, de
   }
 }
 
-int clpf_sample(int X, int A, int B, int C, int D) {
-  int delta = ((A>X) + (B>X) + (C>X) + (D>X) > 2) - ((A<X) + (B<X) + (C<X) + (D<X) > 2);
-  return delta;
+int clpf_sample(int X, int A, int B, int C, int D, int b) {
+  int delta = clip(A - X, -b, b) + clip(B - X, -b, b) + clip(C - X, -b, b) + clip(D - X, -b, b);
+  return (1 + delta + (delta >= 0)) >> 2;
 }
 
-void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height) {
+void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height, unsigned int strength) {
   int left = x0 & ~(dstride-1);
   int top = y0 & ~(dstride-1);
   int right = min(width-1, left + dstride-1);
@@ -194,7 +194,7 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int 
       int B = x == left ? X : src[(y+0)*sstride + x-1];
       int C = x == right ? X : src[(y+0)*sstride + x+1];
       int D = y == bottom ? X : src[(y+1)*sstride + x+0];
-      int delta = clpf_sample(X, A, B, C, D);
+      int delta = clpf_sample(X, A, B, C, D, strength);
       dst[(y-top)*dstride + x-left] = X + delta;
     }
   }

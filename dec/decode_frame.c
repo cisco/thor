@@ -36,11 +36,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern int chroma_qp[52];
 
-static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream) {
+static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream, unsigned int strength) {
   return 1;
 }
 
-static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream) {
+static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream, unsigned int strength) {
   return get_flc(1, (stream_t*)stream);
 }
 
@@ -135,7 +135,8 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   if (decoder_info->clpf && get_flc(1, stream)){
     int enable_sb_flag = !get_flc(1, stream);
-    clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, enable_sb_flag ? clpf_bit : clpf_true);
+    int strength = enable_sb_flag ? 1 + (qp > 28) + (qp > 32) + (qp > 36) + (qp > 40) : 1;
+    clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_bit : clpf_true);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

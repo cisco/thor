@@ -34,10 +34,10 @@ void get_inter_prediction_luma_simd(int width, int height, int xoff, int yoff, u
 void get_inter_prediction_chroma_simd(int width, int height, int xoff, int yoff, unsigned char *restrict qp, int qstride, const unsigned char *restrict ip, int istride);
 void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast);
 void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size);
-void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height);
-void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height);
-SIMD_INLINE void clpf_block_simd(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height) {
-  (size == 4 ? clpf_block4 : clpf_block8)(src, dst, sstride, dstride, x0, y0, width, height);
+void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength);
+void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength);
+SIMD_INLINE void clpf_block_simd(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height, unsigned int strength) {
+  (size == 4 ? clpf_block4 : clpf_block8)(src, dst, sstride, dstride, x0, y0, width, height, strength);
 }
 
 #endif

@@ -91,7 +91,7 @@ unsigned int get_vlc(int n,stream_t *str)
   case 16:
   case 17:
   case 18:
-      while (!getbits1(str) && ++val < n - 10);
+    while (!getbits1(str) && ++val < (unsigned int)n - 10);
     break;
   default:
     printf("Illegal VLC table number. 0-18 allowed only.");

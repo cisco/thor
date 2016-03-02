@@ -450,11 +450,11 @@ void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int pad_ver_y,
   frame->v = frame->u + frame->area_c*sizeof(uint8_t);
 
   int align;
-  align = (16 - ((int64_t)frame->y)) & 15;
+  align = (16 - ((int)(uintptr_t)frame->y)) & 15;
   frame->offset_y += align;
   frame->y += align;
 
-  align = (16 - ((int64_t)frame->u)) & 15;
+  align = (16 - ((int)(uintptr_t)frame->u)) & 15;
   frame->offset_c += align;
   frame->u += align;
   frame->v += align;

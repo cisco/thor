@@ -92,7 +92,7 @@ static char **read_config_file(FILE *f, int *num_of_params)
 
       if (a[0] == ';')
       {
-        fscanf(f, "%[^\n]", a);
+        ret = fscanf(f, "%[^\n]", a);
         continue;
       }
     }
@@ -104,7 +104,7 @@ static char **read_config_file(FILE *f, int *num_of_params)
       if (ret < 1 || ret == EOF)
         break;
 
-      fscanf(f, "\""); /* Read trailing double quote */
+      ret = fscanf(f, "\""); /* Read trailing double quote */
     }
 
     argv[n] = malloc((strlen(a)+1)*sizeof(char));
@@ -365,7 +365,7 @@ enc_params *parse_config_params(int argc, char **argv)
   /* Check if input file is y4m and if so use its geometry */
   if ((infile = fopen(params->infilestr, "rb"))) {
     char buf[256];
-    int len = fread(buf, 1, sizeof(buf), infile);
+    int len = (int)fread(buf, 1, sizeof(buf), infile);
     int pos = 10;
     int num, den;
     buf[255] = 0;
@@ -375,18 +375,18 @@ enc_params *parse_config_params(int argc, char **argv)
           switch (buf[pos++]) {
           case 'W':
             params->width = strtol(buf+pos, &end, 10);
-            pos = end-buf+1;
+            pos = (int)(end-buf+1);
             break;
           case 'H':
             params->height = strtol(buf+pos, &end, 10);
-            pos = end-buf+1;
+            pos = (int)(end-buf+1);
             break;
           case 'F':
             den = strtol(buf+pos, &end, 10);
-            pos = end-buf+1;
+            pos = (int)(end-buf+1);
             num = strtol(buf+pos, &end, 10);
-            pos = end-buf+1;
-            params->frame_rate = (double)den/num;
+            pos = (int)(end-buf+1);
+            params->frame_rate = (float)den/num;
             break;
           case 'I':
             if (buf[pos] != 'p') {

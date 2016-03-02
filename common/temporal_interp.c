@@ -1,7 +1,6 @@
 #include <math.h>
 #include <assert.h>
 #include <string.h>
-#include "emmintrin.h"
 #include "simd.h"
 #include "global.h"
 #include "temporal_interp.h"
@@ -57,11 +56,6 @@ typedef struct mv_data_t {
   int pw;
   int ph;
 } mv_data_t;
-
-static inline int32_t _lzc_u32(uint32_t x)
-{
-  return((x==0) ? 32 : 31 - log2i(x));
-}
 
 static int scale_val(int v, int numer, int denom)
 {

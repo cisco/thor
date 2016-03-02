@@ -86,7 +86,8 @@ int fillbfr(stream_t *str)
       if (read_size > 2048) read_size = 2048;
       //l = (int)fread(str->rdbfr,sizeof(unsigned char),2048,str->infile);
       str->rdptr = str->rdbfr + 2048 - read_size;
-      fread(str->rdptr, sizeof(*str->rdptr), read_size, str->infile);
+      if (fread(str->rdptr, sizeof(*str->rdptr), read_size, str->infile) != read_size)
+        fprintf(stderr, "Warning: short read");
       str->length -= read_size;
 
       while (str->incnt <= 24 && (str->rdptr < str->rdbfr + 2048))

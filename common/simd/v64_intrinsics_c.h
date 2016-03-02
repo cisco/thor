@@ -554,7 +554,7 @@ SIMD_INLINE int64_t c_v64_hadd_s16(c_v64 a) {
   return a.s16[3] + a.s16[2] + a.s16[1] + a.s16[0];
 }
 
-typedef uint64_t c_sad64_internal;
+typedef uint32_t c_sad64_internal;
 
 /* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum().
    The result for more than 32 v64_sad_u8() calls is undefined. */
@@ -569,11 +569,11 @@ SIMD_INLINE c_sad64_internal c_v64_sad_u8(c_sad64_internal s, c_v64 a, c_v64 b) 
   return s;
 }
 
-SIMD_INLINE uint64_t c_v64_sad_u8_sum(c_sad64_internal s) {
+SIMD_INLINE uint32_t c_v64_sad_u8_sum(c_sad64_internal s) {
   return s;
 }
 
-typedef uint64_t c_ssd64_internal;
+typedef uint32_t c_ssd64_internal;
 
 /* Implementation dependent return value.  Result must be finalised with v64_ssd_u8_sum(). */
 SIMD_INLINE c_ssd64_internal c_v64_ssd_u8_init() {
@@ -587,7 +587,7 @@ SIMD_INLINE c_ssd64_internal c_v64_ssd_u8(c_ssd64_internal s, c_v64 a, c_v64 b) 
   return s;
 }
 
-SIMD_INLINE uint64_t c_v64_ssd_u8_sum(c_ssd64_internal s) {
+SIMD_INLINE uint32_t c_v64_ssd_u8_sum(c_ssd64_internal s) {
   return s;
 }
 

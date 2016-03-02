@@ -112,7 +112,7 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
   while (level==0 && pos>=0){
     c = scoeff[pos];
     level64 = (abs(c))*scale + offset;
-    level = (level64>0 ? level64 : -level64)>>shift2;
+    level = (int)((level64>0 ? level64 : -level64)>>shift2);
     pos--;
   }
   last_pos = level ? pos+1 : pos;
@@ -126,10 +126,10 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
     c = scoeff[pos];
     sign = c < 0 ? -1 : 1;
     abs_coeff = scale*abs(c);
-    level0 = (abs_coeff + 0)>>shift2;
+    level0 = (int)((abs_coeff + 0)>>shift2);
     offset = (level0 > (1 - level_mode)) ? offset1 : offset0;
     offset = offset<<(shift2-8);
-    level = (abs_coeff + offset)>>shift2;
+    level = (int)((abs_coeff + offset)>>shift2);
     scoeffq[pos] = sign * level;
     cbp = cbp || (level != 0);
     if (level_mode) {
@@ -407,14 +407,14 @@ unsigned int sad_calc_fastquarter(const uint8_t *o, const uint8_t *r, int os, in
 
 unsigned int sad_calc(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height)
 {
-  unsigned int i,j,sad = 0;
+  unsigned int sad = 0;
 
   if (use_simd && width > 4){
     return sad_calc_simd(a, b, astride, bstride, width, height);
   }
   else {
-    for(i=0;i<height;i++){
-      for (j=0;j<width;j++){
+    for(int i=0;i<height;i++){
+      for (int j=0;j<width;j++){
         sad += abs(a[i*astride+j] - b[i*bstride+j]);
       }
     }
@@ -703,8 +703,8 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
 }
 
 int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda,enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred){
-  int k,l,sad,range,step;
-  uint32_t min_sad;
+  int k,l,range,step;
+  uint32_t sad, min_sad;
   uint8_t *rf = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   mv_t mv_cand;
   mv_t mv_opt;
@@ -787,8 +787,8 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
 }
 
 int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, int stride_r, int width, int height, mv_t *mv, mv_t *mvc, mv_t *mvp, double lambda, enc_params *params, int sign, int fwidth, int fheight, int xpos, int ypos, mv_t *mvcand, int *mvcand_num, int enable_bipred) {
-  int k, l, sad, range, step;
-  uint32_t min_sad;
+  int k, l, range, step;
+  uint32_t min_sad, sad;
   uint8_t *rf = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *rf0 = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *rf1 = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
@@ -845,10 +845,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
           }
         }
 
-        sad = sad_calc(orig, rf, size, width, width, height);
+        sad = (uint32_t)sad_calc(orig, rf, size, width, width, height);
         mv_diff_y = mv_cand.y - mvp->y;
         mv_diff_x = mv_cand.x - mvp->x;
-        sad += (int)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
+        sad += (uint32_t)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
         if (sad < min_sad) {
           min_sad = sad;
           mv_opt = mv_cand;
@@ -884,10 +884,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
         rf[i*size + j] = (uint8_t)(((int)rf0[i*size + j] + (int)rf1[i*size + j]) >> 1);
       }
     }
-    sad = sad_calc(orig, rf, size, width, width, height);
+    sad = (uint32_t)sad_calc(orig, rf, size, width, width, height);
     mv_diff_y = mv_cand.y - mvp->y;
     mv_diff_x = mv_cand.x - mvp->x;
-    sad += (int)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
+    sad += (uint32_t)(lambda * (double)quote_mv_bits(mv_diff_y, mv_diff_x) + 0.5);
     if (sad < min_sad) {
       min_sad = sad;
       mv_opt = mv_cand;
@@ -2011,7 +2011,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       } else
         min_idx = max_idx = frame_info->best_ref;
 
-      int worst_cost = 0, best_cost = MAX_UINT32;
+      uint32_t worst_cost = 0, best_cost = MAX_UINT32;
       for (ref_idx=min_idx;ref_idx<=max_idx;ref_idx++){
         int r = encoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
@@ -2324,7 +2324,7 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
   int enable_bipred = encoder_info->params->enable_bipred;
 
   if (encoder_info->params->encoder_speed > 1 && size == (1<<encoder_info->params->log2_sb_size))
-    early_skip_threshold = 1.3*early_skip_threshold;
+    early_skip_threshold += early_skip_threshold/4;
 
   if (block_param->dir==2){
     /* Loop over 8x8 (4x4) sub-blocks */
@@ -2498,7 +2498,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   int encode_this_size = ypos + size <= height && xpos + size <= width;
   int encode_rectangular_size = !encode_this_size && frame_type != I_FRAME;
   int top_down = size == 2 * MIN_BLOCK_SIZE && encode_this_size && frame_type != I_FRAME && !encoder_info->params->sync && encoder_info->params->encoder_speed > 0;
-  int top_down_threshold = size * size * iq_8x8[qp] / 8;
+  uint32_t top_down_threshold = size * size * iq_8x8[qp] / 8;
 
   cost_small = 1<<28;
   cost = 1<<28;

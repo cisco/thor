@@ -79,6 +79,7 @@ SIMD_INLINE void thor_free(void *p)
 }
 
 #elif __GNUC__
+#include <alloca.h>
 
 SIMD_INLINE unsigned int log2i(uint32_t x)
 {
@@ -87,7 +88,7 @@ SIMD_INLINE unsigned int log2i(uint32_t x)
 
 SIMD_INLINE void *thor_alloc(size_t size, uintptr_t align)
 {
-  return (void*)((((uintptr_t)__builtin_alloca(size + align)) + align - 1) & ~(align - 1));
+  return (void*)((((uintptr_t)alloca(size + align)) + align - 1) & ~(align - 1));
 }
 SIMD_INLINE void thor_free(void *p) {}
 

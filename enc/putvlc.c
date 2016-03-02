@@ -146,13 +146,14 @@ unsigned int put_vlc(int n,unsigned int cn,stream_t *str)
   case 16:
   case 17:
   case 18:
-    if (cn > n - 10)
+    if (cn > (unsigned int)n - 10)
       fatalerror("Code too large for VLC.");
     len = cn == n - 10 ? n - 10 : cn + 1;
     code = cn != n - 10;
     break;
   default:
     fatalerror("No such VLC table, only 0-18 allowed.");
+    code = len = 0;
   }
   putbits(len,code,str);
   return len;

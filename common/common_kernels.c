@@ -93,7 +93,7 @@ int sad_calc_simd_unaligned(uint8_t *a, uint8_t *b, int astride, int bstride, in
       }
     case 4:
       {
-        sad64_internal s = v64_sad_u8_init();
+        sad128_internal s = v128_sad_u8_init();
         uint32_t * au= (uint32_t*) a;
         uint32_t * bu= (uint32_t*) b;
         int asu = astride >> 2;
@@ -450,7 +450,7 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
       v128 a5 = v128_mullo_s16(c5, v128_unpack_u8_s16(v64_load_unaligned(ip + 3 * istride - 2)));
 
       for (int x = 0; x < 3; x++) {
-        res = (v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12;
+        res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12);
         *qp++ = clip255(res);
         a0 = v128_shr_n_byte(a0, 2);
         a1 = v128_shr_n_byte(a1, 2);
@@ -461,27 +461,24 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
       }
 
       int a08, a18, a28, a38, a48, a58;
-      switch (yoff == 1) {
-      case 0:
+      if (yoff != 1) {
         a08 = ip[6-2*istride]*1*xtap;
         a18 = ip[6-1*istride]*-8*xtap;
         a28 = ip[6-0*istride]*39*xtap;
         a38 = ip[6+1*istride]*39*xtap;
         a48 = ip[6+2*istride]*-8*xtap;
         a58 = ip[6+3*istride]*1*xtap;
-        break;
-      default:
+      } else {
         a08 = ip[6-2*istride]*2*xtap;
         a18 = ip[6-1*istride]*-10*xtap;
         a28 = ip[6-0*istride]*59*xtap;
         a38 = ip[6+1*istride]*17*xtap;
         a48 = ip[6+2*istride]*-5*xtap;
         a58 = ip[6+3*istride]*1*xtap;
-        break;
       }
 
-      res = v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
-        a08 + a18 + a28 + a38 + a48 + a58;
+      res = (int)(v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
+                  a08 + a18 + a28 + a38 + a48 + a58);
       *qp++ = clip255((res + 2048) >> 12);
       ip += istride;
       qp += qstride - 4;
@@ -594,7 +591,7 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
       v128 a5 = v128_unpack_u8_s16(v64_load_unaligned(ip + 3 * istride - 2));//v128_mullo_s16(c5, v128_unpack_u8_s16(v64_load_unaligned(ip + 3 * istride - 2)));
 
       for (int x = 0; x < 3; x++) {
-        res = (v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12;
+        res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12);
         *qp++ = clip255(res);
         ax = v128_shr_n_byte(ax, 2);
         a0 = v128_shr_n_byte(a0, 2);
@@ -641,9 +638,9 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
         break;
       }
 
-      res = v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
-          + a08 + a18 + a28 + a38 + a48 + a58;
-      *qp++ = clip255((res + 2048) >> 12);
+      res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
+                   + a08 + a18 + a28 + a38 + a48 + a58 + 2048) >> 12);
+      *qp++ = clip255(res);
       ip += istride;
       qp += qstride - 4;
     }
@@ -815,10 +812,10 @@ void get_inter_prediction_chroma_simd(int width, int height, int xoff, int yoff,
       v128 in3 = v128_unpack_u8_s16(v64_load_unaligned(ip + (i+2)*istride - 1));
       v128 out1 = v128_add_16(v128_add_16(v128_add_16(v128_mullo_s16(c0, in0), v128_mullo_s16(c1, in1)), v128_mullo_s16(c2, in2)), v128_mullo_s16(c3, in3));
 
-      v128 hor_out = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 6)), filter),
-                                                             v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 4)), filter),
-                                                             v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 2)), filter),
-                                                             v64_dotp_s16(v128_low_v64(out1), filter)), round), 12);
+      v128 hor_out = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 6)), filter),
+                                                             (int32_t)v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 4)), filter),
+                                                             (int32_t)v64_dotp_s16(v128_low_v64(v128_shr_n_byte(out1, 2)), filter),
+                                                             (int32_t)v64_dotp_s16(v128_low_v64(out1), filter)), round), 12);
       v64 out = v64_pack_s32_s16(v128_high_v64(hor_out), v128_low_v64(hor_out));
       u32_store_aligned(qp + qstride * i, v64_low_u32(v64_pack_s16_u8(out, out)));
 
@@ -860,8 +857,8 @@ void get_inter_prediction_chroma_simd(int width, int height, int xoff, int yoff,
         uint64_t in6 = v64_dotp_s16(v128_low_v64(v128_align(out1, out0, 12)), filter);
         uint64_t in7 = v64_dotp_s16(v128_low_v64(v128_align(out1, out0, 14)), filter);
 
-        v128 out = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_from_32(in7, in6, in5, in4), round), 12),
-                                     v128_shr_n_s32(v128_add_32(v128_from_32(in3, in2, in1, in0), round), 12));
+        v128 out = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)in7, (int32_t)in6, (int32_t)in5, (int32_t)in4), round), 12),
+                                     v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)in3, (int32_t)in2, (int32_t)in1, (int32_t)in0), round), 12));
         v64_store_aligned(qp + qstride * i + j, v128_low_v64(v128_pack_s16_u8(out, out)));
 
         /* Shift input one line up */
@@ -938,53 +935,53 @@ static void transform4(const int16_t *src, int16_t *dst)
   v64 s3 = v64_load_aligned(src + 3*4);
 
   /* Horizontal transform */
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(s3, g0),
-                                              v64_dotp_s16(s2, g0),
-                                              v64_dotp_s16(s1, g0),
-                                              v64_dotp_s16(s0, g0)), add1), 2);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g0),
+                                              (int32_t)v64_dotp_s16(s2, g0),
+                                              (int32_t)v64_dotp_s16(s1, g0),
+                                              (int32_t)v64_dotp_s16(s0, g0)), add1), 2);
   h0 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(s3, g1),
-                                              v64_dotp_s16(s2, g1),
-                                              v64_dotp_s16(s1, g1),
-                                              v64_dotp_s16(s0, g1)), add1), 2);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g1),
+                                              (int32_t)v64_dotp_s16(s2, g1),
+                                              (int32_t)v64_dotp_s16(s1, g1),
+                                              (int32_t)v64_dotp_s16(s0, g1)), add1), 2);
   h1 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(s3, g2),
-                                              v64_dotp_s16(s2, g2),
-                                              v64_dotp_s16(s1, g2),
-                                              v64_dotp_s16(s0, g2)), add1), 2);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g2),
+                                              (int32_t)v64_dotp_s16(s2, g2),
+                                              (int32_t)v64_dotp_s16(s1, g2),
+                                              (int32_t)v64_dotp_s16(s0, g2)), add1), 2);
   h2 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(s3, g3),
-                                              v64_dotp_s16(s2, g3),
-                                              v64_dotp_s16(s1, g3),
-                                              v64_dotp_s16(s0, g3)), add1), 2);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g3),
+                                              (int32_t)v64_dotp_s16(s2, g3),
+                                              (int32_t)v64_dotp_s16(s1, g3),
+                                              (int32_t)v64_dotp_s16(s0, g3)), add1), 2);
   h3 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
   /* Vertical transform */
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(h3, g0),
-                                              v64_dotp_s16(h2, g0),
-                                              v64_dotp_s16(h1, g0),
-                                              v64_dotp_s16(h0, g0)), add2), 7);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(h3, g0),
+                                              (int32_t)v64_dotp_s16(h2, g0),
+                                              (int32_t)v64_dotp_s16(h1, g0),
+                                              (int32_t)v64_dotp_s16(h0, g0)), add2), 7);
   v64_store_aligned(dst +  0, v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t)));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(h3, g1),
-                                              v64_dotp_s16(h2, g1),
-                                              v64_dotp_s16(h1, g1),
-                                              v64_dotp_s16(h0, g1)), add2), 7);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(h3, g1),
+                                              (int32_t)v64_dotp_s16(h2, g1),
+                                              (int32_t)v64_dotp_s16(h1, g1),
+                                              (int32_t)v64_dotp_s16(h0, g1)), add2), 7);
   v64_store_aligned(dst +  4, v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t)));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(h3, g2),
-                                              v64_dotp_s16(h2, g2),
-                                              v64_dotp_s16(h1, g2),
-                                              v64_dotp_s16(h0, g2)), add2), 7);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(h3, g2),
+                                              (int32_t)v64_dotp_s16(h2, g2),
+                                              (int32_t)v64_dotp_s16(h1, g2),
+                                              (int32_t)v64_dotp_s16(h0, g2)), add2), 7);
   v64_store_aligned(dst +  8, v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t)));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32(v64_dotp_s16(h3, g3),
-                                              v64_dotp_s16(h2, g3),
-                                              v64_dotp_s16(h1, g3),
-                                              v64_dotp_s16(h0, g3)), add2), 7);
+  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(h3, g3),
+                                              (int32_t)v64_dotp_s16(h2, g3),
+                                              (int32_t)v64_dotp_s16(h1, g3),
+                                              (int32_t)v64_dotp_s16(h0, g3)), add2), 7);
   v64_store_aligned(dst + 12, v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t)));
 }
 
@@ -1919,15 +1916,15 @@ static void transform8(const int16_t *src, int16_t *dst, int shift)
 
     /* EEE and EEO */
     c = v64_dup_16(64);
-    EEE = v128_from_32(v64_dotp_s16(v128_low_v64(E_), c),
-                       v64_dotp_s16(v128_high_v64(E_), c),
-                       v64_dotp_s16(v128_low_v64(E), c),
-                       v64_dotp_s16(v128_high_v64(E), c));
+    EEE = v128_from_32((int32_t)v64_dotp_s16(v128_low_v64(E_), c),
+                       (int32_t)v64_dotp_s16(v128_high_v64(E_), c),
+                       (int32_t)v64_dotp_s16(v128_low_v64(E), c),
+                       (int32_t)v64_dotp_s16(v128_high_v64(E), c));
     c = v64_from_64(0x0040ffc0ffc00040LL);
-    EEO = v128_from_32(v64_dotp_s16(v128_low_v64(E_), c),
-                       v64_dotp_s16(v128_high_v64(E_), c),
-                       v64_dotp_s16(v128_low_v64(E), c),
-                       v64_dotp_s16(v128_high_v64(E), c));
+    EEO = v128_from_32((int32_t)v64_dotp_s16(v128_low_v64(E_), c),
+                       (int32_t)v64_dotp_s16(v128_high_v64(E_), c),
+                       (int32_t)v64_dotp_s16(v128_low_v64(E), c),
+                       (int32_t)v64_dotp_s16(v128_high_v64(E), c));
 
     t = v128_shr_s32(v128_add_32(EEE, round), shift);
     v64_store_aligned(dst+0*8, v128_low_v64(v128_unziplo_16(t, t)));
@@ -2079,35 +2076,59 @@ static void transform16(const int16_t *src, int16_t *dst, int shift)
     v64_store_aligned(dst+14*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0x00090019002b0039LL, 0x004600500057005aLL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+1*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0xffe7ffbaffa6ffb0LL, 0xffd5000900390057LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+3*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0x002b005a0039ffe7LL, 0xffa9ffba00090050LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+5*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0xffc7ffb00019005aLL, 0x0009ffa9ffd50046LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+7*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0x0046002bffa9fff7LL, 0x005affe7ffb00039LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+9*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0xffb000090046ffa9LL, 0x00190039ffa6002bLL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+11*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0x0057ffc70009002bLL, 0xffb0005affba0019LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+13*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     t0 = v128_from_64(0xffa60057ffb00046LL, 0xffc7002bffe70009LL);
-    t0 = v128_shr_s32(v128_add_32(v128_from_32(v128_dotp_s16(O3, t0), v128_dotp_s16(O2, t0), v128_dotp_s16(O1, t0), v128_dotp_s16(O0, t0)), round), shift);
+    t0 = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v128_dotp_s16(O3, t0),
+                                               (int32_t)v128_dotp_s16(O2, t0),
+                                               (int32_t)v128_dotp_s16(O1, t0),
+                                               (int32_t)v128_dotp_s16(O0, t0)), round), shift);
     v64_store_aligned(dst+15*16, v128_low_v64(v128_unziplo_16(t0, t0)));
 
     src += 16*4;
@@ -2309,13 +2330,13 @@ void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
                                         v64_from_64(0x0707060503030201LL)));
   v128 c2 = v128_dup_8(2);
   v128 sp = v128_dup_8(strength);
-  v128 sm = v128_dup_8(-strength);
+  v128 sm = v128_dup_8(-(int)strength);
 
   v128 delta = v128_add_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
 				     v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm)),
 			  v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
 				     v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm)));
-  delta = v128_shr_s8(v128_add_8(c2, v64_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 2);
+  delta = v128_shr_s8(v128_add_8(c2, v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 2);
   v128 r = v128_add_8(o, delta);
   *(uint32_t*)dst = v128_low_u32(v128_shr_n_byte(r, 12));
   *(uint32_t*)(dst + dstride) = v128_low_u32(v128_shr_n_byte(r, 8));
@@ -2337,7 +2358,7 @@ void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   src += x0 + y0*sstride;
 
   v64 sp = v64_dup_8(strength);
-  v64 sm = v64_dup_8(-strength);
+  v64 sm = v64_dup_8(-(int)strength);
 
   for (int y = 0; y < 8; y++) {
     v64 o = v64_load_aligned(src);

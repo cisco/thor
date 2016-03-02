@@ -81,7 +81,7 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
   int chroma_flag = type&1;
   int intra_flag = (type>>1)&1;
   int vlc_adaptive = intra_flag && !chroma_flag;
-  int eob_pos = chroma_flag ? 0 : 2;
+  unsigned int eob_pos = chroma_flag ? 0 : 2;
   static int *zigzag[] = { 0, 0, zigzag16, zigzag64, zigzag256 };
   int *zigzagptr = zigzag[log2i(qsize)];
   int runs = 0;

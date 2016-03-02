@@ -82,7 +82,7 @@ SIMD_INLINE uint32_t u32_load_aligned(const void *p) {
 }
 
 SIMD_INLINE uint32_t u32_load_unaligned(const void *p) {
-  return *((uint32_t*)p);
+  return vget_lane_u32(vreinterpret_u32_u8(vld1_u8((const uint8_t*)p)), 0);
 }
 
 SIMD_INLINE void u32_store_aligned(void *p, uint32_t a) {
@@ -90,7 +90,7 @@ SIMD_INLINE void u32_store_aligned(void *p, uint32_t a) {
 }
 
 SIMD_INLINE void u32_store_unaligned(void *p, uint32_t a) {
-  *((uint32_t*)p) = a;
+  vst1_u8(p, vreinterpret_u8_u64(a));
 }
 
 SIMD_INLINE v64 v64_load_aligned(const void *p) {

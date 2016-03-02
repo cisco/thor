@@ -132,7 +132,7 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
   v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
   v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
   v64 sp = v64_dup_8(strength);
-  v64 sm = v64_dup_8(-strength);
+  v64 sm = v64_dup_8(-(int)strength);
   ssd64_internal ssd0 = v64_ssd_u8_init();
   ssd64_internal ssd1 = v64_ssd_u8_init();
 
@@ -353,16 +353,16 @@ unsigned int sad_calc_fastquarter_simd(const uint8_t *po, const uint8_t *r, int 
   unsigned int sad_top, sad_right, sad_down, sad_left;
   int bestx = 0, besty = -1;
 
-  sad64_internal top = v64_sad_u8_init();
-  sad64_internal right = v64_sad_u8_init();
-  sad64_internal down = v64_sad_u8_init();
-  sad64_internal left = v64_sad_u8_init();
-  sad64_internal tl = v64_sad_u8_init();
-  sad64_internal tr = v64_sad_u8_init();
-  sad64_internal br = v64_sad_u8_init();
-  sad64_internal bl = v64_sad_u8_init();
-
   if (width == 8) {
+    sad64_internal top = v64_sad_u8_init();
+    sad64_internal right = v64_sad_u8_init();
+    sad64_internal down = v64_sad_u8_init();
+    sad64_internal left = v64_sad_u8_init();
+    sad64_internal tl = v64_sad_u8_init();
+    sad64_internal tr = v64_sad_u8_init();
+    sad64_internal br = v64_sad_u8_init();
+    sad64_internal bl = v64_sad_u8_init();
+
     if (*x & *y) {
       for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j += 8) {
@@ -486,6 +486,15 @@ unsigned int sad_calc_fastquarter_simd(const uint8_t *po, const uint8_t *r, int 
     sad_bl = v64_sad_u8_sum(bl);
     sad_br = v64_sad_u8_sum(br);
   } else {
+    sad128_internal top = v128_sad_u8_init();
+    sad128_internal right = v128_sad_u8_init();
+    sad128_internal down = v128_sad_u8_init();
+    sad128_internal left = v128_sad_u8_init();
+    sad128_internal tl = v128_sad_u8_init();
+    sad128_internal tr = v128_sad_u8_init();
+    sad128_internal br = v128_sad_u8_init();
+    sad128_internal bl = v128_sad_u8_init();
+
     if (*x & *y) {
       for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j += 16) {

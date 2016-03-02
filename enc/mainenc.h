@@ -44,7 +44,7 @@ typedef struct
   char *statfilestr;
   unsigned int file_headerlen;
   unsigned int frame_headerlen;
-  unsigned int num_frames;
+  int num_frames;
   int skip;
   float frame_rate;
   float lambda_coeffI;

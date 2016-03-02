@@ -76,7 +76,7 @@ int main(int argc, char **argv)
 {
   FILE *infile, *strfile, *reconfile;
 
-  uint32_t input_file_size; //TODO: Support file size values larger than 32 bits 
+  int input_file_size; //TODO: Support file size values larger than 32 bits 
   yuv_frame_t orig,ref[MAX_REF_FRAMES];
   yuv_frame_t rec[MAX_REORDER_BUFFER];
   int rec_available[MAX_REORDER_BUFFER] = {0};
@@ -84,7 +84,7 @@ int main(int argc, char **argv)
   int num_encoded_frames,num_bits,start_bits,end_bits;
   int sub_gop=1;
   int rec_buffer_idx;
-  int frame_num,frame_num0,k,r;
+  int k,frame_num,frame_num0,r;
   int frame_offset;
   int ysize,csize,frame_size;
   int width,height;
@@ -232,7 +232,7 @@ int main(int argc, char **argv)
   rate_control_t rc;
   encoder_info.rc = &rc;
   if (params->bitrate > 0) {
-    int target_bits = params->bitrate / params->frame_rate;
+    int target_bits = (int)(params->bitrate / params->frame_rate);
     int sb_size = 1 << params->log2_sb_size;
     int num_sb = ((width + sb_size - 1) / sb_size) * ((height + sb_size - 1) / sb_size);
     init_rate_control_per_sequence(&rc, target_bits, num_sb);

@@ -128,7 +128,7 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
         int c = coeff[i*size+j];
         if (wt_matrix)
           c = c*wt_matrix[i*ws+j];
-        rcoeff[i*size+j] = (c * scale) << (lshift-rshift);// needs clipping?
+        rcoeff[i*size+j] = (int16_t)((c * scale) << (lshift-rshift));// needs clipping?
       }
     }
   } else {
@@ -137,7 +137,7 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
         int c = coeff[i*size+j];
         if (wt_matrix)
           c = c*wt_matrix[i*ws+j];
-        rcoeff[i*size+j] = (c * scale + add) >> (rshift - lshift);//needs clipping
+        rcoeff[i*size+j] = (int16_t)((c * scale + add) >> (rshift - lshift));//needs clipping
       }
     }
 

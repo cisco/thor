@@ -641,11 +641,11 @@ void clpf_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *debloc
             int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED;
             if (filter) {
               if (deblock_data[index].cbp.y || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_SB_SIZE, xpos, ypos, block_size, width, height, strength + (deblock_data[index].mode == MODE_INTRA));
+                (use_simd ? clpf_block_simd : clpf_block)(rec->y, tmp, stride_y, MAX_SB_SIZE, xpos, ypos, block_size, width, height, strength);
               if (deblock_data[index].cbp.u || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->u, tmp + MAX_SB_SIZE*MAX_SB_SIZE, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength + (deblock_data[index].mode == MODE_INTRA));
+                (use_simd ? clpf_block_simd : clpf_block)(rec->u, tmp + MAX_SB_SIZE*MAX_SB_SIZE, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength);
               if (deblock_data[index].cbp.v || enable_sb_flag)
-                (use_simd ? clpf_block_simd : clpf_block)(rec->v, tmp + MAX_SB_SIZE*MAX_SB_SIZE * 5 / 4, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength + (deblock_data[index].mode == MODE_INTRA));
+                (use_simd ? clpf_block_simd : clpf_block)(rec->v, tmp + MAX_SB_SIZE*MAX_SB_SIZE * 5 / 4, stride_c, MAX_SB_SIZE / 2, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength);
             }
           }
         }

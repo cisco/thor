@@ -135,7 +135,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   if (decoder_info->clpf && get_flc(1, stream)){
     int enable_sb_flag = !get_flc(1, stream);
-    int strength = enable_sb_flag ? 1 + (qp > 28) + (qp > 32) + (qp > 36) + (qp > 40) : 1;
+    int strength = enable_sb_flag ? 2 : 1;
     clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_bit : clpf_true);
   }
 

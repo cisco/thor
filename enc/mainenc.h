@@ -153,6 +153,7 @@ typedef struct
   enc_params *params;
   yuv_frame_t *orig;
   yuv_frame_t *rec;
+  yuv_frame_t *tmp;
   yuv_frame_t *ref[MAX_REF_FRAMES];
   yuv_frame_t *interp_frames[MAX_SKIP_FRAMES];
   stream_t *stream;

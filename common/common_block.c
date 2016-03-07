@@ -194,7 +194,7 @@ int clpf_sample(int X, int A, int B, int C, int D, int b) {
   return (1 + delta + (delta >= 0)) >> 2;
 }
 
-void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height, unsigned int strength) {
+void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int size, int width, int height, unsigned int strength) {
   int left = 0;
   int top = 0;
   int right = width-1;
@@ -202,13 +202,13 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int 
 
   for (int y=y0;y<y0+size;y++){
     for (int x=x0;x<x0+size;x++) {
-      int X = src[(y+0)*sstride + x+0];
-      int A = y == top ? X : src[(y-1)*sstride + x+0];
-      int B = x == left ? X : src[(y+0)*sstride + x-1];
-      int C = x == right ? X : src[(y+0)*sstride + x+1];
-      int D = y == bottom ? X : src[(y+1)*sstride + x+0];
+      int X = src[(y+0)*stride + x+0];
+      int A = y == top ? X : src[(y-1)*stride + x+0];
+      int B = x == left ? X : src[(y+0)*stride + x-1];
+      int C = x == right ? X : src[(y+0)*stride + x+1];
+      int D = y == bottom ? X : src[(y+1)*stride + x+0];
       int delta = clpf_sample(X, A, B, C, D, strength);
-      dst[(y-top)*dstride + x-left] = X + delta;
+      dst[y*stride + x] = X + delta;
     }
   }
 }

@@ -90,6 +90,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   rec_buffer_idx = decoder_info->frame_info.display_frame_num%MAX_REORDER_BUFFER;
   decoder_info->rec = &rec_buffer[rec_buffer_idx];
+  decoder_info->tmp = &rec_buffer[MAX_REORDER_BUFFER];
   decoder_info->rec->frame_num = decoder_info->frame_info.display_frame_num;
 
   if (decoder_info->frame_info.num_ref>2 && decoder_info->frame_info.ref_array[0]==-1) {
@@ -136,7 +137,11 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   if (decoder_info->clpf && get_flc(1, stream)){
     int enable_sb_flag = !get_flc(1, stream);
     int strength = enable_sb_flag ? 2 : 1;
-    clpf_frame(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_bit : clpf_true);
+    yuv_frame_t tmp = *decoder_info->rec;
+    clpf_frame(decoder_info->tmp, decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_bit : clpf_true);
+    *decoder_info->rec = *decoder_info->tmp;
+    *decoder_info->tmp = tmp;
+    decoder_info->rec->frame_num = tmp.frame_num;
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

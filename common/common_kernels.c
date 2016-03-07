@@ -151,7 +151,6 @@ static void transpose8x8(const int16_t *src, int sstride, int16_t *dst, int dstr
   i5 = v128_ziphi_32(t3, t2);
   i6 = v128_ziphi_32(t5, t4);
   i7 = v128_ziphi_32(t7, t6);
-
   v128_store_aligned(dst + dstride*0, v128_ziplo_64(i1, i0));
   v128_store_aligned(dst + dstride*1, v128_ziphi_64(i1, i0));
   v128_store_aligned(dst + dstride*2, v128_ziplo_64(i5, i4));
@@ -2295,32 +2294,32 @@ void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size)
     inverse_transform32(coeff, block);
 }
 
-void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
+void clpf_block4(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength) {
   int left = -x0;
   int top = -y0;
   int right = width-1-x0;
   int bottom = height-1-y0;
-  dst += (x0 & (MAX_SB_SIZE/2-1)) + (y0 & (MAX_SB_SIZE/2-1))*dstride;
-  src += x0 + y0*sstride;
+  dst += x0 + y0*stride;
+  src += x0 + y0*stride;
 
-  uint32_t l0 = *(uint32_t*)(src - !!top*sstride);
+  uint32_t l0 = *(uint32_t*)(src - !!top*stride);
   uint32_t l1 = *(uint32_t*)(src);
-  uint32_t l2 = *(uint32_t*)(src + sstride);
-  uint32_t l3 = *(uint32_t*)(src + 2*sstride);
-  uint32_t l4 = *(uint32_t*)(src + 3*sstride);
-  uint32_t l5 = *(uint32_t*)(src + (3+(bottom != 3))*sstride);
+  uint32_t l2 = *(uint32_t*)(src + stride);
+  uint32_t l3 = *(uint32_t*)(src + 2*stride);
+  uint32_t l4 = *(uint32_t*)(src + 3*stride);
+  uint32_t l5 = *(uint32_t*)(src + (3+(bottom != 3))*stride);
   v128 c128 = v128_dup_8(128);
   v128 o = v128_from_32(l1, l2, l3, l4);
   v128 x = v128_add_8(c128, o);
   v128 a = v128_add_8(c128, v128_from_32(l0, l1, l2, l3));
   v128 b = v128_add_8(c128, v128_from_32(*(uint32_t*)(src - !!left),
-                                         *(uint32_t*)(src + sstride - !!left),
-                                         *(uint32_t*)(src + 2*sstride - !!left),
-                                         *(uint32_t*)(src + 3*sstride - !!left)));
+                                         *(uint32_t*)(src + stride - !!left),
+                                         *(uint32_t*)(src + 2*stride - !!left),
+                                         *(uint32_t*)(src + 3*stride - !!left)));
   v128 c = v128_add_8(c128, v128_from_32(*(uint32_t*)(src + (right != 3)),
-                                         *(uint32_t*)(src + sstride + (right != 3)),
-                                         *(uint32_t*)(src + 2*sstride + (right != 3)),
-                                         *(uint32_t*)(src + 3*sstride + (right != 3))));
+                                         *(uint32_t*)(src + stride + (right != 3)),
+                                         *(uint32_t*)(src + 2*stride + (right != 3)),
+                                         *(uint32_t*)(src + 3*stride + (right != 3))));
   v128 d = v128_add_8(c128, v128_from_32(l2, l3, l4, l5));
   if (!left)
     b = v128_shuffle_8(b, v128_from_v64(v64_from_64(0x0e0d0c0c0a090808LL),
@@ -2339,12 +2338,12 @@ void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   delta = v128_shr_s8(v128_add_8(c2, v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 2);
   v128 r = v128_add_8(o, delta);
   *(uint32_t*)dst = v128_low_u32(v128_shr_n_byte(r, 12));
-  *(uint32_t*)(dst + dstride) = v128_low_u32(v128_shr_n_byte(r, 8));
-  *(uint32_t*)(dst + 2*dstride) = v128_low_u32(v128_shr_n_byte(r, 4));
-  *(uint32_t*)(dst + 3*dstride) = v128_low_u32(r);
+  *(uint32_t*)(dst + stride) = v128_low_u32(v128_shr_n_byte(r, 8));
+  *(uint32_t*)(dst + 2*stride) = v128_low_u32(v128_shr_n_byte(r, 4));
+  *(uint32_t*)(dst + 3*stride) = v128_low_u32(r);
 }
 
-void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
+void clpf_block8(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength) {
   int left = -x0;
   int top = -y0;
   int right = width-1-x0;
@@ -2354,8 +2353,8 @@ void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
   v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
 
-  dst += (x0 & (MAX_SB_SIZE-1)) + (y0 & (MAX_SB_SIZE-1))*dstride;
-  src += x0 + y0*sstride;
+  dst += x0 + y0*stride;
+  src += x0 + y0*stride;
 
   v64 sp = v64_dup_8(strength);
   v64 sm = v64_dup_8(-(int)strength);
@@ -2363,17 +2362,17 @@ void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
   for (int y = 0; y < 8; y++) {
     v64 o = v64_load_aligned(src);
     v64 x = v64_add_8(c128, o);
-    v64 a = v64_add_8(c128, v64_load_aligned(src - (y!=top)*sstride));
+    v64 a = v64_add_8(c128, v64_load_aligned(src - (y!=top)*stride));
     v64 b = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(src - !!left), s1));
     v64 c = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(src + (right != 7)), s2));
-    v64 d = v64_add_8(c128, v64_load_aligned(src + (y!=bottom)*sstride));
+    v64 d = v64_add_8(c128, v64_load_aligned(src + (y!=bottom)*stride));
     v64 delta = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(a, x), sp), sm),
                                     v64_max_s8(v64_min_s8(v64_ssub_s8(b, x), sp), sm)),
                           v64_add_8(v64_max_s8(v64_min_s8(v64_ssub_s8(c, x), sp), sm),
                                     v64_max_s8(v64_min_s8(v64_ssub_s8(d, x), sp), sm)));
     delta = v64_shr_s8(v64_add_8(c2, v64_add_8(delta, v64_cmplt_s8(delta, v64_zero()))), 2);
     v64_store_aligned(dst, v64_add_8(o, delta));
-    src += sstride;
-    dst += dstride;
+    src += stride;
+    dst += stride;
   }
 }

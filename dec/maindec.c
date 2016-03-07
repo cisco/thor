@@ -94,7 +94,7 @@ int main(int argc, char** argv)
     FILE *infile,*outfile;
     decoder_info_t decoder_info;
     stream_t stream;
-    yuv_frame_t rec[MAX_REORDER_BUFFER];
+    yuv_frame_t rec[MAX_REORDER_BUFFER+1];  // Last is for temp use
     yuv_frame_t ref[MAX_REF_FRAMES];
     int rec_available[MAX_REORDER_BUFFER]={0};
     int rec_buffer_idx;
@@ -156,7 +156,7 @@ int main(int argc, char** argv)
 
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
-    for (r=0;r<MAX_REORDER_BUFFER;r++){
+    for (r=0;r<MAX_REORDER_BUFFER+1;r++){
       create_yuv_frame(&rec[r],width,height,0,0,0,0);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
@@ -339,7 +339,7 @@ int main(int argc, char** argv)
     }
     printf("\n");
     printf("-----------------------------------------------------------------\n");
-    for (r=0;r<MAX_REORDER_BUFFER;r++){
+    for (r=0;r<MAX_REORDER_BUFFER+1;r++){
       close_yuv_frame(&rec[r]);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){

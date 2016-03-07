@@ -191,9 +191,13 @@ void encode_frame(encoder_info_t *encoder_info)
     else {
       int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
       int strength = enable_sb_flag ? 2 : 1;
+      yuv_frame_t tmp = *encoder_info->rec;
       put_flc(1, 1, stream);
       put_flc(1, !enable_sb_flag, stream);
-      clpf_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_decision : clpf_true);
+      clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_decision : clpf_true);
+      *encoder_info->rec = *encoder_info->tmp;
+      *encoder_info->tmp = tmp;
+      encoder_info->rec->frame_num = tmp.frame_num;
     }
   }
 

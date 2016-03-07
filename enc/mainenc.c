@@ -78,7 +78,7 @@ int main(int argc, char **argv)
 
   int input_file_size; //TODO: Support file size values larger than 32 bits 
   yuv_frame_t orig,ref[MAX_REF_FRAMES];
-  yuv_frame_t rec[MAX_REORDER_BUFFER];
+  yuv_frame_t rec[MAX_REORDER_BUFFER+1];  // Last one is for temp use
   int rec_available[MAX_REORDER_BUFFER] = {0};
   int last_frame_output=-1;
   int num_encoded_frames,num_bits,start_bits,end_bits;
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 
   /* Create frames*/
   create_yuv_frame(&orig,width,height,0,0,0,0);
-  for (r=0;r<MAX_REORDER_BUFFER;r++){
+  for (r=0;r<MAX_REORDER_BUFFER+1;r++){
     create_yuv_frame(&rec[r],width,height,0,0,0,0);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
@@ -251,6 +251,7 @@ int main(int argc, char **argv)
       encoder_info.frame_info.frame_num = frame_num - params->skip;
       rec_buffer_idx = encoder_info.frame_info.frame_num%MAX_REORDER_BUFFER;
       encoder_info.rec = &rec[rec_buffer_idx];
+      encoder_info.tmp = &rec[MAX_REORDER_BUFFER];
       encoder_info.rec->frame_num = encoder_info.frame_info.frame_num;
       if (params->num_reorder_pics==0) {
         if (params->intra_period > 0)
@@ -658,7 +659,7 @@ int main(int argc, char **argv)
   free_wmatrices(encoder_info.iwmatrix);
 
   close_yuv_frame(&orig);
-  for (int i=0; i<MAX_REORDER_BUFFER; ++i) {
+  for (int i=0; i<MAX_REORDER_BUFFER+1; ++i) {
     close_yuv_frame(&rec[i]);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){

@@ -45,14 +45,14 @@ const double squared_lambda_QP [52] = {
     1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
 };
 
-static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, void *stream, unsigned int strength) {
+static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength) {
   return 1;
 }
 
-static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, void *stream, unsigned int strength) {
+static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength) {
   int sum0 = 0, sum1 = 0;
-  for (int m=0;m<MAX_SB_SIZE/block_size;m++){
-    for (int n=0;n<MAX_SB_SIZE/block_size;n++){
+  for (int m = 0; m < h; m++) {
+    for (int n = 0; n < w; n++) {
       int xpos = l*MAX_SB_SIZE + n*block_size;
       int ypos = k*MAX_SB_SIZE + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);

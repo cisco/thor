@@ -2296,11 +2296,11 @@ void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size)
 }
 
 void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int left = (x0 & ~(MAX_SB_SIZE/2-1)) - x0;
-  int top = (y0 & ~(MAX_SB_SIZE/2-1)) - y0;
-  int right = min(width-1, left + MAX_SB_SIZE/2-1);
-  int bottom = min(height-1, top + MAX_SB_SIZE/2-1);
-  dst -= left + top*dstride;
+  int left = -x0;
+  int top = -y0;
+  int right = width-1-x0;
+  int bottom = height-1-y0;
+  dst += (x0 & (MAX_SB_SIZE/2-1)) + (y0 & (MAX_SB_SIZE/2-1))*dstride;
   src += x0 + y0*sstride;
 
   uint32_t l0 = *(uint32_t*)(src - !!top*sstride);
@@ -2345,16 +2345,16 @@ void clpf_block4(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int
 }
 
 void clpf_block8(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int left = (x0 & ~(MAX_SB_SIZE-1)) - x0;
-  int top = (y0 & ~(MAX_SB_SIZE-1)) - y0;
-  int right = min(width-1, left + MAX_SB_SIZE-1);
-  int bottom = min(height-1, top + MAX_SB_SIZE-1);
+  int left = -x0;
+  int top = -y0;
+  int right = width-1-x0;
+  int bottom = height-1-y0;
   v64 c2 = v64_dup_8(2);
   v64 c128 = v64_dup_8(128);
   v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
   v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
 
-  dst -= left + top*dstride;
+  dst += (x0 & (MAX_SB_SIZE-1)) + (y0 & (MAX_SB_SIZE-1))*dstride;
   src += x0 + y0*sstride;
 
   v64 sp = v64_dup_8(strength);

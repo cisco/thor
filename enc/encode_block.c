@@ -2643,10 +2643,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
 void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength)
 {
-  int left = x0 & ~(MAX_SB_SIZE-1);
-  int top = y0 & ~(MAX_SB_SIZE-1);
-  int right = min(width-1, left + MAX_SB_SIZE-1);
-  int bottom = min(height-1, top + MAX_SB_SIZE-1);
+  int left = 0;
+  int top = 0;
+  int right = width-1;
+  int bottom = height-1;
 
   for (int y=y0;y<y0+8;y++){
     for (int x=x0;x<x0+8;x++) {

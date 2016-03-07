@@ -195,10 +195,10 @@ int clpf_sample(int X, int A, int B, int C, int D, int b) {
 }
 
 void clpf_block(const uint8_t *src, uint8_t *dst, int sstride, int dstride, int x0, int y0, int size, int width, int height, unsigned int strength) {
-  int left = x0 & ~(dstride-1);
-  int top = y0 & ~(dstride-1);
-  int right = min(width-1, left + dstride-1);
-  int bottom = min(height-1, top + dstride-1);
+  int left = 0;
+  int top = 0;
+  int right = width-1;
+  int bottom = height-1;
 
   for (int y=y0;y<y0+size;y++){
     for (int x=x0;x<x0+size;x++) {

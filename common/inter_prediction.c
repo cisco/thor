@@ -201,7 +201,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   }
 }
 
-mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
+mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
 {
   mv_t mvp, mva, mvb, mvc;
   inter_pred_t zero_pred, inter_predA, inter_predB, inter_predC;
@@ -240,8 +240,9 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
    /* Determine availability */
   int up_available = get_up_available(ypos,xpos,size,width);
   int left_available = get_left_available(ypos,xpos,size,width);
-  int upright_available = get_upright_available(ypos,xpos,size,width);
-  int downleft_available = get_downleft_available(ypos,xpos,size,height);
+
+  int upright_available = get_upright_available(ypos, xpos, size, width, sb_size);
+  int downleft_available = get_downleft_available(ypos, xpos, size, height, sb_size);
 
   int U = up_available;
   int UR = upright_available;
@@ -315,7 +316,7 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   return mvp;
 }
 
-int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
+int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
 {
   int num_merge_vec = 0;
   int i, idx, duplicate;
@@ -348,8 +349,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_
   /* Determine availability */
   int up_available = get_up_available(yposY, xposY, size, width);
   int left_available = get_left_available(yposY, xposY, size, width);
-  int upright_available = get_upright_available(yposY, xposY, size, width);
-
+  int upright_available = get_upright_available(yposY, xposY, size, width, sb_size);
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
@@ -373,8 +373,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_
   int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
-  int downleft_available = get_downleft_available(yposY, xposY, size, height);
-
+  int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
     left_index1 = left_index2 = left_index0;
@@ -468,7 +467,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, deblock_
   return num_merge_vec;
 }
 
-int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
+int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
 {
   int num_skip_vec=0;
   int i,idx,duplicate;
@@ -501,7 +500,7 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_d
   /* Determine availability */
   int up_available = get_up_available(yposY,xposY,size,width);
   int left_available = get_left_available(yposY,xposY,size,width);
-  int upright_available = get_upright_available(yposY,xposY,size,width);
+  int upright_available = get_upright_available(yposY, xposY, size, width, sb_size);
 
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */
@@ -526,8 +525,7 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, deblock_d
   int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
-  int downleft_available = get_downleft_available(yposY, xposY, size, height);
-
+  int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
     left_index1 = left_index2 = left_index0;

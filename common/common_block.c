@@ -93,23 +93,36 @@ int get_up_available(int ypos, int xpos, int size, int width){
   return up_available;
 }
 
-int get_upright_available(int ypos, int xpos, int size, int width){
+int get_upright_available(int ypos, int xpos, int size, int width,int sb_size) {
 
-  int upright_available = (ypos > 0) && (xpos + size < width);
-  if (size==32 && (ypos%64)==32) upright_available = 0;
-  if (size==16 && ((ypos%32)==16 || ((ypos%64)==32 && (xpos%32)==16))) upright_available = 0;
-  if (size== 8 && ((ypos%16)==8 || ((ypos%32)==16 && (xpos%16)==8) || ((ypos%64)==32 && (xpos%32)==24))) upright_available = 0;
+  int upright_available;
+  int size2;
 
+  /* Test for frame boundaries */
+  upright_available = (ypos > 0) && (xpos + size < width);
+
+  /* Test for coding block boundaries */
+  for (size2 = size; size2 < sb_size; size2 *= 2) {
+    if ((ypos % (size2<<1)) == size2 && (xpos % size2) == (size2 - size)) upright_available = 0;
+  }
   return upright_available;
 }
 
-int get_downleft_available(int ypos, int xpos, int size, int height){
+int get_downleft_available(int ypos, int xpos, int size, int height,int sb_size) {
 
-  int downleft_available = (xpos > 0) && (ypos + size < height);
-  if (size==64) downleft_available = 0;
-  if (size==32 && (ypos%64)==32) downleft_available = 0;
-  if (size==16 && ((ypos%64)==48 || ((ypos%64)==16 && (xpos%32)==16))) downleft_available = 0;
-  if (size== 8 && ((ypos%64)==56 || ((ypos%16)==8 && (xpos%16)==8) || ((ypos%64)==24 && (xpos%32)==16))) downleft_available = 0;
+  int downleft_available;
+  int size2;
+
+  /* Test for frame boundaries */
+  downleft_available = (xpos > 0) && (ypos + size < height);
+
+  /* Test for external super block boundaries */
+  if ((ypos % sb_size) == (sb_size - size) && (xpos % sb_size) == 0) downleft_available = 0;
+
+  /* Test for coding block boundaries */
+  for (size2 = 2*size; size2 <= sb_size; size2 *= 2) {
+    if ((ypos % size2) == (size2 - size) && (xpos % size2) > 0) downleft_available = 0;
+  }
 
   return downleft_available;
 }

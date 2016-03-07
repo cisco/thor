@@ -925,8 +925,8 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
   uint8_t* top = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
   uint8_t top_left;
 
-  int upright_available = get_upright_available(yposY,xposY,size,width);
-  int downleft_available = get_downleft_available(yposY,xposY,size,height);
+  int downleft_available = get_downleft_available(yposY, xposY, size, height, block_pos->sb_size);
+  int upright_available = get_upright_available(yposY, xposY, size, width, block_pos->sb_size);
   make_top_and_left(left,top,&top_left,&rec->y[yposY*rec->stride_y+xposY],rec->stride_y,NULL,0,0,0,yposY,xposY,size,upright_available,downleft_available,0);
 
 
@@ -1354,8 +1354,10 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
 
   if (mode==MODE_INTRA){
     intra_mode = block_param->intra_mode;
-    int upright_available = get_upright_available(yposY,xposY,sizeY,width);
-    int downleft_available = get_downleft_available(yposY,xposY,sizeY,height);
+
+    int upright_available = get_upright_available(yposY, xposY, sizeY, width, 1 << encoder_info->params->log2_sb_size);
+    int downleft_available = get_downleft_available(yposY, xposY, sizeY, height, 1 << encoder_info->params->log2_sb_size);
+
     uint8_t* yrec = &rec->y[yposY*rec->stride_y+xposY];
     uint8_t* urec = &rec->u[yposC*rec->stride_c+xposC];
     uint8_t* vrec = &rec->v[yposC*rec->stride_c+xposC];
@@ -1529,7 +1531,7 @@ void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_pos_t *bl
   }
 }
 
-void get_mv_cand(int ypos,int xpos,int width,int height,int size,int ref_idx,deblock_data_t *deblock_data, mv_t *mvcand){
+void get_mv_cand(int ypos,int xpos,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data, mv_t *mvcand){
 
   mv_t zerovec;
   zerovec.x = 0;
@@ -1552,11 +1554,12 @@ void get_mv_cand(int ypos,int xpos,int width,int height,int size,int ref_idx,deb
   int upright_index = block_index - block_stride + block_size;
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
-  
+
   int up_available = get_up_available(ypos,xpos,size,width);
   int left_available = get_left_available(ypos,xpos,size,width);
-  int upright_available = get_upright_available(ypos,xpos,size,width);
-  int downleft_available = get_downleft_available(ypos,xpos,size,height);
+
+  int upright_available = get_upright_available(ypos, xpos, size, width, sb_size);
+  int downleft_available = get_downleft_available(ypos, xpos, size, height, sb_size);
 
   int U = up_available;
   int UR = upright_available;
@@ -2017,7 +2020,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
         tmp_block_param.ref_idx0 = ref_idx;
         tmp_block_param.ref_idx1 = ref_idx;
-        mvp = get_mv_pred(ypos,xpos,width,height,size,ref_idx,encoder_info->deblock_data);
+        mvp = get_mv_pred(ypos,xpos,width,height,size, 1 << encoder_info->params->log2_sb_size, ref_idx,encoder_info->deblock_data);
         add_mvcandidate(&mvp, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
         block_info->mvp = mvp;
 
@@ -2523,6 +2526,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   block_info.block_pos.bheight = min(size,height-ypos);
   block_info.block_pos.ypos = ypos;
   block_info.block_pos.xpos = xpos;
+  block_info.block_pos.sb_size = 1 << encoder_info->params->log2_sb_size;
   block_info.max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
   block_info.max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
   block_info.qp = qp;
@@ -2540,8 +2544,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
   if (frame_type != I_FRAME && (encode_this_size || encode_rectangular_size)) {
     /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
-    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, encoder_info->deblock_data, block_info.skip_candidates);
-    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, encoder_info->deblock_data, block_info.merge_candidates);
+    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.skip_candidates);
+    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.merge_candidates);
   }
 
   if (encode_this_size && frame_type != I_FRAME && encoder_info->params->early_skip_thr > 0.0){

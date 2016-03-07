@@ -220,7 +220,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
     inter_pred_t skip_candidates[MAX_NUM_SKIP];
-    num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, decoder_info->deblock_data, skip_candidates);
+    num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, skip_candidates);
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = skip_candidates[idx].mv0;
     }
@@ -262,7 +262,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
     inter_pred_t merge_candidates[MAX_NUM_SKIP];
-    num_skip_vec = get_mv_merge(ypos, xpos, width, height, size, decoder_info->deblock_data, merge_candidates);
+    num_skip_vec = get_mv_merge(ypos, xpos, width, height, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, merge_candidates);
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = merge_candidates[idx].mv0;
     }
@@ -320,7 +320,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     //if (mode==MODE_INTER)
     decoder_info->bit_count.size_and_ref_idx[stat_frame_type][log2i(size)-3][ref_idx] += 1;
 
-    mvp = get_mv_pred(ypos,xpos,width,height,size,ref_idx,decoder_info->deblock_data);
+    mvp = get_mv_pred(ypos,xpos,width,height,size,1<<decoder_info->log2_sb_size,ref_idx,decoder_info->deblock_data);
 
     /* Deode motion vectors for each prediction block */
     mv_t mvp2 = mvp;
@@ -359,7 +359,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   }
   else if (mode==MODE_BIPRED){
     int ref_idx = 0;
-    mvp = get_mv_pred(ypos,xpos,width,height,size,ref_idx,decoder_info->deblock_data);
+    mvp = get_mv_pred(ypos,xpos,width,height,size, 1 << decoder_info->log2_sb_size, ref_idx,decoder_info->deblock_data);
 
     /* Deode motion vectors */
     mv_t mvp2 = mvp;

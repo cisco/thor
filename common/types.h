@@ -176,6 +176,7 @@ typedef struct
   uint8_t size;
   uint8_t bwidth;
   uint8_t bheight;
+  uint8_t sb_size;
 } block_pos_t;
 
 typedef struct

@@ -468,7 +468,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
 
   if (mode!=MODE_SKIP){
-    int tmp,cbp2;
+    int tmp;
     int cbp_table[8] = {1,0,5,2,6,3,7,4};
 
     bit_start = stream->bitcnt;
@@ -494,18 +494,17 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
         else if (code>0)
           code = code+1;
       }
-      while (tmp < 8 && code != cbp_table[tmp]) tmp++;
-      if (mode!=MODE_MERGE){
-        if (decoder_info->block_context->cbp==0 && tmp < 2){
-          tmp = 1-tmp;
+      else {
+        if (decoder_info->block_context->cbp == 0 && code < 2) {
+          code = 1 - code;
         }
       }
-      cbp2 = tmp;
-      decoder_info->bit_count.cbp2_stat[max(0,decoder_info->block_context->cbp)][stat_frame_type][mode-1][log2i(size)-3][cbp2] += 1;
+      while (tmp < 8 && code != cbp_table[tmp]) tmp++;
+      decoder_info->bit_count.cbp2_stat[max(0,decoder_info->block_context->cbp)][stat_frame_type][mode-1][log2i(size)-3][tmp] += 1;
 
-      cbp.y = ((cbp2>>0)&1);
-      cbp.u = ((cbp2>>1)&1);
-      cbp.v = ((cbp2>>2)&1);
+      cbp.y = ((tmp>>0)&1);
+      cbp.u = ((tmp>>1)&1);
+      cbp.v = ((tmp>>2)&1);
       block_info->cbp = cbp;
 
       if (cbp.y){

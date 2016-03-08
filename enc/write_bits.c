@@ -418,42 +418,31 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   }
 
   if (mode != MODE_SKIP){
-    int max_num_tb_part = 1;
+    int max_num_tb_part;
     if (mode == MODE_MERGE || mode == MODE_BIPRED)
       max_num_tb_part = 1;
-    else if (mode == MODE_INTER)
-      max_num_tb_part = block_info->max_num_tb_part > 1 ? 2 : 1;
-    else if (mode == MODE_INTRA)
+    else
       max_num_tb_part = block_info->max_num_tb_part;
-    if (max_num_tb_part>1) {
-      if (tb_split) {
-        code = 2;
-      }
-      else {
-        cbp = cbp_y + (cbp_u << 1) + (cbp_v << 2);
-        code = cbp_table[cbp];
-        if (block_info->block_context->cbp == 0 && code < 2)
-          code = 1 - code;
-        if (code > 1) code++;
-      }
+
+    if (max_num_tb_part > 1 && tb_split) {
+      code = 2;
     }
-    else{
-      if (mode==MODE_MERGE){
-        cbp = cbp_y + (cbp_u<<1) + (cbp_v<<2);
-        code = cbp_table[cbp];
-        if (code==1)
+    else {
+      cbp = cbp_y + (cbp_u << 1) + (cbp_v << 2);
+      code = cbp_table[cbp];
+      if (mode == MODE_MERGE) {
+        if (code == 1)
           code = 7;
         else if (code>1)
-          code = code-1;
+          code = code - 1;
       }
-      else{
-        cbp = cbp_y + (cbp_u<<1) + (cbp_v<<2);
-        code = cbp_table[cbp];
-        if (block_info->block_context->cbp == 0 && code < 2) {
-          code = 1-code;
-        }
+      else {
+        if (block_info->block_context->cbp == 0 && code < 2)
+          code = 1 - code;
       }
+      if (max_num_tb_part > 1 && code > 1) code++;
     }
+
     put_vlc(0,code,stream);
 
     if (tb_split==0){

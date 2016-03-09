@@ -169,7 +169,6 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   int sizeC = size/2;
 
   block_mode_t mode;
-  mv_t mv;
   intra_mode_t intra_mode;
 
   frame_type_t frame_type = decoder_info->frame_info.frame_type;
@@ -196,19 +195,11 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   yuv_frame_t *rec = decoder_info->rec;
   yuv_frame_t *ref = decoder_info->ref[0];
 
-  /* Calculate position in padded reference frame */
-  int ref_posY = yposY*ref->stride_y+xposY;
-  int ref_posC = yposC*ref->stride_c+xposC;
 
   /* Pointers to current position in reconstructed frame*/
   uint8_t *rec_y = &rec->y[yposY*rec->stride_y+xposY];
   uint8_t *rec_u = &rec->u[yposC*rec->stride_c+xposC];
   uint8_t *rec_v = &rec->v[yposC*rec->stride_c+xposC];
-
-  /* Pointers to colocated block position in reference frame */
-  uint8_t *ref_y = ref->y + ref_posY;
-  uint8_t *ref_u = ref->u + ref_posC;
-  uint8_t *ref_v = ref->v + ref_posC;
 
   stream_t *stream = decoder_info->stream;
 
@@ -272,7 +263,6 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         thor_free(pblock1_v);
       }
       else{
-        mv = block_info.block_param.mv_arr0[0];
         int ref_idx = block_info.block_param.ref_idx0; //TODO: Move to top
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
@@ -321,7 +311,6 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         thor_free(pblock1_v);
       }
       else{
-        mv = block_info.block_param.mv_arr0[0];
         int ref_idx = block_info.block_param.ref_idx0; //TODO: Move to top
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
@@ -330,24 +319,13 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       }
     }
     else if (mode == MODE_INTER){
-      int div = decoder_info->tb_split_enable+1; //TODO: pb_split_enable
-      int psizeY = sizeY/div;
-      int psizeC = sizeC/div;
-      int pstrideY = sizeY;
-      int pstrideC = sizeC;
       int ref_idx = block_info.block_param.ref_idx0;
       int r = decoder_info->frame_info.ref_array[ref_idx];
       ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
       int sign = ref->frame_num > rec->frame_num;
-      ref_y = ref->y + ref_posY;
-      ref_u = ref->u + ref_posC;
-      ref_v = ref->v + ref_posC;
       get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, decoder_info->pb_split);
     }
     else if (mode == MODE_BIPRED){
-      int div = decoder_info->tb_split_enable+1;
-      int pstrideY = sizeY;
-      int pstrideC = sizeC;
 
       uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
       uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);

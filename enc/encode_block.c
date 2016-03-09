@@ -2303,13 +2303,6 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         int sign0 = ref0->frame_num >= encoder_info->frame_info.frame_num;
         int sign1 = ref1->frame_num >= encoder_info->frame_info.frame_num;
 
-        block_info_t tmp_block_info;
-        tmp_block_info.block_pos.bheight = size0;
-        tmp_block_info.block_pos.bwidth = size0;
-        tmp_block_info.block_pos.ypos = ypos + i;
-        tmp_block_info.block_pos.xpos = xpos + j;
-        tmp_block_info.block_pos.size = size0;
-
         block_pos_t tmp_block_pos;
         tmp_block_pos.bheight = size0;
         tmp_block_pos.bwidth = size0;
@@ -2344,13 +2337,6 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         /* Offset for 8x8 (4x4) sub-block within compact block of original pixels */
         int block_offset_y = size*i + j;
         int block_offset_c = (size / 2)*(i / 2) + j / 2;
-
-        block_info_t tmp_block_info;
-        tmp_block_info.block_pos.bheight = size0;
-        tmp_block_info.block_pos.bwidth = size0;
-        tmp_block_info.block_pos.ypos = ypos + i;
-        tmp_block_info.block_pos.xpos = xpos + j;
-        tmp_block_info.block_pos.size = size0;
 
         block_pos_t tmp_block_pos;
         tmp_block_pos.bheight = size0;

@@ -1219,62 +1219,6 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
     return cbp;
 }
 
-void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_info_t *block_info, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split) {
-  mv_t mv;
-  int div = split + 1;
-  int bwidth = block_info->block_pos.bwidth/div;
-  int bheight = block_info->block_pos.bheight/div;
-  int pstride = block_info->block_pos.size;
-  int rstride_y = ref->stride_y;
-  int rstride_c = ref->stride_c;
-  int index;
-  int yposY = block_info->block_pos.ypos;
-  int xposY = block_info->block_pos.xpos;
-  int yposC = yposY / 2;
-  int xposC = xposY / 2;
-  int size = block_info->block_pos.size;
-
-  int ref_posY = yposY*ref->stride_y + xposY;
-  int ref_posC = yposC*ref->stride_c + xposC;
-  uint8_t *ref_y = ref->y + ref_posY;
-  uint8_t *ref_u = ref->u + ref_posC;
-  uint8_t *ref_v = ref->v + ref_posC;
-  for (index = 0; index<div*div; index++) {
-    int idx = (index >> 0) & 1;
-    int idy = (index >> 1) & 1;
-    int offsetpY = idy*bheight*pstride + idx*bwidth;
-    int offsetpC = idy*bheight*pstride/4 + idx*bwidth/2;
-    int offsetrY = idy*bheight*rstride_y + idx*bwidth;
-    int offsetrC = idy*bheight*rstride_c/2 + idx*bwidth/2;
-    mv = mv_arr[index];
-    clip_mv(&mv, yposY, xposY, width, height, size, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
-    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
-    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
-  }
-}
-
-void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_info_t *block_info) {
-  int bwidth = block_info->block_pos.bwidth;
-  int bheight = block_info->block_pos.bheight;
-  int size = block_info->block_pos.size;
-  int sizeY = size;
-  int sizeC = size / 2;
-  int i, j;
-
-  for (i = 0; i < bheight; i++) {
-    for (j = 0; j < bwidth; j++) {
-      rec_y[i*sizeY + j] = (uint8_t)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
-    }
-  }
-  for (i = 0; i < bheight / 2; i++) {
-    for (j = 0; j < bwidth / 2; j++) {
-      rec_u[i*sizeC + j] = (uint8_t)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
-      rec_v[i*sizeC + j] = (uint8_t)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
-    }
-  }
-}
-
 int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *block_info,block_param_t *block_param)
 {
   int width = encoder_info->width;
@@ -1382,20 +1326,20 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
         sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
 
         r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
         ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
         sign = ref1->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
-        average_blocks_all(rec_y, rec_u, rec_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
+        average_blocks_all(rec_y, rec_u, rec_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
       }
       else{
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
         sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, rec_y, rec_u, rec_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
+        get_inter_prediction_yuv(ref0, rec_y, rec_u, rec_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
       }
     }
     else if (mode==MODE_MERGE){
@@ -1404,20 +1348,20 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
         sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
         r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
         ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
         sign = ref1->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
       }
       else {
         r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
         ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
         sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock_y, pblock_u, pblock_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref0, pblock_y, pblock_u, pblock_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
       }
     }
 
@@ -1426,7 +1370,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
       int sign = ref0->frame_num > rec->frame_num;
       int split = encoder_info->params->enable_pb_split;
-      get_inter_prediction_yuv(ref,pblock_y,pblock_u,pblock_v,block_info, block_param->mv_arr0,sign, encoder_info->width, encoder_info->height,enable_bipred,split);
+      get_inter_prediction_yuv(ref,pblock_y,pblock_u,pblock_v,&block_info->block_pos, block_param->mv_arr0,sign, encoder_info->width, encoder_info->height,enable_bipred,split);
     }
     else if (mode==MODE_BIPRED){
       int sign;
@@ -1434,12 +1378,12 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
       ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
       sign = ref0->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
       r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
       ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
       sign = ref1->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, block_info, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
-      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
+      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
 
     }
     if (mode!=MODE_SKIP){
@@ -1839,7 +1783,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
       ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 
       int sign = ref->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, block_info, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 1);
+      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info->block_pos, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 1);
       /* Modify the target block based on that predition */
       for (i = 0; i < size*size; i++) {
         org8[i] = (uint8_t)clip255(2 * (int16_t)org_block->y[i] - (int16_t)pblock_y[i]);
@@ -2366,10 +2310,17 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         tmp_block_info.block_pos.xpos = xpos + j;
         tmp_block_info.block_pos.size = size0;
 
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_info, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, enable_bipred, 0);
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_info, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        block_pos_t tmp_block_pos;
+        tmp_block_pos.bheight = size0;
+        tmp_block_pos.bwidth = size0;
+        tmp_block_pos.ypos = ypos + i;
+        tmp_block_pos.xpos = xpos + j;
+        tmp_block_pos.size = size0;
 
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, enable_bipred, 0);
+
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos);
 
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, size / 2, size0 / 2, qpC, pblock_u, early_skip_threshold);
@@ -2401,12 +2352,18 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         tmp_block_info.block_pos.xpos = xpos + j;
         tmp_block_info.block_pos.size = size0;
 
-        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &tmp_block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        block_pos_t tmp_block_pos;
+        tmp_block_pos.bheight = size0;
+        tmp_block_pos.bwidth = size0;
+        tmp_block_pos.ypos = ypos + i;
+        tmp_block_pos.xpos = xpos + j;
+        tmp_block_pos.size = size0;
+
+        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &tmp_block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, size / 2, size0 / 2, qpC, pblock_u, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c, size / 2, size0 / 2, qpC, pblock_v, early_skip_threshold);
-
       }
     }
   }

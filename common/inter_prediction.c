@@ -201,6 +201,63 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   }
 }
 
+void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split) {
+  mv_t mv;
+  int div = split + 1;
+
+  int bwidth = block_pos->bwidth / div;
+  int bheight = block_pos->bheight / div;
+  int pstride = block_pos->size;
+  int rstride_y = ref->stride_y;
+  int rstride_c = ref->stride_c;
+  int index;
+  int yposY = block_pos->ypos;
+  int xposY = block_pos->xpos;
+  int yposC = yposY / 2;
+  int xposC = xposY / 2;
+  int size = block_pos->size;
+
+  int ref_posY = yposY*ref->stride_y + xposY;
+  int ref_posC = yposC*ref->stride_c + xposC;
+  uint8_t *ref_y = ref->y + ref_posY;
+  uint8_t *ref_u = ref->u + ref_posC;
+  uint8_t *ref_v = ref->v + ref_posC;
+  for (index = 0; index<div*div; index++) {
+    int idx = (index >> 0) & 1;
+    int idy = (index >> 1) & 1;
+    int offsetpY = idy*bheight*pstride + idx*bwidth;
+    int offsetpC = idy*bheight*pstride / 4 + idx*bwidth / 2;
+    int offsetrY = idy*bheight*rstride_y + idx*bwidth;
+    int offsetrC = idy*bheight*rstride_c / 2 + idx*bwidth / 2;
+    mv = mv_arr[index];
+    clip_mv(&mv, yposY, xposY, width, height, size, sign);
+    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
+    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);
+    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);
+  }
+}
+
+void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_pos_t *block_pos) {
+  int bwidth = block_pos->bwidth;
+  int bheight = block_pos->bheight;
+  int size = block_pos->size;
+  int sizeY = size;
+  int sizeC = size / 2;
+  int i, j;
+
+  for (i = 0; i < bheight; i++) {
+    for (j = 0; j < bwidth; j++) {
+      rec_y[i*sizeY + j] = (uint8_t)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
+    }
+  }
+  for (i = 0; i < bheight / 2; i++) {
+    for (j = 0; j < bwidth / 2; j++) {
+      rec_u[i*sizeC + j] = (uint8_t)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
+      rec_v[i*sizeC + j] = (uint8_t)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
+    }
+  }
+}
+
 mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
 {
   mv_t mvp, mva, mvb, mvc;

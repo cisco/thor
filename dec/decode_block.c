@@ -44,62 +44,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern int chroma_qp[52];
 
-void get_inter_prediction_yuvD(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_info_dec_t *block_info, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split) {
-  mv_t mv;
-  int div = split + 1;
-  int bwidth = block_info->block_pos.bwidth / div;
-  int bheight = block_info->block_pos.bheight / div;
-  int pstride = block_info->block_pos.size;
-  int rstride_y = ref->stride_y;
-  int rstride_c = ref->stride_c;
-  int index;
-  int yposY = block_info->block_pos.ypos;
-  int xposY = block_info->block_pos.xpos;
-  int yposC = yposY / 2;
-  int xposC = xposY / 2;
-  int size = block_info->block_pos.size;
-
-  int ref_posY = yposY*ref->stride_y + xposY;
-  int ref_posC = yposC*ref->stride_c + xposC;
-  uint8_t *ref_y = ref->y + ref_posY;
-  uint8_t *ref_u = ref->u + ref_posC;
-  uint8_t *ref_v = ref->v + ref_posC;
-  for (index = 0; index<div*div; index++) {
-    int idx = (index >> 0) & 1;
-    int idy = (index >> 1) & 1;
-    int offsetpY = idy*bheight*pstride + idx*bwidth;
-    int offsetpC = idy*bheight*pstride / 4 + idx*bwidth / 2;
-    int offsetrY = idy*bheight*rstride_y + idx*bwidth;
-    int offsetrC = idy*bheight*rstride_c / 2 + idx*bwidth / 2;
-    mv = mv_arr[index];
-    clip_mv(&mv, yposY, xposY, width, height, size, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
-    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);
-    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);
-  }
-}
-
-void average_blocks_allD(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_info_dec_t *block_info) {
-  int bwidth = block_info->block_pos.bwidth;
-  int bheight = block_info->block_pos.bheight;
-  int size = block_info->block_pos.size;
-  int sizeY = size;
-  int sizeC = size / 2;
-  int i, j;
-
-  for (i = 0; i < bheight; i++) {
-    for (j = 0; j < bwidth; j++) {
-      rec_y[i*sizeY + j] = (uint8_t)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
-    }
-  }
-  for (i = 0; i < bheight / 2; i++) {
-    for (j = 0; j < bwidth / 2; j++) {
-      rec_u[i*sizeC + j] = (uint8_t)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
-      rec_v[i*sizeC + j] = (uint8_t)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
-    }
-  }
-}
-
 void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock, int16_t *coeffq,
     int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp, 
     qmtx_t ** iwmatrix){
@@ -311,14 +255,14 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
         int sign0 = ref0->frame_num >= rec->frame_num;
-        get_inter_prediction_yuvD(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info, &block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
 
         int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
         yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
         int sign1 = ref1->frame_num >= rec->frame_num;
-        get_inter_prediction_yuvD(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info, &block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
 
-        average_blocks_allD(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
 
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -334,7 +278,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
 
-        get_inter_prediction_yuvD(ref, pblock_y, pblock_u, pblock_v, &block_info, &block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
       }
       int j;
       for (j = 0; j<bheight; j++) {
@@ -360,14 +304,14 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
         int sign0 = ref0->frame_num >= rec->frame_num;
-        get_inter_prediction_yuvD(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info, &block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
 
         int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
         yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
         int sign1 = ref1->frame_num >= rec->frame_num;
-        get_inter_prediction_yuvD(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info, &block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
 
-        average_blocks_allD(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
 
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -382,11 +326,10 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
-        get_inter_prediction_yuvD(ref, pblock_y, pblock_u, pblock_v, &block_info, &block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
+        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
       }
     }
     else if (mode == MODE_INTER){
-      int index;
       int div = decoder_info->tb_split_enable+1; //TODO: pb_split_enable
       int psizeY = sizeY/div;
       int psizeC = sizeC/div;
@@ -399,10 +342,9 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       ref_y = ref->y + ref_posY;
       ref_u = ref->u + ref_posC;
       ref_v = ref->v + ref_posC;
-      get_inter_prediction_yuvD(ref, pblock_y, pblock_u, pblock_v, &block_info, &block_info.block_param.mv_arr0, sign, width, height, bipred, decoder_info->pb_split);
+      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, decoder_info->pb_split);
     }
     else if (mode == MODE_BIPRED){
-      int index;
       int div = decoder_info->tb_split_enable+1;
       int pstrideY = sizeY;
       int pstrideC = sizeC;
@@ -417,14 +359,14 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
       yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
       int sign0 = ref0->frame_num >= rec->frame_num;
-      get_inter_prediction_yuvD(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info, &block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
 
       int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
       yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
       int sign1 = ref1->frame_num >= rec->frame_num;
-      get_inter_prediction_yuvD(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info, &block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
 
-      average_blocks_allD(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info);
+      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
 
       thor_free(pblock0_y);
       thor_free(pblock0_u);

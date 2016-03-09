@@ -418,12 +418,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   }
 
   if (mode != MODE_SKIP){
-    int max_num_tb_part;
-    if (mode == MODE_MERGE || mode == MODE_BIPRED)
-      max_num_tb_part = 1;
-    else
-      max_num_tb_part = block_info->max_num_tb_part;
-
+    int max_num_tb_part = block_info->max_num_tb_part;
     if (max_num_tb_part > 1 && tb_split) {
       code = 2;
     }

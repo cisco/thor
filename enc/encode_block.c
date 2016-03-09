@@ -1989,11 +1989,16 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         tmp_block_param.mv_arr1[0] = block_info->merge_candidates[merge_idx].mv1;
         tmp_block_param.dir = block_info->merge_candidates[merge_idx].bipred_flag;
         tmp_block_param.mode = mode;
-        nbits = encode_block(encoder_info,stream,block_info,&tmp_block_param);
-        cost = cost_calc(org_block,rec_block,size,size,size,nbits,lambda);
-        if (cost < min_cost){
-          min_cost = cost;
-          copy_best_parameters(size, block_info, tmp_block_param);
+        min_tb_param = 0;
+        max_tb_param = block_info->max_num_tb_part - 1;
+        for (tb_param = min_tb_param; tb_param <= max_tb_param; tb_param++) {
+          tmp_block_param.tb_param = tb_param;
+          nbits = encode_block(encoder_info, stream, block_info, &tmp_block_param);
+          cost = cost_calc(org_block, rec_block, size, size, size, nbits, lambda);
+          if (cost < min_cost) {
+            min_cost = cost;
+            copy_best_parameters(size, block_info, tmp_block_param);
+          }
         }
       }
 
@@ -2081,7 +2086,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         int ref_idx0, ref_idx1;
         mv_t mv_arr0[4], mv_arr1[4];
         min_tb_param = 0;
-        max_tb_param = 0; //TODO: Support tb-split
+        max_tb_param = block_info->max_num_tb_part - 1;
         for (part = 0; part < num_bi_part; part++) {
           search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1,0);
           tmp_block_param.pb_part = part;

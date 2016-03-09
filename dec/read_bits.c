@@ -474,7 +474,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     bit_start = stream->bitcnt;
     code = get_vlc(0,stream);
 
-    if (decoder_info->tb_split_enable && (mode == MODE_INTRA || mode == MODE_INTER)) {
+    if (decoder_info->tb_split_enable) {
       tb_split = code==2;
       if (code > 2) code -= 1;
       if (tb_split)

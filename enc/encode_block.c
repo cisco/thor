@@ -631,7 +631,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
 
       mv_cand.y = mv_ref.y + hmpos[i];
       mv_cand.x = mv_ref.x + hnpos[i];
-      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
+      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos); //ME: Search 8 half pel positions
       sad = sad_calc(orig,rf,size,width,width,height);
       sad += (unsigned int)(lambda * (double)quote_mv_bits(mv_cand.y - mvp->y, mv_cand.x - mvp->x) + 0.5);
 
@@ -652,7 +652,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
     for (int i = 1; i <= 8; i++) {
       mv_cand.y = mv_opt.y + qmpos[i];
       mv_cand.x = mv_opt.x + qnpos[i];
-      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
+      get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos); //ME: Search 8 quarter pel positions
       sad = sad_calc(orig,rf,size,width,width,height);
       sad += (int)(lambda * (double)quote_mv_bits(mv_cand.y - mvp->y, mv_cand.x - mvp->x) + 0.5);
       if (sad < cmin) {
@@ -747,7 +747,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
         mv_cand.x = mv_ref.x + l;
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-        get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
+        get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-sync: telescope search
         sad = sad_calc(orig,rf,size,width,width,height);
         mv_diff_y = mv_cand.y - mvp->y;
         mv_diff_x = mv_cand.x - mvp->x;
@@ -770,7 +770,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
     mv_cand = mvcand[idx];
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-    get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos);
+    get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos); //ME-sync: candidate search
     sad = sad_calc(orig,rf,size,width,width,height);
     mv_diff_y = mv_cand.y - mvp->y;
     mv_diff_x = mv_cand.x - mvp->x;
@@ -833,10 +833,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
         mv_cand.x = mv_ref.x + l;
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-        get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
+        get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: telescope search - ref0
 
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
-        get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos);
+        get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: telescope search - ref1
 
         int i, j;
         for (i = 0; i < size; i++) {
@@ -873,10 +873,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
     mv_cand = mvcand[idx];
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
-    get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos);
+    get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: candidate search - ref0
 
     clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
-    get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos);
+    get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: candidate search - ref1
 
     int i, j;
     for (i = 0; i < size; i++) {
@@ -1248,7 +1248,7 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     int offsetrC = idy*bheight*rstride_c/2 + idx*bwidth/2;
     mv = mv_arr[index];
     clip_mv(&mv, yposY, xposY, width, height, size, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY);
+    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
     get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
     get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth/2, bheight/2, rstride_c, pstride/2, &mv, sign, width/2, height/2, xposC, yposC);
   }
@@ -2319,10 +2319,11 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
   int size0 = min(size,EARLY_SKIP_BLOCK_SIZE);
   int qpY = block_info->qp;
   int qpC = chroma_qp[qpY];
-  uint8_t *pblock = thor_alloc(EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE, 16);
-  uint8_t *pblock0 = thor_alloc(EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE, 16);
-  uint8_t *pblock1 = thor_alloc(EARLY_SKIP_BLOCK_SIZE*EARLY_SKIP_BLOCK_SIZE, 16);
-  mv_t mv = block_param->mv_arr0[0];
+
+  uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+
   int ref_idx = block_param->ref_idx0;
   int r = encoder_info->frame_info.ref_array[ref_idx];
   yuv_frame_t *ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
@@ -2335,72 +2336,53 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
     early_skip_threshold += early_skip_threshold/4;
 
   if (block_param->dir==2){
+    uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+    uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+    uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+    uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+    uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+    uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
     /* Loop over 8x8 (4x4) sub-blocks */
     for (i=0;i<size;i+=size0){
       for (j=0;j<size;j+=size0){
-        int k,l;
-        ref_idx = block_param->ref_idx0;
-        r = encoder_info->frame_info.ref_array[ref_idx];
-        yuv_frame_t *ref0 = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-        /* Pointer to colocated sub-block in reference frame */
-        uint8_t *ref0_y = ref0->y + (ypos + i)*ref->stride_y + (xpos + j);
-        uint8_t *ref0_u = ref0->u + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
-        uint8_t *ref0_v = ref0->v + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
 
-        ref_idx = block_param->ref_idx1;
-        r = encoder_info->frame_info.ref_array[ref_idx];
-        yuv_frame_t *ref1 = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-        /* Pointer to colocated sub-block in reference frame */
-        uint8_t *ref1_y = ref1->y + (ypos + i)*ref->stride_y + (xpos + j);
-        uint8_t *ref1_u = ref1->u + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
-        uint8_t *ref1_v = ref1->v + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
+        /* Offset for 8x8 (4x4) sub-block within compact block of original pixels */
+        int block_offset_y = size*i + j;
+        int block_offset_c = (size / 2)*(i / 2) + j / 2;
+
+        r = encoder_info->frame_info.ref_array[block_param->ref_idx0];
+        yuv_frame_t *ref0 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
+
+        r = encoder_info->frame_info.ref_array[block_param->ref_idx1];
+        yuv_frame_t *ref1 = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 
         int sign0 = ref0->frame_num >= encoder_info->frame_info.frame_num;
         int sign1 = ref1->frame_num >= encoder_info->frame_info.frame_num;
 
-        /* Offset for 8x8 (4x4) sub-block within compact block of original pixels */
-        int block_offset_y = size*i + j;
-        int block_offset_c = (size/2)*(i/2) + j/2;
+        block_info_t tmp_block_info;
+        tmp_block_info.block_pos.bheight = size0;
+        tmp_block_info.block_pos.bwidth = size0;
+        tmp_block_info.block_pos.ypos = ypos + i;
+        tmp_block_info.block_pos.xpos = xpos + j;
+        tmp_block_info.block_pos.size = size0;
 
-        /* Y */
-        mv = block_param->mv_arr0[0];
-        clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign0);
-        get_inter_prediction_luma (pblock0,ref0_y,size0,size0,ref->stride_y,size0,&mv,sign0,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
-        mv = block_param->mv_arr1[0];
-        clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign1);
-        get_inter_prediction_luma (pblock1,ref1_y,size0,size0,ref->stride_y,size0,&mv,sign1,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
-        for (k=0;k<size0;k++){
-          for (l=0;l<size0;l++){
-            pblock[k*size0+l] = (uint8_t)(((int)pblock0[k*size0+l] + (int)pblock1[k*size0+l])>>1);
-          }
-        }
-        significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y,size,size0,qpY,pblock,early_skip_threshold);
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_info, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, enable_bipred, 0);
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_info, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
-        /* U */
-        mv = block_param->mv_arr0[0];
-        get_inter_prediction_chroma(pblock0,ref0_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        mv = block_param->mv_arr1[0];
-        get_inter_prediction_chroma(pblock1,ref1_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        for (k=0;k<size0/2;k++){
-          for (l=0;l<size0/2;l++){
-            pblock[k*size0/2+l] = (uint8_t)(((int)pblock0[k*size0/2+l] + (int)pblock1[k*size0/2+l])>>1);
-          }
-        }
-        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, block_info);
 
-        /* V */
-        mv = block_param->mv_arr0[0];
-        get_inter_prediction_chroma(pblock0,ref0_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign0,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        mv = block_param->mv_arr1[0];
-        get_inter_prediction_chroma(pblock1,ref1_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign1,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        for (k=0;k<size0/2;k++){
-          for (l=0;l<size0/2;l++){
-            pblock[k*size0/2+l] = (uint8_t)(((int)pblock0[k*size0/2+l] + (int)pblock1[k*size0/2+l])>>1);
-          }
-        }
-        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, size / 2, size0 / 2, qpC, pblock_u, early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c, size / 2, size0 / 2, qpC, pblock_v, early_skip_threshold);
+
       } //for j
     } //for i
+    thor_free(pblock0_y);
+    thor_free(pblock0_u);
+    thor_free(pblock0_v);
+    thor_free(pblock1_y);
+    thor_free(pblock1_u);
+    thor_free(pblock1_v);
   }
   else{
     int sign = ref->frame_num > encoder_info->frame_info.frame_num;
@@ -2408,34 +2390,31 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
     for (i=0;i<size;i+=size0){
       for (j=0;j<size;j+=size0){
 
-        /* Pointer to colocated sub-block in reference frame */
-        uint8_t *ref_y = ref->y + (ypos + i)*ref->stride_y + (xpos + j);
-        uint8_t *ref_u = ref->u + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
-        uint8_t *ref_v = ref->v + (ypos + i)/2*ref->stride_c + (xpos + j)/2;
-
         /* Offset for 8x8 (4x4) sub-block within compact block of original pixels */
         int block_offset_y = size*i + j;
-        int block_offset_c = (size/2)*(i/2) + j/2;
+        int block_offset_c = (size / 2)*(i / 2) + j / 2;
 
-        /* Y */
-        clip_mv(&mv, ypos, xpos, encoder_info->width, encoder_info->height, size0, sign);
-        get_inter_prediction_luma  (pblock,ref_y,size0,size0,ref->stride_y,size0,&mv,sign,enable_bipred, encoder_info->width, encoder_info->height, xpos, ypos);
-        significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y,size,size0,qpY,pblock,early_skip_threshold);
+        block_info_t tmp_block_info;
+        tmp_block_info.block_pos.bheight = size0;
+        tmp_block_info.block_pos.bwidth = size0;
+        tmp_block_info.block_pos.ypos = ypos + i;
+        tmp_block_info.block_pos.xpos = xpos + j;
+        tmp_block_info.block_pos.size = size0;
 
-        /* U */
-        get_inter_prediction_chroma(pblock,ref_u,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign, encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
+        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &tmp_block_info, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
 
-        /* V */
-        get_inter_prediction_chroma(pblock,ref_v,size0/2,size0/2,ref->stride_c,size0/2,&mv,sign,encoder_info->width/2, encoder_info->height/2, xpos/2, ypos/2);
-        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c,size/2,size0/2,qpC,pblock,early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, size / 2, size0 / 2, qpC, pblock_u, early_skip_threshold);
+        significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c, size / 2, size0 / 2, qpC, pblock_v, early_skip_threshold);
+
       }
     }
   }
 
-  thor_free(pblock);
-  thor_free(pblock0);
-  thor_free(pblock1);
+  thor_free(pblock_y);
+  thor_free(pblock_u);
+  thor_free(pblock_v);
+
   return (!significant_flag);
 }
 

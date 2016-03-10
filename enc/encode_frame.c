@@ -64,6 +64,68 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
   return sum1 < sum0;
 }
 
+static void clpf_multi_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, int64_t *sums) {
+  int sum0 = 0, sum1 = 0, sum2 = 0, sum3 = 0;
+  for (int m = 0; m < h; m++) {
+    for (int n = 0; n < w; n++) {
+      int xpos = l*MAX_SB_SIZE + n*block_size;
+      int ypos = k*MAX_SB_SIZE + m*block_size;
+      int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
+      if (deblock_data[index].mode != MODE_SKIP)
+        (use_simd ? detect_multi_clpf_simd : detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, &sum2, &sum3);
+    }
+  }
+  sums[0] += sum0;
+  sums[1] += min(sum0, sum1);
+  sums[2] += min(sum0, sum2);
+  sums[3] += min(sum0, sum3);
+  sums[4] += sum1;
+  sums[5] += sum2;
+  sums[6] += sum3;
+}
+
+// Return optimal strength (negative stength = no sb signal)
+int clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, const frame_info_t *frame_info) {
+
+  int64_t sums[7];
+  int width = rec->width, height = rec->height;
+  const int bs = 8;
+  int totbits = 0;
+  memset(sums, 0, sizeof(sums));
+
+  for (int k = 0; k < (height+MAX_SB_SIZE-bs)/MAX_SB_SIZE; k++) {
+    for (int l = 0; l < (width+MAX_SB_SIZE-bs)/MAX_SB_SIZE; l++) {
+      int allskip = 1;
+      for (int m = 0; allskip && m < MAX_SB_SIZE/bs; m++) {
+        for (int n = 0; allskip && n < MAX_SB_SIZE/bs; n++) {
+          int x = l*MAX_SB_SIZE + n*bs;
+          int y = k*MAX_SB_SIZE + m*bs;
+          if (x < width && y < height)
+            allskip &= deblock_data[(y/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (x/MIN_PB_SIZE)].mode == MODE_SKIP;
+        }
+      }
+      int h = min(height, (k+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
+      int w = min(width, (l+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
+      h += !h * MAX_SB_SIZE;
+      w += !w * MAX_SB_SIZE;
+      if (!allskip) {
+        clpf_multi_decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, sums);
+        totbits++;
+      }
+    }
+  }
+
+  // Add bit cost to sums[1], sums[2] and sums[3].
+  int cost = frame_info->lambda * totbits;
+
+  for (int i = 0; i < 7; i++) // i == 3 or i == 6 means strength 4.
+    sums[i] = ((sums[i] + (i && i < 4) * cost) << 4) + i + (i > 2) + (i > 5);
+
+  // Return 0, 1, 2, 4, -1, -2 or -4.
+  int strength = min(min(min(min(min(min(sums[0], sums[1]), sums[2]), sums[3]), sums[4]), sums[5]), sums[6]) & 15;
+  return strength > 4 ? -(strength - 4) : strength;
+}
+
 void encode_frame(encoder_info_t *encoder_info)
 {
   int k,l;
@@ -187,17 +249,28 @@ void encode_frame(encoder_info_t *encoder_info)
 
   if (encoder_info->params->clpf){
     if (qp <= 16) // CLPF will have no effect if the quality is very high quality
-      put_flc(1, 0, stream);
+      put_flc(2, 0, stream);
     else {
-      int enable_sb_flag = encoder_info->params->clpf==2 ? 0 : 1;
-      int strength = enable_sb_flag ? 2 : 1;
-      yuv_frame_t tmp = *encoder_info->rec;
-      put_flc(1, 1, stream);
-      put_flc(1, !enable_sb_flag, stream);
-      clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_decision : clpf_true);
-      *encoder_info->rec = *encoder_info->tmp;
-      *encoder_info->tmp = tmp;
-      encoder_info->rec->frame_num = tmp.frame_num;
+      int enable_sb_flag = 1;
+      // Find the best strength for the entire frame
+      int strength = encoder_info->params->encoder_speed > 2 ? 2 :
+        clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info);
+      if (strength < 0) { // Disable sb signal
+        strength = -strength;
+        enable_sb_flag = 0;
+      }
+      if (!strength)  // Better to disable for the whole frame?
+        put_flc(2, 0, stream);
+      else {
+        // Apply the filter using the chosen strength
+        yuv_frame_t tmp = *encoder_info->rec;
+        put_flc(2, strength - (strength == 4), stream);
+        put_flc(1, !enable_sb_flag, stream);
+        clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, enable_sb_flag ? clpf_decision : clpf_true);
+        *encoder_info->rec = *encoder_info->tmp;
+        *encoder_info->tmp = tmp;
+        encoder_info->rec->frame_num = tmp.frame_num;
+      }
     }
   }
 

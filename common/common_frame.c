@@ -598,67 +598,61 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
   /* Constrained low-pass filter (CLPF) */
   int width = rec->width;
   int height = rec->height;
-  int xpos,ypos,index;
-  int k,l,m,n;
+  int xpos, ypos, index;
   int stride_y = rec->stride_y;
   int stride_c = rec->stride_c;
-  const int block_size = 8;
+  const int bs = 8;
 
-  int num_sb_hor = (width+MAX_SB_SIZE-block_size)/MAX_SB_SIZE;
-  int num_sb_ver = (height+MAX_SB_SIZE-block_size)/MAX_SB_SIZE;
+  int num_sb_hor = (width+MAX_SB_SIZE-bs)/MAX_SB_SIZE;
+  int num_sb_ver = (height+MAX_SB_SIZE-bs)/MAX_SB_SIZE;
 
-  for (k=0;k<num_sb_ver;k++){
-    for (l=0;l<num_sb_hor;l++){
-      int numNoskip = 0;
-      for (m=0;m<MAX_SB_SIZE/block_size;m++){
-        for (n=0;n<MAX_SB_SIZE/block_size;n++){
-          xpos = l*MAX_SB_SIZE + n*block_size;
-          ypos = k*MAX_SB_SIZE + m*block_size;
-          if (xpos >= width || ypos >= height)
-            continue;
-          index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-          numNoskip += deblock_data[index].mode != MODE_SKIP;
+  for (int k = 0; k < num_sb_ver; k++) {
+    for (int l = 0; l < num_sb_hor; l++) {
+      int allskip = 1;
+      for (int m = 0; allskip && m < MAX_SB_SIZE/bs; m++) {
+        for (int n = 0; allskip && n < MAX_SB_SIZE/bs; n++) {
+          xpos = l*MAX_SB_SIZE + n*bs;
+          ypos = k*MAX_SB_SIZE + m*bs;
+          if (xpos < width && ypos < height) {
+            index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
+            allskip &= deblock_data[index].mode == MODE_SKIP;
+          }
         }
       }
-      int h = (min(height, (k+1)*MAX_SB_SIZE) % MAX_SB_SIZE);
-      int w = (min(width, (l+1)*MAX_SB_SIZE) % MAX_SB_SIZE);
-      if (!h) h += MAX_SB_SIZE;
-      if (!w) w += MAX_SB_SIZE;
-      if (numNoskip > 0 * enable_sb_flag && decision(k, l, rec, org, deblock_data, block_size, w/block_size, h/block_size, stream, strength)) {
-        for (m = 0; m < h/block_size; m++) {
-          for (n = 0; n < w/block_size; n++) {
-            xpos = l*MAX_SB_SIZE + n*block_size;
-            ypos = k*MAX_SB_SIZE + m*block_size;
+      int h = min(height, (k+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
+      int w = min(width, (l+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
+      h += !h * MAX_SB_SIZE;
+      w += !w * MAX_SB_SIZE;
+      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength))) {
+        for (int m = 0; m < h/bs; m++) {
+          for (int n = 0; n < w/bs; n++) {
+            xpos = l*MAX_SB_SIZE + n*bs;
+            ypos = k*MAX_SB_SIZE + m*bs;
             index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-            int filter = enable_sb_flag ? deblock_data[index].mode != MODE_SKIP : deblock_data[index].mode != MODE_BIPRED;
+            int filter = deblock_data[index].mode != MODE_SKIP;
 
-            if (filter && (deblock_data[index].cbp.y || enable_sb_flag))
-              (use_simd ? clpf_block_simd : clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, block_size, width, height, strength);
-            else
-              for (int c = 0; c < block_size; c++)
+            if (filter) {
+              (use_simd ? clpf_block_simd : clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, width, height, strength);
+              (use_simd ? clpf_block_simd : clpf_block)(rec->u, dst->u, stride_c, xpos / 2, ypos / 2, bs / 2, width / 2, height / 2, strength);
+              (use_simd ? clpf_block_simd : clpf_block)(rec->v, dst->v, stride_c, xpos / 2, ypos / 2, bs / 2, width / 2, height / 2, strength);
+            } else { // Copy
+              for (int c = 0; c < bs; c++)
                 *(uint64_t*)(dst->y + (ypos + c)*stride_y + xpos) =
                   *(uint64_t*)(rec->y + (ypos + c)*stride_y + xpos);
-
-            if (filter && (deblock_data[index].cbp.u || enable_sb_flag))
-              (use_simd ? clpf_block_simd : clpf_block)(rec->u, dst->u, stride_c, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength);
-            else
-              for (int c = 0; c < block_size/2; c++)
+              for (int c = 0; c < bs/2; c++) {
                 *(uint32_t*)(dst->u + (ypos/2 + c)*stride_c + xpos/2) =
                   *(uint32_t*)(rec->u + (ypos/2 + c)*stride_c + xpos/2);
-
-            if (filter && (deblock_data[index].cbp.v || enable_sb_flag))
-                (use_simd ? clpf_block_simd : clpf_block)(rec->v, dst->v, stride_c, xpos / 2, ypos / 2, block_size / 2, width / 2, height / 2, strength);
-              else
-              for (int c = 0; c < block_size/2; c++)
                 *(uint32_t*)(dst->v + (ypos/2 + c)*stride_c + xpos/2) =
                   *(uint32_t*)(rec->v + (ypos/2 + c)*stride_c + xpos/2);
+              }
             }
+          }
         }
       } else { // Copy
-        for (m=0; m < h; m++)
+        for (int m = 0; m < h; m++)
           memcpy(dst->y + (k*MAX_SB_SIZE+m)*stride_y + l*MAX_SB_SIZE,
                  rec->y + (k*MAX_SB_SIZE+m)*stride_y + l*MAX_SB_SIZE, w);
-        for (m=0; m < h/2; m++) {
+        for (int m = 0; m < h/2; m++) {
           memcpy(dst->u + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2,
                  rec->u + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2, w/2);
           memcpy(dst->v + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2,

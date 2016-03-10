@@ -160,6 +160,67 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
   *sum1 += v64_ssd_u8_sum(ssd1);
 }
 
+// Test multiple filter strengths at once.
+void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, int *sum2, int *sum3)
+{
+  int left = -x0;
+  int top = -y0;
+  int right = width-1-x0;
+  int bottom = height-1-y0;
+  v64 c128 = v64_dup_8(128);
+  v64 s1 = left ? v64_from_64(0x0706050403020100LL) : v64_from_64(0x0605040302010000LL);
+  v64 s2 = right == 7 ? v64_from_64(0x0707060504030201LL) : v64_from_64(0x0706050403020100LL);
+  v64 cp1 = v64_dup_8(1);
+  v64 cm1 = v64_dup_8(-1);
+  v64 cp2 = v64_dup_8(2);
+  v64 cm2 = v64_dup_8(-2);
+  v64 cp4 = v64_dup_8(4);
+  v64 cm4 = v64_dup_8(-4);
+  ssd64_internal ssd0 = v64_ssd_u8_init();
+  ssd64_internal ssd1 = v64_ssd_u8_init();
+  ssd64_internal ssd2 = v64_ssd_u8_init();
+  ssd64_internal ssd3 = v64_ssd_u8_init();
+
+  rec += x0 + y0*stride;
+  org += x0 + y0*so;
+
+  for (int y = 0; y < 8; y += 2) {
+    v64 o = v64_load_aligned(org);
+    v64 q = v64_load_aligned(rec);
+    v64 x = v64_add_8(c128, q);
+    v64 a = v64_add_8(c128, v64_load_aligned(rec - (y!=top)*stride));
+    v64 b = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(rec - !!left), s1));
+    v64 c = v64_add_8(c128, v64_shuffle_8(v64_load_unaligned(rec + (right != 7)), s2));
+    v64 d = v64_add_8(c128, v64_load_aligned(rec + (y!=bottom)*stride));
+    a = v64_ssub_s8(a, x);
+    b = v64_ssub_s8(b, x);
+    c = v64_ssub_s8(c, x);
+    d = v64_ssub_s8(d, x);
+    v64 delta1 = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(a, cp1), cm1),
+                                     v64_max_s8(v64_min_s8(b, cp1), cm1)),
+                           v64_add_8(v64_max_s8(v64_min_s8(c, cp1), cm1),
+                                     v64_max_s8(v64_min_s8(d, cp1), cm1)));
+    v64 delta2 = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(a, cp2), cm2),
+                                     v64_max_s8(v64_min_s8(b, cp2), cm2)),
+                           v64_add_8(v64_max_s8(v64_min_s8(c, cp2), cm2),
+                                     v64_max_s8(v64_min_s8(d, cp2), cm2)));
+    v64 delta3 = v64_add_8(v64_add_8(v64_max_s8(v64_min_s8(a, cp4), cm4),
+                                     v64_max_s8(v64_min_s8(b, cp4), cm4)),
+                           v64_add_8(v64_max_s8(v64_min_s8(c, cp4), cm4),
+                                     v64_max_s8(v64_min_s8(d, cp4), cm4)));
+    ssd0 = v64_ssd_u8(ssd0, o, q);
+    ssd1 = v64_ssd_u8(ssd1, o, v64_add_8(q, v64_shr_s8(v64_add_8(cp2, v64_add_8(delta1, v64_cmplt_s8(delta1, v64_zero()))), 2)));
+    ssd2 = v64_ssd_u8(ssd2, o, v64_add_8(q, v64_shr_s8(v64_add_8(cp2, v64_add_8(delta2, v64_cmplt_s8(delta2, v64_zero()))), 2)));
+    ssd3 = v64_ssd_u8(ssd3, o, v64_add_8(q, v64_shr_s8(v64_add_8(cp2, v64_add_8(delta3, v64_cmplt_s8(delta3, v64_zero()))), 2)));
+    rec += 2*stride;
+    org += 2*so;
+  }
+  *sum0 += 2*v64_ssd_u8_sum(ssd0);
+  *sum1 += 2*v64_ssd_u8_sum(ssd1);
+  *sum2 += 2*v64_ssd_u8_sum(ssd2);
+  *sum3 += 2*v64_ssd_u8_sum(ssd3);
+}
+
 /* Return the best approximated half-pel position around the centre */
 unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int as, int bs, int width, int height, int *x, int *y, unsigned int *maxsad)
 {

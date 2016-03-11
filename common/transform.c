@@ -248,7 +248,7 @@ static const int16_t *transform_table[5] = { &g1mat_hevc[0][0], &g2mat_hevc[0][0
 
 void transform (const int16_t *block, int16_t *coeff, int size, int fast)
 {
-  if (use_simd && size <= 64) //TODO: SIMD implementation of 128x128 transform
+  if (use_simd)
     transform_simd(block, coeff, size, fast);
   else {
     int16_t tmp[MAX_TR_SIZE][MAX_TR_SIZE];
@@ -469,12 +469,8 @@ void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
 
 void inverse_transform (const int16_t * coeff, int16_t *block, int size)
 {
-  if (size < 64) {
-    if (use_simd)
-      inverse_transform_simd(coeff, block, size);
-    else
-      inverse_transform_non_simd(coeff, block, size);
-  }
+  if (size < 64)
+    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff, block, size);
   else {
     /* Larger transforms are implemented as a 32x32 kernel followed by scale*scale duplication */
     int i, j, m, n, tmp, scale;
@@ -483,10 +479,7 @@ void inverse_transform (const int16_t * coeff, int16_t *block, int size)
     for (i = 0; i < 32; i++) {
       memcpy(coeff2 + i * 32, coeff + i * size, 32 * sizeof(int16_t));
     }
-    if (use_simd && size == 64)
-      inverse_transform_simd(coeff2, block2, 32);
-    else
-      inverse_transform_non_simd(coeff2, block2, 32);
+    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff2, block2, 32);
 
     scale = size / 32;
     for (i = 0; i < 32; i++) {

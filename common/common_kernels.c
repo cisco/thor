@@ -2229,23 +2229,24 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
       transform32(tmp, coeff, 10, 16);
       thor_free(tmp);
     }
-  } else if (size == 64) {
+  } else { // size >= 64
     if (fast) {
       int16_t *tmp = thor_alloc(16*16*2, 16);
       int16_t *tmp2 = thor_alloc(16*16*2, 16);
       int16_t *tmp3 = thor_alloc(16*16*2, 16);
+      int scale = size >> 4;
       for (int i = 0; i < 16; i++)
-        for (int j = 0; j < 16; j++)
-          tmp2[i*16+j] =
-            block[(i*4+0)*64+j*4+0] + block[(i*4+1)*64+j*4+0] + block[(i*4+2)*64+j*4+0] + block[(i*4+3)*64+j*4+0] +
-            block[(i*4+0)*64+j*4+1] + block[(i*4+1)*64+j*4+1] + block[(i*4+2)*64+j*4+1] + block[(i*4+3)*64+j*4+1] +
-            block[(i*4+0)*64+j*4+2] + block[(i*4+1)*64+j*4+2] + block[(i*4+2)*64+j*4+2] + block[(i*4+3)*64+j*4+2] +
-            block[(i*4+0)*64+j*4+3] + block[(i*4+1)*64+j*4+3] + block[(i*4+2)*64+j*4+3] + block[(i*4+3)*64+j*4+3];
-      transform16(tmp2, tmp, 8);
+        for (int j = 0; j < 16; j++) {
+          tmp2[i*16+j] = 0;
+          for (int k = 0; k < scale; k++)
+            for (int l = 0; l < scale; l++)
+              tmp2[i*16+j] += block[(i*scale+k)*size+j*scale+l];
+        }
+      transform16(tmp2, tmp, 2*log2i(size) - 4);
       transform16(tmp, tmp3, 9);
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++)
-          coeff[i*64+j] = tmp3[i*16+j];
+          coeff[i*size+j] = tmp3[i*16+j];
       thor_free(tmp);
       thor_free(tmp2);
       thor_free(tmp3);
@@ -2253,15 +2254,19 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
       int16_t *tmp = thor_alloc(32*32*2, 16);
       int16_t *tmp2 = thor_alloc(32*32*2, 16);
       int16_t *tmp3 = thor_alloc(32*32*2, 16);
+      int scale = size >> 5;
       for (int i = 0; i < 32; i++)
-        for (int j = 0; j < 32; j++)
-          tmp2[i*32+j] =
-            block[(i*2+0)*64+j*2+0] + block[(i*2+1)*64+j*2+0] + block[(i*2+0)*64+j*2+1] + block[(i*2+1)*64+j*2+1];
-      transform32(tmp2, tmp, 7, 32);
+        for (int j = 0; j < 32; j++) {
+          tmp2[i*32+j] = 0;
+          for (int k = 0; k < scale; k++)
+            for (int l = 0; l < scale; l++)
+              tmp2[i*32+j] += block[(i*scale+k)*size+j*scale+l];
+        }
+      transform32(tmp2, tmp, 2*log2i(size) - 5, 32);
       transform32(tmp, tmp3, 10, 16);
       for (int i = 0; i < 32; i++)
         for (int j = 0; j < 32; j++)
-          coeff[i*64+j] = tmp3[i*32+j];
+          coeff[i*size+j] = tmp3[i*32+j];
       thor_free(tmp);
       thor_free(tmp2);
       thor_free(tmp3);

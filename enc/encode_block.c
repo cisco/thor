@@ -2515,10 +2515,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       write_delta_qp(stream,block_info.delta_qp);
     }
     cost_small = 0; //TODO: Why not nbit * lambda?
-    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
-    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp);
-    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp);
-    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp);
+    cost_small += process_block(encoder_info, new_size, ypos + 0 * new_size, xpos + 0 * new_size, qp);
+    cost_small += process_block(encoder_info, new_size, ypos + 0 * new_size, xpos + 1 * new_size, qp);
+    cost_small += process_block(encoder_info, new_size, ypos + 1 * new_size, xpos + 0 * new_size, qp);
+    cost_small += process_block(encoder_info, new_size, ypos + 1 * new_size, xpos + 1 * new_size, qp);
   }
 
   if (encode_this_size || encode_rectangular_size){
@@ -2534,10 +2534,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       split_flag = 1;
       write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
       cost_small = 0; //TODO: Why not nbit * lambda?
-      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
-      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp);
-      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp);
-      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp);
+      cost_small += process_block(encoder_info, new_size, ypos + 0 * new_size, xpos + 0 * new_size, qp);
+      cost_small += process_block(encoder_info, new_size, ypos + 0 * new_size, xpos + 1 * new_size, qp);
+      cost_small += process_block(encoder_info, new_size, ypos + 1 * new_size, xpos + 0 * new_size, qp);
+      cost_small += process_block(encoder_info, new_size, ypos + 1 * new_size, xpos + 1 * new_size, qp);
     }
 
     if (cost <= cost_small) {

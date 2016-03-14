@@ -30,10 +30,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include <stdint.h>
 
-void alloc_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE]);
-void free_wmatrices(qmtx_t* matrix[52][3][2][TR_SIZE_RANGE]);
+static inline int qlevel_to_qp(int ql)
+{
+    return min(51,(ql*44 + 22)/NUM_QM_LEVELS);
+}
 
-void make_wmatrices(qmtx_t* wmatrix[52][3][2][TR_SIZE_RANGE], qmtx_t* iwmatrix[52][3][2][TR_SIZE_RANGE]);
+static inline int qp_to_qlevel(int qp)
+{
+    return min(NUM_QM_LEVELS-1,(qp*NUM_QM_LEVELS)/ 44);
+}
+
+void alloc_wmatrices(qmtx_t* matrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE], int inverse);
 
 
 #endif

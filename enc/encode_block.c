@@ -45,6 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "inter_prediction.h"
 #include "intra_prediction.h"
 #include "enc_kernels.h"
+#include "wt_matrix.h"
 
 int YPOS,XPOS;
 
@@ -71,7 +72,7 @@ static inline void add_mvcandidate(const mv_t *mv, mv_t *list, int *list_len, ui
   *mask |= m;
 }
 
-int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block_type, qmtx_t* wmatrix, int ws)
+int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block_type, qmtx_t* wmatrix)
 {
   int intra_block = (coeff_block_type>>1) & 1;
   int tr_log2size = log2i(size);
@@ -100,7 +101,7 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
     for (j=0;j<qsize;j++){
       scoeff[zigzagptr[i*qsize+j]] = coeff[i*size+j];
       if (wmatrix!=NULL)
-        scoeff[zigzagptr[i*qsize+j]] *= wmatrix[i*ws+j];
+        scoeff[zigzagptr[i*qsize+j]] *= wmatrix[i*qsize+j];
     }
   }
 
@@ -1113,9 +1114,9 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
           get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,pblock,intra_mode);
           get_residual (block2, pblock, &orig[i*orig_stride+j], size2, orig_stride);
           transform (block2, coeff, size2, encoder_info->params->encoder_speed > 1);
-          cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size2/4)] : NULL, MAX_QUANT_SIZE);
+          cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size2/4)] : NULL);
           if (cbpbit){
-            dequantize (coeffq+index, rcoeff, qp, size2, encoder_info->params->qmtx ? iwmatrix[log2i(size2/4)] : NULL, MAX_QUANT_SIZE);
+            dequantize (coeffq+index, rcoeff, qp, size2, encoder_info->params->qmtx ? iwmatrix[log2i(size2/4)] : NULL);
             inverse_transform (rcoeff, rblock2, size2);
           }
           else{
@@ -1135,9 +1136,9 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
       get_residual (block, pblock, orig, size, orig_stride);
 
       transform (block, coeff, size, encoder_info->params->encoder_speed > 1);
-      cbp = quantize (coeff, coeffq, qp, size, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size/4)] : NULL, MAX_QUANT_SIZE);
+      cbp = quantize (coeff, coeffq, qp, size, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size/4)] : NULL);
       if (cbp){
-        dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL, MAX_QUANT_SIZE);
+        dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL);
         inverse_transform (rcoeff, rblock, size);
         reconstruct_block (rblock, pblock, rec_block, size, size);
       }
@@ -1181,9 +1182,9 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
             memcpy(&block2[k*size2],&block[(i+k)*size+j],size2*sizeof(int16_t));
           }
           transform (block2, coeff, size2, size == 64 || encoder_info->params->encoder_speed > 1);
-          cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type,encoder_info->params->qmtx ? wmatrix[log2i(size2/4)] : NULL,MAX_QUANT_SIZE);
+          cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type,encoder_info->params->qmtx ? wmatrix[log2i(size2/4)] : NULL);
           if (cbpbit){
-            dequantize (coeffq+index, rcoeff, qp, size2, encoder_info->params->qmtx ? iwmatrix[log2i(size2/4)] : NULL, MAX_QUANT_SIZE);
+            dequantize (coeffq+index, rcoeff, qp, size2, encoder_info->params->qmtx ? iwmatrix[log2i(size2/4)] : NULL);
             inverse_transform (rcoeff, rblock2, size2);
           }
           else{
@@ -1202,9 +1203,9 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
     }
     else{
       transform (block, coeff, size, (size == 64 && encoder_info->params->encoder_speed > 0) || encoder_info->params->encoder_speed > 1);
-      cbp = quantize (coeff, coeffq, qp, size, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size/4)] : NULL, MAX_QUANT_SIZE);
+      cbp = quantize (coeff, coeffq, qp, size, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size/4)] : NULL);
       if (cbp){
-        dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL, MAX_QUANT_SIZE);
+        dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL);
         inverse_transform (rcoeff, rblock, size);
         reconstruct_block (rblock, pblock, rec, size, size);
       }
@@ -1300,12 +1301,13 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     uint8_t* vrec = &rec->v[yposC*rec->stride_c+xposC];
 
     /* Predict, create residual, transform, quantize, and reconstruct.*/
+    int ql = qp_to_qlevel(qpY);
     cbp.y = encode_and_reconstruct_block_intra (encoder_info, org_y,sizeY,yrec,rec->stride_y,yposY,xposY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,
-        tb_split,encoder_info->params->rdoq,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[qpY][0][1],encoder_info->iwmatrix[qpY][0][1]);
+        tb_split,encoder_info->params->rdoq,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][0][1],encoder_info->iwmatrix[ql][0][1]);
     cbp.u = encode_and_reconstruct_block_intra (encoder_info, org_u,sizeC,urec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,
-        tb_split&&(size>8),encoder_info->params->rdoq,width/2,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[qpY][1][1],encoder_info->iwmatrix[qpY][1][1]);
+        tb_split&&(size>8),encoder_info->params->rdoq,width/2,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][1][1],encoder_info->iwmatrix[ql][1][1]);
     cbp.v = encode_and_reconstruct_block_intra (encoder_info, org_v,sizeC,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,
-        tb_split&&(size>8),encoder_info->params->rdoq,width/2,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[qpY][2][1],encoder_info->iwmatrix[qpY][2][1]);
+        tb_split&&(size>8),encoder_info->params->rdoq,width/2,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][2][1],encoder_info->iwmatrix[ql][2][1]);
 
     if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
     if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
@@ -1346,12 +1348,13 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     else {
       /* Create residual, transform, quantize, and reconstruct.
       NB: coeff block type is here determined by the frame type not the mode. This is only used for quantisation optimisation */
+      int ql = qp_to_qlevel(qpY);
       cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split, encoder_info->params->rdoq,
-        encoder_info->wmatrix[qpY][0][0], encoder_info->iwmatrix[qpY][0][0]);
+        encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
       cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && (size>8),
-        encoder_info->params->rdoq, encoder_info->wmatrix[qpY][1][0], encoder_info->iwmatrix[qpY][1][0]);
+        encoder_info->params->rdoq, encoder_info->wmatrix[ql][1][0], encoder_info->iwmatrix[ql][1][0]);
       cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && (size>8),
-        encoder_info->params->rdoq, encoder_info->wmatrix[qpY][2][0], encoder_info->iwmatrix[qpY][2][0]);
+        encoder_info->params->rdoq, encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
 
       if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
       if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));

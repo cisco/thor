@@ -84,7 +84,7 @@ typedef struct
     int depth;
     int qmtx;
     int log2_sb_size;
-    qmtx_t *iwmatrix[52][3][2][TR_SIZE_RANGE];
+    qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 
 #endif

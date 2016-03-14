@@ -130,29 +130,30 @@ int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwid
   return downleft_available;
 }
 
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix, int ws)
+void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix)
 {
   int tr_log2size = log2i(size);
   const int lshift = qp / 6;
+  const int qsize = min(size,MAX_QUANT_SIZE);
   const int rshift = tr_log2size - 1 + (wt_matrix!=NULL ? INV_WEIGHT_SHIFT : 0);
   const int64_t scale = gdequant_table[qp % 6];
   const int64_t add = lshift < rshift ? (1<<(rshift-lshift-1)) : 0;
 
   if (lshift >= rshift) {
-    for (int i = 0; i < size ; i++){
-      for (int j = 0; j < size; j++){
+    for (int i = 0; i < qsize ; i++){
+      for (int j = 0; j < qsize; j++){
         int c = coeff[i*size+j];
         if (wt_matrix)
-          c = c*wt_matrix[i*ws+j];
+          c = c*wt_matrix[i*qsize+j];
         rcoeff[i*size+j] = (int16_t)((c * scale) << (lshift-rshift));// needs clipping?
       }
     }
   } else {
-    for (int i = 0; i < size ; i++){
-      for (int j = 0; j < size; j++){
+    for (int i = 0; i < qsize ; i++){
+      for (int j = 0; j < qsize; j++){
         int c = coeff[i*size+j];
         if (wt_matrix)
-          c = c*wt_matrix[i*ws+j];
+          c = c*wt_matrix[i*qsize+j];
         rcoeff[i*size+j] = (int16_t)((c * scale + add) >> (rshift - lshift));//needs clipping
       }
     }

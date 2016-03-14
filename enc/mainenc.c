@@ -194,10 +194,8 @@ int main(int argc, char **argv)
 
   encoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
-  alloc_wmatrices(encoder_info.wmatrix);
-  alloc_wmatrices(encoder_info.iwmatrix);
-
-  make_wmatrices(encoder_info.wmatrix, encoder_info.iwmatrix);
+  alloc_wmatrices(encoder_info.wmatrix, 0);
+  alloc_wmatrices(encoder_info.iwmatrix, 1);
 
   /* Write sequence header */ //TODO: Separate function for sequence header
   start_bits = get_bit_pos(&stream);
@@ -654,9 +652,6 @@ int main(int argc, char **argv)
       fclose(cumu_fp);
     }
   }
-
-  free_wmatrices(encoder_info.wmatrix);
-  free_wmatrices(encoder_info.iwmatrix);
 
   close_yuv_frame(&orig);
   for (int i=0; i<MAX_REORDER_BUFFER+1; ++i) {

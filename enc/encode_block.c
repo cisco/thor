@@ -1243,7 +1243,6 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
 
   /* Intermediate block variables */
   int re_use = (block_info->final_encode & 1) && !(encoder_info->params->enable_tb_split);
-
   if (re_use) {
     memcpy(block_info->rec_block->y, block_info->rec_block_best->y, size*size*sizeof(uint8_t));
     memcpy(block_info->rec_block->u, block_info->rec_block_best->u, size*size / 4 * sizeof(uint8_t));
@@ -1252,24 +1251,20 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     return nbits;
   }
 
+  yuv_frame_t *rec = encoder_info->rec;
   uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-
-  int ref_idx = (frame_type==I_FRAME) ? 0 : block_param->ref_idx0;
-  int r = encoder_info->frame_info.ref_array[ref_idx];
-  yuv_frame_t *rec = encoder_info->rec;
-  yuv_frame_t *ref;
-
-  ref = NULL;
-
-  /* Variables for bipred */
   uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
   uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  int16_t *coeffq_y = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *coeffq_u = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *coeffq_v = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
+
   int r0,r1;
   yuv_frame_t *ref0;
   yuv_frame_t *ref1;
@@ -1288,13 +1283,6 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   int zero_block = block_param->tb_param == -1 ? 1 : 0;
   block_param->tb_split = tb_split;
   block_param->mode = mode;
-
-  if (mode!=MODE_INTRA) {
-    ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
-  }
-  int16_t *coeffq_y = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeffq_u = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeffq_v = thor_alloc(2 * MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
   if (mode==MODE_INTRA){
     intra_mode = block_param->intra_mode;
@@ -1317,99 +1305,52 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
     if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
     if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, size*size / 4 * sizeof(uint16_t));
-
   }
   else {
-    if (mode==MODE_SKIP){
-      int sign;
-      if (block_param->dir==2){
-        r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-        ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
-
-        r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
-        ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-        sign = ref1->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
-
-        average_blocks_all(rec_y, rec_u, rec_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
-      }
-      else{
-        r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-        ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, rec_y, rec_u, rec_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred,0);
-      }
-    }
-    else if (mode==MODE_MERGE){
-      int sign;
-      if (block_param->dir == 2) {
-        r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-        ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
-
-        r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
-        ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-        sign = ref1->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
-
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
-      }
-      else {
-        r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-        ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-        sign = ref0->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock_y, pblock_u, pblock_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0);
-      }
-    }
-
-    else if (mode==MODE_INTER){
+    int sign,split;
+    if (mode == MODE_INTER || mode == MODE_BIPRED)
+      split = encoder_info->params->enable_pb_split;
+    else
+      split = 0;
+    if (block_param->dir==2 || mode == MODE_BIPRED){
       r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-      ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-      int sign = ref0->frame_num > rec->frame_num;
-      int split = encoder_info->params->enable_pb_split;
-      get_inter_prediction_yuv(ref,pblock_y,pblock_u,pblock_v,&block_info->block_pos, block_param->mv_arr0,sign, encoder_info->width, encoder_info->height,enable_bipred,split);
-    }
-    else if (mode==MODE_BIPRED){
-      int sign;
-      int split = encoder_info->params->enable_pb_split;
-      r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-      ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
+      ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
       sign = ref0->frame_num > rec->frame_num;
       get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+
       r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
       ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
       sign = ref1->frame_num > rec->frame_num;
       get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+
       average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos);
-
     }
-    if (mode!=MODE_SKIP){
-      if (zero_block){
-        memcpy(rec_y,pblock_y,sizeY*sizeY*sizeof(uint8_t));
-        memcpy(rec_u,pblock_u,sizeC*sizeC*sizeof(uint8_t));
-        memcpy(rec_v,pblock_v,sizeC*sizeC*sizeof(uint8_t));
-        cbp.y = cbp.u = cbp.v = 0;
-      }
-      else{
-        /* Create residual, transform, quantize, and reconstruct.
-        NB: coeff block type is here determined by the frame type not the mode. This is only used for quantisation optimisation */
-        cbp.y = encode_and_reconstruct_block_inter (encoder_info, org_y,sizeY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,tb_split,encoder_info->params->rdoq,
-                                                    encoder_info->wmatrix[qpY][0][0],encoder_info->iwmatrix[qpY][0][0]);
-        cbp.u = encode_and_reconstruct_block_inter (encoder_info, org_u,sizeC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,tb_split&&(size>8),
-            encoder_info->params->rdoq, encoder_info->wmatrix[qpY][1][0],encoder_info->iwmatrix[qpY][1][0]);
-        cbp.v = encode_and_reconstruct_block_inter (encoder_info, org_v,sizeC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,tb_split&&(size>8),
-            encoder_info->params->rdoq, encoder_info->wmatrix[qpY][2][0],encoder_info->iwmatrix[qpY][2][0]);
-
-        if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
-        if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
-        if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, size*size / 4 * sizeof(uint16_t));
-      }
+    else{
+      r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
+      ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
+      sign = ref0->frame_num > rec->frame_num;
+      get_inter_prediction_yuv(ref0, pblock_y, pblock_u, pblock_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
     }
-    else if (mode==MODE_SKIP){
+
+    if (mode == MODE_SKIP || zero_block) {
+      memcpy(rec_y, pblock_y, sizeY*sizeY*sizeof(uint8_t));
+      memcpy(rec_u, pblock_u, sizeC*sizeC*sizeof(uint8_t));
+      memcpy(rec_v, pblock_v, sizeC*sizeC*sizeof(uint8_t));
       cbp.y = cbp.u = cbp.v = 0;
+    }
+    else {
+      /* Create residual, transform, quantize, and reconstruct.
+      NB: coeff block type is here determined by the frame type not the mode. This is only used for quantisation optimisation */
+      cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split, encoder_info->params->rdoq,
+        encoder_info->wmatrix[qpY][0][0], encoder_info->iwmatrix[qpY][0][0]);
+      cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && (size>8),
+        encoder_info->params->rdoq, encoder_info->wmatrix[qpY][1][0], encoder_info->iwmatrix[qpY][1][0]);
+      cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && (size>8),
+        encoder_info->params->rdoq, encoder_info->wmatrix[qpY][2][0], encoder_info->iwmatrix[qpY][2][0]);
+
+      if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
+      if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, size*size / 4 * sizeof(uint16_t));
+      if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, size*size / 4 * sizeof(uint16_t));
     }
 
   }

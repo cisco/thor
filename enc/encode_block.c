@@ -2511,45 +2511,43 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
 void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength)
 {
-  int left = 0;
-  int top = 0;
-  int right = width-1;
-  int bottom = height-1;
-
   for (int y = y0; y < y0+8; y++) {
     for (int x = x0; x < x0+8; x++) {
       int O = org[y*so + x];
       int X = rec[(y+0)*stride + x+0];
-      int A = y == top ? X : rec[(y-1)*stride + x+0];
-      int B = x == left ? X : rec[(y+0)*stride + x-1];
-      int C = x == right ? X : rec[(y+0)*stride + x+1];
-      int D = y == bottom ? X : rec[(y+1)*stride + x+0];
-      int delta = clpf_sample(X, A, B, C, D, strength);
-      int F = X + delta;
+      int A = rec[max(0, y-1)*stride + x];
+      int B = rec[y*stride + max(0, x-2)];
+      int C = rec[y*stride + max(0, x-1)];
+      int D = rec[y*stride + min(width-1, x+1)];
+      int E = rec[y*stride + min(width-1, x+2)];
+      int F = rec[min(height-1, y+1)*stride + x];
+      int delta = clpf_sample(X, A, B, C, D, E, F, strength);
+      int Y = X + delta;
       *sum0 += (O-X)*(O-X);
-      *sum1 += (O-F)*(O-F);
+      *sum1 += (O-Y)*(O-Y);
     }
   }
 }
 
+// Use a simplified filter for strength calculation
+static int clpf_sample4(int X, int A, int B, int C, int D, int b) {
+  int delta = clip(A - X, -b, b) + clip(B - X, -b, b) + clip(C - X, -b, b) + clip(D - X, -b, b);
+  return (2 + delta - (delta < 0)) >> 2;
+}
+
 void detect_multi_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, int *sum2, int *sum3)
 {
-  int left = 0;
-  int top = 0;
-  int right = width-1;
-  int bottom = height-1;
-
   for (int y = y0; y < y0+8; y += 2) {
     for (int x = x0; x < x0+8; x++) {
       int O = org[y*so + x];
       int X = rec[(y+0)*stride + x+0];
-      int A = y == top ? X : rec[(y-1)*stride + x+0];
-      int B = x == left ? X : rec[(y+0)*stride + x-1];
-      int C = x == right ? X : rec[(y+0)*stride + x+1];
-      int D = y == bottom ? X : rec[(y+1)*stride + x+0];
-      int delta1 = clpf_sample(X, A, B, C, D, 1);
-      int delta2 = clpf_sample(X, A, B, C, D, 2);
-      int delta3 = clpf_sample(X, A, B, C, D, 4);
+      int A = rec[max(0, y-1)*stride + x];
+      int B = rec[y*stride + max(0, x-1)];
+      int C = rec[y*stride + min(width-1, x+1)];
+      int D = rec[min(height-1, y+1)*stride + x];
+      int delta1 = clpf_sample4(X, A, B, C, D, 1);
+      int delta2 = clpf_sample4(X, A, B, C, D, 2);
+      int delta3 = clpf_sample4(X, A, B, C, D, 4);
       int F1 = X + delta1;
       int F2 = X + delta2;
       int F3 = X + delta3;

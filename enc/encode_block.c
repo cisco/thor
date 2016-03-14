@@ -1916,7 +1916,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         ref = r>=0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
         tmp_block_param.ref_idx0 = ref_idx;
         tmp_block_param.ref_idx1 = ref_idx;
-        mvp = get_mv_pred(ypos,xpos,width,height,size, 1 << encoder_info->params->log2_sb_size, ref_idx,encoder_info->deblock_data);
+        mvp = get_mv_pred(ypos,xpos,width,height,size,size,1 << encoder_info->params->log2_sb_size, ref_idx,encoder_info->deblock_data);
         add_mvcandidate(&mvp, frame_info->mvcand[ref_idx], frame_info->mvcand_num + ref_idx, frame_info->mvcand_mask + ref_idx);
         block_info->mvp = mvp;
 
@@ -2418,8 +2418,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
 
   if (frame_type != I_FRAME && (encode_this_size || encode_rectangular_size)) {
     /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
-    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.skip_candidates);
-    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.merge_candidates);
+    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.skip_candidates);
+    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.merge_candidates);
   }
 
   if (encode_this_size && frame_type != I_FRAME && encoder_info->params->early_skip_thr > 0.0){

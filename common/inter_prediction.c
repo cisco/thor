@@ -258,10 +258,11 @@ void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t 
   }
 }
 
-mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
+mv_t get_mv_pred(int ypos,int xpos,int width,int height,int bwidth, int bheight, int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
 {
   mv_t mvp, mva, mvb, mvc;
   inter_pred_t zero_pred, inter_predA, inter_predB, inter_predC;
+  int size = max(bwidth, bheight);
 
   /* Initialize zero unipred structure */
   zero_pred.mv0.x = 0;
@@ -295,8 +296,6 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int
   int upleft_index = block_index - block_stride - 1;
 
   /* Determine availability */
-  int bwidth = size; //TODO: fix for non-square blocks
-  int bheight = size; //TODO: fix for non-square blocks
   int up_available = get_up_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
   int left_available = get_left_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
   int upright_available = get_upright_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
@@ -374,12 +373,13 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int
   return mvp;
 }
 
-int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
+int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
 {
   int num_merge_vec = 0;
   int i, idx, duplicate;
   inter_pred_t zero_pred;
   inter_pred_t tmp_merge_candidates[MAX_NUM_SKIP];
+  int size = max(bwidth, bheight);
 
   /* Initialize zero unipred structure */
   zero_pred.mv0.x = 0;
@@ -405,8 +405,6 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_s
   int upright_index = block_index - block_stride + block_size;
 
   /* Determine availability */
-  int bwidth = size; //TODO: fix for non-square blocks
-  int bheight = size; //TODO: fix for non-square blocks
   int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
@@ -529,12 +527,13 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_s
   return num_merge_vec;
 }
 
-int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
+int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
 {
   int num_skip_vec=0;
   int i,idx,duplicate;
   inter_pred_t zero_pred;
   inter_pred_t tmp_skip_candidates[MAX_NUM_SKIP];
+  int size = max(bwidth, bheight);
 
   /* Initialize zero unipred structure */
   zero_pred.mv0.x = 0;
@@ -560,8 +559,6 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_si
   int upright_index = block_index - block_stride + block_size;
 
   /* Determine availability */
-  int bwidth = size; //TODO: fix for non-square blocks
-  int bheight = size; //TODO: fix for non-square blocks
   int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);

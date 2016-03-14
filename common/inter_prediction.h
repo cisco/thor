@@ -34,9 +34,9 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
 void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_pos_t *block_pos);
 
 
-mv_t get_mv_pred(int yposY,int xposY,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data);
-int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
-int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates);
+mv_t get_mv_pred(int yposY,int xposY,int width,int height,int bwidth,int bheight,int sb_size,int ref_idx,deblock_data_t *deblock_data);
+int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
+int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates);
 void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int size, int sign);
 
 #endif

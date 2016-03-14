@@ -300,7 +300,6 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   int code,cbp;
   int cbp_table[8] = {1,0,5,2,6,3,7,4};
 
-
   /* Write mode and ref_idx */
   int split_flag = 0;
   int encode_this_size =
@@ -418,9 +417,10 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   }
 
   if (mode != MODE_SKIP){
+    int off = mode == MODE_MERGE ? 1 : 2;
     int max_num_tb_part = block_info->max_num_tb_part;
     if (max_num_tb_part > 1 && tb_split) {
-      code = 2;
+      code = off;
     }
     else {
       cbp = cbp_y + (cbp_u << 1) + (cbp_v << 2);
@@ -435,7 +435,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
         if (block_info->block_context->cbp == 0 && code < 2)
           code = 1 - code;
       }
-      if (max_num_tb_part > 1 && code > 1) code++;
+      if (max_num_tb_part > 1 && code >= off) code++;
     }
 
     put_vlc(0,code,stream);

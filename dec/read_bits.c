@@ -473,10 +473,10 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
     bit_start = stream->bitcnt;
     code = get_vlc(0,stream);
-
+    int off = (mode == MODE_MERGE) ? 1 : 2;
     if (decoder_info->tb_split_enable) {
-      tb_split = code==2;
-      if (code > 2) code -= 1;
+      tb_split = code == off;
+      if (code > off) code -= 1;
       if (tb_split)
         decoder_info->bit_count.cbp2_stat[0][stat_frame_type][mode-1][log2i(size)-3][8] += 1;
     }

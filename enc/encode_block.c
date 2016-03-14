@@ -925,8 +925,11 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
   uint8_t* top = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
   uint8_t top_left;
 
-  int downleft_available = get_downleft_available(yposY, xposY, size, height, block_pos->sb_size);
-  int upright_available = get_upright_available(yposY, xposY, size, width, block_pos->sb_size);
+  int bwidth = size; //TODO: fix for non-square blocks
+  int bheight = size; //TODO: fix for non-square blocks
+  int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, block_pos->sb_size);
+  int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, block_pos->sb_size);
+
   make_top_and_left(left,top,&top_left,&rec->y[yposY*rec->stride_y+xposY],rec->stride_y,NULL,0,0,0,yposY,xposY,size,upright_available,downleft_available,0);
 
 
@@ -1287,8 +1290,10 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   if (mode==MODE_INTRA){
     intra_mode = block_param->intra_mode;
 
-    int upright_available = get_upright_available(yposY, xposY, sizeY, width, 1 << encoder_info->params->log2_sb_size);
-    int downleft_available = get_downleft_available(yposY, xposY, sizeY, height, 1 << encoder_info->params->log2_sb_size);
+    int bwidth = size; //TODO: fix for non-square blocks
+    int bheight = size; //TODO: fix for non-square blocks
+    int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, 1 << encoder_info->params->log2_sb_size);
+    int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, 1 << encoder_info->params->log2_sb_size);
 
     uint8_t* yrec = &rec->y[yposY*rec->stride_y+xposY];
     uint8_t* urec = &rec->u[yposC*rec->stride_c+xposC];
@@ -1440,11 +1445,12 @@ void get_mv_cand(int ypos,int xpos,int width,int height,int size,int sb_size,int
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
 
-  int up_available = get_up_available(ypos,xpos,size,width);
-  int left_available = get_left_available(ypos,xpos,size,width);
-
-  int upright_available = get_upright_available(ypos, xpos, size, width, sb_size);
-  int downleft_available = get_downleft_available(ypos, xpos, size, height, sb_size);
+  int bwidth = size; //TODO: fix for non-square blocks
+  int bheight = size; //TODO: fix for non-square blocks
+  int up_available = get_up_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int left_available = get_left_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int upright_available = get_upright_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int downleft_available = get_downleft_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
 
   int U = up_available;
   int UR = upright_available;

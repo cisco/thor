@@ -294,12 +294,13 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int size,int sb_size,int
   int upright_index = block_index - block_stride + block_size;
   int upleft_index = block_index - block_stride - 1;
 
-   /* Determine availability */
-  int up_available = get_up_available(ypos,xpos,size,width);
-  int left_available = get_left_available(ypos,xpos,size,width);
-
-  int upright_available = get_upright_available(ypos, xpos, size, width, sb_size);
-  int downleft_available = get_downleft_available(ypos, xpos, size, height, sb_size);
+  /* Determine availability */
+  int bwidth = size; //TODO: fix for non-square blocks
+  int bheight = size; //TODO: fix for non-square blocks
+  int up_available = get_up_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int left_available = get_left_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int upright_available = get_upright_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
+  int downleft_available = get_downleft_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
 
   int U = up_available;
   int UR = upright_available;
@@ -404,9 +405,13 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_s
   int upright_index = block_index - block_stride + block_size;
 
   /* Determine availability */
-  int up_available = get_up_available(yposY, xposY, size, width);
-  int left_available = get_left_available(yposY, xposY, size, width);
-  int upright_available = get_upright_available(yposY, xposY, size, width, sb_size);
+  int bwidth = size; //TODO: fix for non-square blocks
+  int bheight = size; //TODO: fix for non-square blocks
+  int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
@@ -430,7 +435,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int size, int sb_s
   int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
-  int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
+  //int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
     left_index1 = left_index2 = left_index0;
@@ -555,9 +560,12 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_si
   int upright_index = block_index - block_stride + block_size;
 
   /* Determine availability */
-  int up_available = get_up_available(yposY,xposY,size,width);
-  int left_available = get_left_available(yposY,xposY,size,width);
-  int upright_available = get_upright_available(yposY, xposY, size, width, sb_size);
+  int bwidth = size; //TODO: fix for non-square blocks
+  int bheight = size; //TODO: fix for non-square blocks
+  int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
 
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */
@@ -582,7 +590,7 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int size, int sb_si
   int left_index1 = block_index + block_stride*((block_size - 1) / 2) - 1;
   int upleft_index = block_index - block_stride - 1;
   int downleft_index = block_index + block_stride*block_size - 1;
-  int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
+  //int downleft_available = get_downleft_available(yposY, xposY, size, height, sb_size);
   /* Special case for rectangular skip blocks at frame boundaries */
   if (yposY + size > height) {
     left_index1 = left_index2 = left_index0;

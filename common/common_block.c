@@ -83,44 +83,47 @@ int chroma_qp[52] = {
 const uint16_t gquant_table[6] = {26214,23302,20560,18396,16384,14564};
 const uint16_t gdequant_table[6] = {40,45,51,57,64,72};
 
-int get_left_available(int ypos, int xpos, int size, int width){
+int get_left_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
   int left_available = xpos > 0;
   return left_available;
 }
 
-int get_up_available(int ypos, int xpos, int size, int width){
+int get_up_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
   int up_available = ypos > 0;
   return up_available;
 }
 
-int get_upright_available(int ypos, int xpos, int size, int width,int sb_size) {
+int get_upright_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
 
   int upright_available;
-  int size2;
+  int size, size2;
 
   /* Test for frame boundaries */
-  upright_available = (ypos > 0) && (xpos + size < width);
+  upright_available = (ypos > 0) && (xpos + bwidth < fwidth);
 
   /* Test for coding block boundaries */
+  size = max(bwidth, bheight);
   for (size2 = size; size2 < sb_size; size2 *= 2) {
-    if ((ypos % (size2<<1)) == size2 && (xpos % size2) == (size2 - size)) upright_available = 0;
+    if ((ypos % (size2 << 1)) == size2 && (xpos % size2) == (size2 - size)) upright_available = 0;
   }
   return upright_available;
 }
 
-int get_downleft_available(int ypos, int xpos, int size, int height,int sb_size) {
+int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
 
   int downleft_available;
-  int size2;
+  int size, size2;
 
   /* Test for frame boundaries */
-  downleft_available = (xpos > 0) && (ypos + size < height);
+  downleft_available = (xpos > 0) && (ypos + bheight < fheight);
 
+  size = max(bwidth, bheight);
   /* Test for external super block boundaries */
   if ((ypos % sb_size) == (sb_size - size) && (xpos % sb_size) == 0) downleft_available = 0;
 
   /* Test for coding block boundaries */
-  for (size2 = 2*size; size2 <= sb_size; size2 *= 2) {
+  size = max(bwidth, bheight);
+  for (size2 = 2 * size; size2 <= sb_size; size2 *= 2) {
     if ((ypos % size2) == (size2 - size) && (xpos % size2) > 0) downleft_available = 0;
   }
 

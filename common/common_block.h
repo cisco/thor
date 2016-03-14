@@ -30,11 +30,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "types.h"
 #include "simd.h"
 
-int get_left_available(int ypos, int xpos, int size, int width);
-int get_up_available(int ypos, int xpos, int size, int width);
-
-int get_upright_available(int ypos, int xpos, int size, int width, int sb_size);
-int get_downleft_available(int ypos, int xpos, int size, int height, int sb_size);
+int get_left_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
+int get_up_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
+int get_upright_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
+int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
 
 void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix, int ws);
 void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int stride);

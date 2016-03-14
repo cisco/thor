@@ -224,8 +224,13 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   if (mode == MODE_INTRA){
     /* Dequantize, inverse tranform, predict and reconstruct */
     intra_mode = block_info.block_param.intra_mode;
-    int upright_available = get_upright_available(ypos, xpos, size, width, 1 << decoder_info->log2_sb_size);
-    int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
+    int bwidth = size; //TODO: fix for non-square blocks
+    int bheight = size; //TODO: fix for non-square blocks
+    int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, 1 << decoder_info->log2_sb_size);
+    int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, 1 << decoder_info->log2_sb_size);
+
+    //int upright_available = get_upright_available(ypos, xpos, size, width, 1 << decoder_info->log2_sb_size);
+    //int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
     int tb_split = block_info.block_param.tb_split;
     decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->qmtx ? decoder_info->iwmatrix[qpY][0][1] : NULL);
     decode_and_reconstruct_block_intra(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,upright_available,downleft_available,intra_mode,yposC,xposC,width/2,1,decoder_info->qmtx ? decoder_info->iwmatrix[qpY][1][1] : NULL);

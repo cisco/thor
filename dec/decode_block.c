@@ -571,10 +571,10 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
 
   if (split_flag){
     int new_size = size/2;
-    process_block_dec(decoder_info, new_size, yposY + 0 * new_size, xposY + 0 * new_size);
-    process_block_dec(decoder_info, new_size, yposY + 0 * new_size, xposY + 1 * new_size);
-    process_block_dec(decoder_info, new_size, yposY + 1 * new_size, xposY + 0 * new_size);
-    process_block_dec(decoder_info, new_size, yposY + 1 * new_size, xposY + 1 * new_size);
+    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size);
+    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size);
+    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+1*new_size);
+    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+1*new_size);
   }
   else if (decode_this_size || decode_rectangular_size){
     decode_block(decoder_info,size,yposY,xposY);

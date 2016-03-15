@@ -408,7 +408,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bh
   int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
-  int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  //int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
 
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */
@@ -562,7 +562,7 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bhe
   int up_available = get_up_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int left_available = get_left_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
   int upright_available = get_upright_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
-  int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
+  //int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, sb_size);
 
 #if LIMITED_SKIP
   /* Special case for rectangular skip blocks at frame boundaries */

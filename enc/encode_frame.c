@@ -116,7 +116,7 @@ int clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *de
   }
 
   // Add bit cost to sums[1], sums[2] and sums[3].
-  int cost = (int)(frame_info->lambda * totbits);
+  int cost = (int)(frame_info->lambda * totbits + 0.5);
 
   for (int i = 0; i < 7; i++) // i == 3 or i == 6 means strength 4.
     sums[i] = ((sums[i] + (i && i < 4) * cost) << 4) + i + (i > 2) + (i > 5);

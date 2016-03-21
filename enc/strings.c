@@ -343,6 +343,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-max_qpI",              "32", ARG_INTEGER,  &params->max_qpI);
   add_param_to_list(&list, "-min_qpI",              "32", ARG_INTEGER,  &params->min_qpI);
   add_param_to_list(&list, "-qmtx",                  "0", ARG_INTEGER,  &params->qmtx);
+  add_param_to_list(&list, "-qmtx_offset",           "0", ARG_INTEGER,  &params->qmtx_offset);// qp offset for qmlevel calculation -32 to 31
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;
@@ -490,5 +491,9 @@ void check_parameters(enc_params *params)
 
   if (params->log2_sb_size < 6 || params->log2_sb_size > MAX_SB_SIZE) {
     fatalerror("Illegal value for log2_sb_size\n");
+  }
+
+  if (params->qmtx && (params->qmtx_offset < -32 || params->qmtx_offset>31)) {
+    fatalerror("qmtrx_offset must be a value from -32 to 31\n");
   }
 }

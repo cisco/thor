@@ -93,6 +93,7 @@ typedef struct
   int max_qpI;
   int min_qpI;
   int qmtx;
+  int qmtx_offset;
 } enc_params;
 
 typedef struct

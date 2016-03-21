@@ -147,9 +147,8 @@ int main(int argc, char** argv)
     decoder_info.use_block_contexts = get_flc(1, &stream);
     decoder_info.bipred = get_flc(1, &stream);
     decoder_info.qmtx = get_flc(1, &stream);
-    printf("use quant matrix = %d\n", decoder_info.qmtx);
-
     if (decoder_info.qmtx){
+      decoder_info.qmtx_offset = get_flc(6, &stream) - 32;
       alloc_wmatrices(decoder_info.iwmatrix, 1);
     }
 

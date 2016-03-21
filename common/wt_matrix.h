@@ -30,14 +30,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include <stdint.h>
 
-static inline int qlevel_to_qp(int ql)
+static inline int qp_to_qlevel(int qp, int qmtx_offset)
 {
-    return min(51,(ql*44 + 22)/NUM_QM_LEVELS);
-}
-
-static inline int qp_to_qlevel(int qp)
-{
-    return min(NUM_QM_LEVELS-1,(qp*NUM_QM_LEVELS)/ 44);
+    return max(0,min(NUM_QM_LEVELS-1,((qp+qmtx_offset)*NUM_QM_LEVELS)/ 44));
 }
 
 void alloc_wmatrices(qmtx_t* matrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE], int inverse);

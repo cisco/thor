@@ -224,7 +224,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
 
   if (mode == MODE_INTRA){
     /* Dequantize, inverse tranform, predict and reconstruct */
-    int ql = qp_to_qlevel(qpY);
+    int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     intra_mode = block_info.block_param.intra_mode;
     int bwidth = size; //TODO: fix for non-square blocks
     int bheight = size; //TODO: fix for non-square blocks
@@ -362,7 +362,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     }
 
     /* Dequantize, invere tranform and reconstruct */
-    int ql = qp_to_qlevel(qpY);
+    int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
     decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
     decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);

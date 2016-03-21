@@ -212,6 +212,8 @@ int main(int argc, char **argv)
   put_flc(1,params->use_block_contexts,&stream);
   put_flc(1,params->enable_bipred,&stream);
   put_flc(1,params->qmtx,&stream);
+  if (params->qmtx)
+    put_flc(6,params->qmtx_offset+32,&stream);
 
   end_bits = get_bit_pos(&stream);
   num_bits = end_bits-start_bits;

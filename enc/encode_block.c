@@ -1301,7 +1301,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     uint8_t* vrec = &rec->v[yposC*rec->stride_c+xposC];
 
     /* Predict, create residual, transform, quantize, and reconstruct.*/
-    int ql = qp_to_qlevel(qpY);
+    int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
     cbp.y = encode_and_reconstruct_block_intra (encoder_info, org_y,sizeY,yrec,rec->stride_y,yposY,xposY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,
         tb_split,encoder_info->params->rdoq,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][0][1],encoder_info->iwmatrix[ql][0][1]);
     cbp.u = encode_and_reconstruct_block_intra (encoder_info, org_u,sizeC,urec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,
@@ -1348,7 +1348,7 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     else {
       /* Create residual, transform, quantize, and reconstruct.
       NB: coeff block type is here determined by the frame type not the mode. This is only used for quantisation optimisation */
-      int ql = qp_to_qlevel(qpY);
+      int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
       cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split, encoder_info->params->rdoq,
         encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
       cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && (size>8),

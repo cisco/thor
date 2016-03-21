@@ -28,6 +28,7 @@
     <ClCompile Include="..\..\common\snr.c" />
     <ClCompile Include="..\..\common\temporal_interp.c" />
     <ClCompile Include="..\..\common\transform.c" />
+    <ClCompile Include="..\..\common\wt_matrix.c" />
     <ClCompile Include="..\..\dec\decode_block.c" />
     <ClCompile Include="..\..\dec\decode_frame.c" />
     <ClCompile Include="..\..\dec\getbits.c" />
@@ -47,6 +48,7 @@
     <ClInclude Include="..\..\common\temporal_interp.h" />
     <ClInclude Include="..\..\common\transform.h" />
     <ClInclude Include="..\..\common\types.h" />
+    <ClInclude Include="..\..\common\wt_matrix.h" />
     <ClInclude Include="..\..\dec\decode_block.h" />
     <ClInclude Include="..\..\dec\decode_frame.h" />
     <ClInclude Include="..\..\dec\getbits.h" />

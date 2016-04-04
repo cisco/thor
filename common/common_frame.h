@@ -35,6 +35,6 @@ void read_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *infile);
 void write_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *outfile);
 void pad_yuv_frame(yuv_frame_t* f);
 void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec);
-void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength,
-                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int));
+void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,
+                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int));
 #endif

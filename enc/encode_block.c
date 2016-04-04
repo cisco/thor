@@ -2539,7 +2539,7 @@ void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width
   }
 }
 
-void detect_multi_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, int *sum2, int *sum3)
+void detect_multi_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum)
 {
   for (int y = y0; y < y0+8; y++) {
     for (int x = x0; x < x0+8; x++) {
@@ -2557,10 +2557,10 @@ void detect_multi_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int
       int F1 = X + delta1;
       int F2 = X + delta2;
       int F3 = X + delta3;
-      *sum0 += (O-X)*(O-X);
-      *sum1 += (O-F1)*(O-F1);
-      *sum2 += (O-F2)*(O-F2);
-      *sum3 += (O-F3)*(O-F3);
+      sum[0] += (O-X)*(O-X);
+      sum[1] += (O-F1)*(O-F1);
+      sum[2] += (O-F2)*(O-F2);
+      sum[3] += (O-F3)*(O-F3);
     }
   }
 }

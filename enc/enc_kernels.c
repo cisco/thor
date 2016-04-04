@@ -248,7 +248,7 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
 
 
 // Test multiple filter strengths at once.  Use a simpler filter (4 tap, every second line).
-void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, int *sum2, int *sum3)
+void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum)
 {
   v128 c128 = v128_dup_8(128);
   v128 cp1 = v128_dup_8(1);
@@ -430,10 +430,10 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
       org += 2*so;
     }
   }
-  *sum0 += v128_ssd_u8_sum(ssd0);
-  *sum1 += v128_ssd_u8_sum(ssd1);
-  *sum2 += v128_ssd_u8_sum(ssd2);
-  *sum3 += v128_ssd_u8_sum(ssd3);
+  sum[0] += v128_ssd_u8_sum(ssd0);
+  sum[1] += v128_ssd_u8_sum(ssd1);
+  sum[2] += v128_ssd_u8_sum(ssd2);
+  sum[3] += v128_ssd_u8_sum(ssd3);
 }
 
 /* Return the best approximated half-pel position around the centre */

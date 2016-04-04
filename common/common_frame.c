@@ -592,8 +592,8 @@ void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
 
 }
 
-void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength,
-                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int)) {
+void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,
+                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int)) {
 
   /* Constrained low-pass filter (CLPF) */
   int width = rec->width;
@@ -603,31 +603,31 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
   int stride_c = rec->stride_c;
   const int bs = 8;
 
-  int num_sb_hor = (width+MAX_SB_SIZE-bs)/MAX_SB_SIZE;
-  int num_sb_ver = (height+MAX_SB_SIZE-bs)/MAX_SB_SIZE;
+  int num_sb_hor = (width+(1<<fb_size_log2)-bs)>>fb_size_log2;
+  int num_sb_ver = (height+(1<<fb_size_log2)-bs)>>fb_size_log2;
 
   for (int k = 0; k < num_sb_ver; k++) {
     for (int l = 0; l < num_sb_hor; l++) {
       int allskip = 1;
-      for (int m = 0; allskip && m < MAX_SB_SIZE/bs; m++) {
-        for (int n = 0; allskip && n < MAX_SB_SIZE/bs; n++) {
-          xpos = l*MAX_SB_SIZE + n*bs;
-          ypos = k*MAX_SB_SIZE + m*bs;
+      for (int m = 0; allskip && m < (1<<fb_size_log2)/bs; m++) {
+        for (int n = 0; allskip && n < (1<<fb_size_log2)/bs; n++) {
+          xpos = (l<<fb_size_log2) + n*bs;
+          ypos = (k<<fb_size_log2) + m*bs;
           if (xpos < width && ypos < height) {
             index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
             allskip &= deblock_data[index].mode == MODE_SKIP;
           }
         }
       }
-      int h = min(height, (k+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
-      int w = min(width, (l+1)*MAX_SB_SIZE) % MAX_SB_SIZE;
-      h += !h * MAX_SB_SIZE;
-      w += !w * MAX_SB_SIZE;
-      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength))) {
+      int h = min(height, (k+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
+      int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
+      h += !h << fb_size_log2;
+      w += !w << fb_size_log2;
+      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength, fb_size_log2))) {
         for (int m = 0; m < h/bs; m++) {
           for (int n = 0; n < w/bs; n++) {
-            xpos = l*MAX_SB_SIZE + n*bs;
-            ypos = k*MAX_SB_SIZE + m*bs;
+            xpos = (l<<fb_size_log2) + n*bs;
+            ypos = (k<<fb_size_log2) + m*bs;
             index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
             int filter = deblock_data[index].mode != MODE_SKIP;
 
@@ -650,13 +650,13 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
         }
       } else { // Copy
         for (int m = 0; m < h; m++)
-          memcpy(dst->y + (k*MAX_SB_SIZE+m)*stride_y + l*MAX_SB_SIZE,
-                 rec->y + (k*MAX_SB_SIZE+m)*stride_y + l*MAX_SB_SIZE, w);
+          memcpy(dst->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2),
+                 rec->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2), w);
         for (int m = 0; m < h/2; m++) {
-          memcpy(dst->u + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2,
-                 rec->u + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2, w/2);
-          memcpy(dst->v + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2,
-                 rec->v + (k*MAX_SB_SIZE/2+m)*stride_c + l*MAX_SB_SIZE/2, w/2);
+          memcpy(dst->u + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2,
+                 rec->u + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2, w/2);
+          memcpy(dst->v + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2,
+                 rec->v + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2, w/2);
         }
       }
     }

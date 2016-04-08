@@ -344,12 +344,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
       yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
       int sign0 = ref0->frame_num >= rec->frame_num;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, decoder_info->pb_split);
 
       int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
       yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
       int sign1 = ref1->frame_num >= rec->frame_num;
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, decoder_info->pb_split);
 
       average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
 

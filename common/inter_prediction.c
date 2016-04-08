@@ -69,16 +69,16 @@ static const int8_t filter_coeffsC[8][4] = {
     {-2, 10, 58, -2}
 };
 
-void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int size, int sign) {
+void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign) {
 
   int max_mv_ext = PADDING_Y - 16; //max MV extension outside frame boundaries in integer pixel resolution
   int mvy, mvx;
   mvy = sign ? -mv_cand->y : mv_cand->y;
   mvx = sign ? -mv_cand->x : mv_cand->x;
   if (ypos + mvy / 4 < -max_mv_ext) mvy = 4 * (-max_mv_ext - ypos);
-  if (ypos + mvy / 4 + size > fheight + max_mv_ext) mvy = 4 * (fheight + max_mv_ext - ypos - size);
+  if (ypos + mvy / 4 + bheight > fheight + max_mv_ext) mvy = 4 * (fheight + max_mv_ext - ypos - bheight);
   if (xpos + mvx / 4 < -max_mv_ext) mvx = 4 * (-max_mv_ext - xpos);
-  if (xpos + mvx / 4 > fwidth + max_mv_ext) mvx = 4 * (fwidth + max_mv_ext - xpos - size);
+  if (xpos + mvx / 4 + bwidth > fwidth + max_mv_ext) mvx = 4 * (fwidth + max_mv_ext - xpos - bwidth);
   mv_cand->y = sign ? -mvy : mvy;
   mv_cand->x = sign ? -mvx : mvx;
 }
@@ -215,7 +215,6 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
   int xposY = block_pos->xpos;
   int yposC = yposY / 2;
   int xposC = xposY / 2;
-  int size = block_pos->size;
 
   int ref_posY = yposY*ref->stride_y + xposY;
   int ref_posC = yposC*ref->stride_c + xposC;
@@ -230,7 +229,7 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     int offsetrY = idy*bheight*rstride_y + idx*bwidth;
     int offsetrC = idy*bheight*rstride_c / 2 + idx*bwidth / 2;
     mv = mv_arr[index];
-    clip_mv(&mv, yposY, xposY, width, height, size, sign);
+    clip_mv(&mv, yposY, xposY, width, height, bwidth, bheight, sign);
     get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
     get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);
     get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth / 2, bheight / 2, rstride_c, pstride / 2, &mv, sign, width / 2, height / 2, xposC, yposC);

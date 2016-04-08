@@ -541,7 +541,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
 
           mv_cand.y = mv_ref.y + k;
           mv_cand.x = mv_ref.x + l;
-          clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+          clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
           if (step == 32 && size == 16 && params->encoder_speed < 2 && params->encoder_speed > 0) {
             int x = 0;
             sad = widesad_calc(orig,ref + s*(mv_cand.x >> 2) + s*(mv_cand.y >> 2)*stride_r,size,stride_r,width,height,&x);
@@ -566,7 +566,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
     int x = 0;
     mv_cand.y = mvcand[idx].y << 2;
     mv_cand.x = mvcand[idx].x << 2;
-    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
     if (size == 16)
       sad = widesad_calc(orig,ref + s*(mv_cand.x >> 2) + s*(mv_cand.y >> 2)*stride_r,size,stride_r,width,height, &x);
     else
@@ -598,7 +598,7 @@ int motion_estimate(uint8_t *orig, uint8_t *ref, int size, int stride_r, int wid
       mv_cand.y = mv_ref.y + dix[dir]*4;
       mv_cand.x = mv_ref.x + diy[dir]*4;
 
-      clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+      clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
       sad = sad_calc(orig,ref + s*(mv_cand.x >> 2) + s*(mv_cand.y >> 2)*stride_r,size,stride_r,width,height);
       sad += (unsigned int)(lambda * (double)quote_mv_bits(mv_cand.y - mvp->y, mv_cand.x - mvp->x) + 0.5);
       if (sad < min_sad){
@@ -747,7 +747,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
         mv_cand.y = mv_ref.y + k;
         mv_cand.x = mv_ref.x + l;
 
-        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
         get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-sync: telescope search
         sad = sad_calc(orig,rf,size,width,width,height);
         mv_diff_y = mv_cand.y - mvp->y;
@@ -770,7 +770,7 @@ int motion_estimate_sync(uint8_t *orig, uint8_t *ref, int size, int stride_r, in
   for (int idx=0;idx<ME_CANDIDATES;idx++){
     mv_cand = mvcand[idx];
 
-    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
     get_inter_prediction_luma(rf,ref,width,height,stride_r,width,&mv_cand, sign,enable_bipred,fwidth,fheight,xpos,ypos); //ME-sync: candidate search
     sad = sad_calc(orig,rf,size,width,width,height);
     mv_diff_y = mv_cand.y - mvp->y;
@@ -833,10 +833,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
         mv_cand.y = mv_ref.y + k;
         mv_cand.x = mv_ref.x + l;
 
-        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
         get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: telescope search - ref0
 
-        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
+        clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, 1 - sign);
         get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: telescope search - ref1
 
         int i, j;
@@ -873,10 +873,10 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
   for (int idx = 0; idx<ME_CANDIDATES; idx++) {
     mv_cand = mvcand[idx];
 
-    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, sign);
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
     get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: candidate search - ref0
 
-    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, 1 - sign);
+    clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, 1 - sign);
     get_inter_prediction_luma(rf1, ref1, width, height, stride_r, width, &mv_cand, 1 - sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: candidate search - ref1
 
     int i, j;

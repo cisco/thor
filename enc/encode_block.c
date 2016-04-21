@@ -1733,7 +1733,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
       ref = r >= 0 ? encoder_info->ref[r] : encoder_info->interp_frames[0];
 
       int sign = ref->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info->block_pos, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, 1);
+      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info->block_pos, list ? min_mv_arr0 : min_mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, part > 0);
       /* Modify the target block based on that predition */
       for (i = 0; i < size*size; i++) {
         org8[i] = (uint8_t)clip255(2 * (int16_t)org_block->y[i] - (int16_t)pblock_y[i]);

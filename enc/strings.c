@@ -496,4 +496,8 @@ void check_parameters(enc_params *params)
   if (params->qmtx && (params->qmtx_offset < -32 || params->qmtx_offset>31)) {
     fatalerror("qmtrx_offset must be a value from -32 to 31\n");
   }
+
+  if (params->interp_ref == 2 && params->dyadic_coding == 0) {
+    fatalerror("interp_ref=2 only supported with dyadic coding\n");
+  }
 }

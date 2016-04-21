@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "putvlc.h"
 #include "wt_matrix.h"
 #include "enc_kernels.h"
+#include "inter_prediction.h"
 
 extern int chroma_qp[52];
 const double squared_lambda_QP [52] = {
@@ -164,7 +165,8 @@ void encode_frame(encoder_info_t *encoder_info)
   int num_sb_ver = (height + sb_size - 1) / sb_size;
   stream_t *stream = encoder_info->stream;
 
-  memset(encoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
+  if (encoder_info->frame_info.frame_type == I_FRAME)
+    memset(encoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
   frame_info_t *frame_info = &(encoder_info->frame_info);
   uint8_t qp = frame_info->qp;
@@ -213,6 +215,16 @@ void encode_frame(encoder_info_t *encoder_info)
   }
   // 16 bit frame number for now
   put_flc(16,encoder_info->frame_info.frame_num,stream);
+
+  if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref>1){
+    int phase = encoder_info->frame_info.frame_num % (encoder_info->params->num_reorder_pics + 1);
+    int r0 = encoder_info->frame_info.ref_array[1];
+    int r1 = encoder_info->frame_info.ref_array[2];
+    yuv_frame_t *ref0 = encoder_info->ref[r0];
+    yuv_frame_t *ref1 = encoder_info->ref[r1];
+    interpolate_frame0(width, height, encoder_info->interp_frames[0], ref0, ref1, encoder_info->deblock_data, phase);
+    pad_yuv_frame(encoder_info->interp_frames[0]);
+  }
 
   // Initialize prev_qp to qp used in frame header
   encoder_info->frame_info.prev_qp = encoder_info->frame_info.qp;
@@ -267,6 +279,15 @@ void encode_frame(encoder_info_t *encoder_info)
   }
 
   qp = encoder_info->frame_info.qp = encoder_info->frame_info.prev_qp; //TODO: Consider using average QP instead
+
+  //Scale and store MVs in encode_frame()
+  if (encoder_info->params->interp_ref > 1) {
+    int gop_size = encoder_info->params->num_reorder_pics + 1;
+    int b_level = encoder_info->frame_info.b_level;
+    int frame_type = encoder_info->frame_info.frame_type;
+    int frame_num = encoder_info->frame_info.frame_num;
+    store_mv(width, height, b_level, frame_type, frame_num, gop_size, encoder_info->deblock_data);
+  }
 
   if (encoder_info->params->deblocking){
     //TODO: Use QP per SB or average QP

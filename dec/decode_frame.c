@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "temporal_interp.h"
 #include "wt_matrix.h"
 #include "getvlc.h"
+#include "inter_prediction.h"
 
 extern int chroma_qp[52];
 
@@ -53,8 +54,10 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int num_sb_hor = (width + sb_size - 1) / sb_size;
   int num_sb_ver = (height + sb_size - 1) / sb_size;
   stream_t *stream = decoder_info->stream;
-  memset(decoder_info->deblock_data, 0, ((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t)) );
 
+  if (decoder_info->frame_info.frame_type == I_FRAME) {
+    memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
+  }
   int bit_start = stream->bitcnt;
   int rec_buffer_idx;
 
@@ -80,6 +83,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     decoder_info->frame_info.num_ref = 0;
   }
   decoder_info->frame_info.display_frame_num = get_flc(16, stream);
+
   for (r=0; r<decoder_info->frame_info.num_ref; ++r){
     if (decoder_info->frame_info.ref_array[r]!=-1) {
       if (decoder_info->ref[decoder_info->frame_info.ref_array[r]]->frame_num > decoder_info->frame_info.display_frame_num) {
@@ -118,6 +122,17 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   decoder_info->frame_info.qp = qp;
   decoder_info->frame_info.qpb = qp;
 
+  //Generate new interpolated frame
+  if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref>1) {
+    int phase = decoder_info->frame_info.display_frame_num % (decoder_info->num_reorder_pics + 1);
+    int r0 = decoder_info->frame_info.ref_array[1];
+    int r1 = decoder_info->frame_info.ref_array[2];
+    yuv_frame_t *ref0 = decoder_info->ref[r0];
+    yuv_frame_t *ref1 = decoder_info->ref[r1];
+    interpolate_frame0(width, height, decoder_info->interp_frames[0], ref0, ref1, decoder_info->deblock_data, phase);
+    pad_yuv_frame(decoder_info->interp_frames[0]);
+  }
+
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
       int xposY = l*sb_size;
@@ -127,6 +142,16 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   }
 
   qp = decoder_info->frame_info.qp = decoder_info->frame_info.qpb;
+
+  //Scale and store MVs in decode_frame()
+  if (decoder_info->interp_ref>1) {
+    int gop_size = decoder_info->num_reorder_pics + 1;
+    int coded_phase = (decoder_info->frame_info.decode_order_frame_num + gop_size - 2) % gop_size + 1;
+    int b_level = log2i(coded_phase);
+    int frame_type = decoder_info->bit_count.stat_frame_type;
+    int frame_num = decoder_info->frame_info.display_frame_num;
+    store_mv(width, height, b_level, frame_type, frame_num, gop_size, decoder_info->deblock_data);
+  }
 
   if (decoder_info->deblocking){
     deblock_frame_y(decoder_info->rec, decoder_info->deblock_data, width, height, qp);

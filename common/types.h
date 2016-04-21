@@ -132,6 +132,7 @@ typedef struct
   uint8_t tb_split;
   part_t pb_part;
   inter_pred_t inter_pred;
+  inter_pred_t inter_pred_arr[16]; //TODO: MAX_GOP_SIZE
 } deblock_data_t;
 
 typedef enum {

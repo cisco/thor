@@ -205,7 +205,7 @@ int main(int argc, char **argv)
   put_flc(1,params->enable_pb_split,&stream);
   put_flc(1,params->enable_tb_split,&stream);
   put_flc(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
-  put_flc(1,params->interp_ref,&stream);// Use an interpolated reference frame
+  put_flc(2,params->interp_ref,&stream);// Use an interpolated reference frame
   put_flc(1, (params->max_delta_qp || params->bitrate), &stream);
   put_flc(1,params->deblocking,&stream);
   put_flc(1,params->clpf ? 1 : 0,&stream);
@@ -214,6 +214,7 @@ int main(int argc, char **argv)
   put_flc(1,params->qmtx,&stream);
   if (params->qmtx)
     put_flc(6,params->qmtx_offset+32,&stream);
+  put_flc(4, params->num_reorder_pics, &stream);
 
   end_bits = get_bit_pos(&stream);
   num_bits = end_bits-start_bits;
@@ -329,7 +330,6 @@ int main(int argc, char **argv)
 
               int display_phase =  (encoder_info.frame_info.frame_num-1) % sub_gop;
               int ref_offset=sub_gop>>(b_level+1);
-
               if (b_level >= min_interp_depth && params->interp_ref) {
 
                 // Need to add another reference if we are at the beginning
@@ -668,6 +668,7 @@ int main(int argc, char **argv)
       free(encoder_info.interp_frames[r]);
     }
   }
+
   fclose(infile);
   fclose(strfile);
   if (reconfile)

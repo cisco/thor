@@ -140,7 +140,7 @@ int main(int argc, char** argv)
     decoder_info.max_num_ref = get_flc(2, &stream) + 1;
     fprintf(stderr,"num refs is %d\n",decoder_info.max_num_ref);
 
-    decoder_info.interp_ref = get_flc(1, &stream);
+    decoder_info.interp_ref = get_flc(2, &stream);
     decoder_info.max_delta_qp = get_flc(1, &stream);
     decoder_info.deblocking = get_flc(1, &stream);
     decoder_info.clpf = get_flc(1, &stream);
@@ -151,6 +151,7 @@ int main(int argc, char** argv)
       decoder_info.qmtx_offset = get_flc(6, &stream) - 32;
       alloc_wmatrices(decoder_info.iwmatrix, 1);
     }
+    decoder_info.num_reorder_pics = get_flc(4, &stream);
 
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 

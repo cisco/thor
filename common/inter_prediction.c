@@ -201,6 +201,8 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   }
 }
 
+
+
 void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split) {
   mv_t mv;
   int div = split + 1;
@@ -255,6 +257,152 @@ void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t 
       rec_v[i*sizeC + j] = (uint8_t)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
     }
   }
+}
+
+void scale_mv(mv_t *mv_in, mv_t *mv_out, double scale, double offset) {
+  double scalef = 1.0 / scale;
+  int absx = abs(mv_in->x);
+  int absy = abs(mv_in->y);
+  int signx = mv_in->x >= 0 ? 1 : -1;
+  int signy = mv_in->y >= 0 ? 1 : -1;
+  mv_out->x = signx * (int)floor(scalef * absx + offset);
+  mv_out->y = signy * (int)floor(scalef * absy + offset);
+}
+
+void store_mv(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data) {
+  int i, j, block_index, block_posy, block_posx;
+  int block_stride = width / MIN_PB_SIZE;
+  int ref_idx0, bipred_flag;
+  int phase = frame_num % gop_size;
+  inter_pred_t *inter_pred;
+  mv_t mvin, mvout;
+  double offset = 0.125;
+  double scale_array[4] = { 8.0 / 4.0, 16.0 / 4.0, 9.0 / 4.0, 11.0 / 4.0 };
+  int scale, p, lev, inc, delta;
+  int num_lev = log2i(gop_size);
+
+  for (i = 0; i < height; i += MIN_PB_SIZE) {
+    for (j = 0; j < width; j += MIN_PB_SIZE) {
+      block_posy = i / MIN_PB_SIZE;
+      block_posx = j / MIN_PB_SIZE;
+      block_index = block_posy*block_stride + block_posx;
+      ref_idx0 = deblock_data[block_index].inter_pred.ref_idx0;
+      bipred_flag = deblock_data[block_index].inter_pred.bipred_flag;
+      inter_pred = &deblock_data[block_index].inter_pred;
+
+      if (frame_type == P_FRAME) {
+        mvin = inter_pred->mv0;
+        for (lev = 0; lev < num_lev; lev++) {
+          scale = (1 << lev);
+          scale_mv(&mvin, &mvout, (double)scale*scale_array[ref_idx0], offset);
+          inc = gop_size >> lev;
+          delta = (inc >> 1);
+          for (p = delta; p < gop_size; p += inc) {
+            deblock_data[block_index].inter_pred_arr[p].mv0 = mvout;
+          }
+        }
+      }
+      else if (frame_type == B_FRAME && b_level < num_lev-1) {
+        if (bipred_flag || ref_idx0 == 1) {
+          mvin = inter_pred->mv0;
+          for (lev = b_level + 1; lev < num_lev; lev++) {
+            scale = (1 << (lev - b_level));
+            scale_mv(&mvin, &mvout, (double)scale, offset);
+            inc = gop_size >> lev;
+            delta = (scale - 1)*(inc >> 1);
+            for (p = phase - delta; p < phase; p += inc) {
+              deblock_data[block_index].inter_pred_arr[p].mv0 = mvout;
+            }
+          }
+        }
+        if (bipred_flag || ref_idx0 == 2) {
+          mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
+          for (lev = b_level + 1; lev < num_lev; lev++) {
+            scale = (1 << (lev - b_level));
+            scale_mv(&mvin, &mvout, (double)scale, offset);
+            inc = gop_size >> lev;
+            delta = (scale - 1)*(inc >> 1);
+            for (p = phase + delta; p > phase; p -= inc) {
+              deblock_data[block_index].inter_pred_arr[p].mv0 = mvout;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase) {
+
+  int sizeY = MIN_PB_SIZE;
+  int sizeC = sizeY / 2;
+
+  uint8_t *pblock_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock_u = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock_v = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock0_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock0_u = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock0_v = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock1_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock1_u = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+  uint8_t *pblock1_v = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
+
+  int ypos, xpos;
+  for (ypos = 0; ypos < height; ypos += MIN_PB_SIZE) {
+    for (xpos = 0; xpos < width; xpos += MIN_PB_SIZE) {
+      int m;
+      int sign;
+      mv_t mv_arr[4];
+      int enable_bipred = 1;
+
+      int yposY = ypos;
+      int xposY = xpos;
+      int yposC = yposY / 2;
+      int xposC = xposY / 2;
+
+      block_pos_t block_pos;
+      block_pos.size = MIN_PB_SIZE;
+      block_pos.bwidth = MIN_PB_SIZE;
+      block_pos.bheight = MIN_PB_SIZE;
+      block_pos.ypos = ypos;
+      block_pos.xpos = xpos;
+
+      int block_stride = width / MIN_PB_SIZE;
+      int block_posy = ypos/MIN_PB_SIZE;
+      int block_posx = xpos/MIN_PB_SIZE;
+      int block_index = block_posy * block_stride + block_posx;
+
+      mv_arr[0] = deblock_data[block_index].inter_pred_arr[phase].mv0;
+
+      uint8_t* ref2_y = &ref2->y[yposY*ref2->stride_y + xposY];
+      uint8_t* ref2_u = &ref2->u[yposC*ref2->stride_c + xposC];
+      uint8_t* ref2_v = &ref2->v[yposC*ref2->stride_c + xposC];
+
+      sign = 0;
+      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
+      sign = 1;
+      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
+      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_pos);
+
+      for (m = 0; m < sizeY; m++) {
+        memcpy(ref2_y + m * ref2->stride_y, pblock_y + m*sizeY, sizeY*sizeof(uint8_t));
+      }
+      for (m = 0; m < sizeC; m++) {
+        memcpy(ref2_u + m * ref2->stride_c, pblock_u + m*sizeC, sizeC*sizeof(uint8_t));
+        memcpy(ref2_v + m * ref2->stride_c, pblock_v + m*sizeC, sizeC*sizeof(uint8_t));
+      }
+    }
+  }
+
+  free(pblock_y);
+  free(pblock_u);
+  free(pblock_v);
+  free(pblock0_y);
+  free(pblock0_u);
+  free(pblock0_v);
+  free(pblock1_y);
+  free(pblock1_u);
+  free(pblock1_v);
 }
 
 mv_t get_mv_pred(int ypos,int xpos,int width,int height,int bwidth, int bheight, int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed

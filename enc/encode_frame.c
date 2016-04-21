@@ -45,10 +45,6 @@ const double squared_lambda_QP [52] = {
     1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
 };
 
-static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2) {
-  return 1;
-}
-
 static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2) {
   int sum0 = 0, sum1 = 0;
   for (int m = 0; m < h; m++) {
@@ -299,7 +295,7 @@ void encode_frame(encoder_info_t *encoder_info)
         yuv_frame_t tmp = *encoder_info->rec;
         put_flc(2, strength - (strength == 4), stream);
         put_flc(2, (fb_size_log2-log2i(MAX_SB_SIZE)+3)*enable_sb_flag, stream);
-        clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, fb_size_log2, enable_sb_flag ? clpf_decision : clpf_true);
+        clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, fb_size_log2, clpf_decision);
         *encoder_info->rec = *encoder_info->tmp;
         *encoder_info->tmp = tmp;
         encoder_info->rec->frame_num = tmp.frame_num;

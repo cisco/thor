@@ -62,7 +62,7 @@ static inline void fatalerror(char error_text[])
 #define MAX_BUFFER_SIZE 4000000  //Maximum compressed buffer size per frame
 #define MAX_TR_SIZE 128          //Maximum transform size
 #define TR_SIZE_RANGE (NUM_BLOCK_SIZES+1)
-#define PADDING_Y 96             //One-sided padding range for luma
+#define PADDING_Y (MAX_SB_SIZE+32) //One-sided padding range for luma
 #define MAX_UINT32 1<<31         //Used e.g. to initialize search for minimum cost
 #define EARLY_SKIP_BLOCK_SIZE 32 //maximum block size for early skip check
 #define MAX_REF_FRAMES 33        //Maximum number of reference frames

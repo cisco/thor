@@ -36,8 +36,14 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast);
 void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size);
 void clpf_block4(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
 void clpf_block8(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
-SIMD_INLINE void clpf_block_simd(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int size, int width, int height, unsigned int strength) {
-  (size == 4 ? clpf_block4 : clpf_block8)(src, dst, stride, x0, y0, width, height, strength);
+SIMD_INLINE void clpf_block_simd(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
+  if (sizex == 4 && sizey == 4) // chroma 420
+    clpf_block4(src, dst, stride, x0, y0, width, height, strength);
+  else if (sizex == 4) { // chroma 422
+    clpf_block4(src, dst, stride, x0, y0, width, height, strength);
+    clpf_block4(src + 4*stride, dst + 4*stride, stride, x0, y0, width, height, strength);
+  } else // luma 444 or luma 420
+    clpf_block8(src, dst, stride, x0, y0, width, height, strength);
 }
 
 #endif

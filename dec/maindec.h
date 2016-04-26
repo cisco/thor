@@ -58,35 +58,37 @@ typedef struct
 
 typedef struct 
 {
-    frame_info_t frame_info;
-    yuv_frame_t *rec;
-    yuv_frame_t *tmp;
-    yuv_frame_t *ref[MAX_REF_FRAMES];
-    yuv_frame_t *interp_frames[MAX_SKIP_FRAMES];
-    stream_t *stream;
-    deblock_data_t *deblock_data;
-    int width;
-    int height;
-    bit_count_t bit_count;
-    int pb_split;
-    int max_num_ref;
-    int interp_ref;
-    int max_delta_qp;
-    int deblocking;
-    int clpf;
-    int tb_split_enable;
-    int mode;    //TODO: Move to a block structure
-    int ref_idx; //TODO: Move to a block structure
-    int super_mode;
-    int use_block_contexts;
-    block_context_t *block_context;
-    int bipred;
-    int depth;
-    int qmtx;
-    int qmtx_offset;
-    int log2_sb_size;
-    int num_reorder_pics;
-    qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
+  frame_info_t frame_info;
+  yuv_frame_t *rec;
+  yuv_frame_t *tmp;
+  yuv_frame_t *ref[MAX_REF_FRAMES];
+  yuv_frame_t *interp_frames[MAX_SKIP_FRAMES];
+  stream_t *stream;
+  deblock_data_t *deblock_data;
+  int width;
+  int height;
+  bit_count_t bit_count;
+  int pb_split;
+  int max_num_ref;
+  int interp_ref;
+  int max_delta_qp;
+  int deblocking;
+  int clpf;
+  int tb_split_enable;
+  int mode;    //TODO: Move to a block structure
+  int ref_idx; //TODO: Move to a block structure
+  int super_mode;
+  int use_block_contexts;
+  block_context_t *block_context;
+  int bipred;
+  int depth;
+  int qmtx;
+  int qmtx_offset;
+  int log2_sb_size;
+  int num_reorder_pics;
+  int subx;
+  int suby;
+  qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 
 #endif

@@ -144,8 +144,8 @@ int main(int argc, char **argv)
 
   if (y4m_output) {
     fprintf(reconfile,
-     "YUV4MPEG2 W%d H%d F%d:1 Ip A0:0 C420jpeg XYSCSS=420JPEG\x0a",
-     params->width, params->height, (int)params->frame_rate);
+            "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d\x0a",
+            params->width, params->height, (int)params->frame_rate, params->aspectnum, params->aspectden, params->subsample);
   }
 
   accsnr.y = 0;
@@ -156,21 +156,21 @@ int main(int argc, char **argv)
   height = params->height;
   width = params->width;
   ysize = height * width;
-  csize = ysize / 4;
+  csize = ysize >> (params->subx + params->suby);
   frame_size = ysize + 2*csize;
 
   /* Create frames*/
-  create_yuv_frame(&orig,width,height,0,0,0,0);
+  create_yuv_frame(&orig,width,height,params->subx,params->suby,0,0);
   for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-    create_yuv_frame(&rec[r],width,height,0,0,0,0);
+    create_yuv_frame(&rec[r],width,height,params->subx,params->suby,0,0);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
-    create_yuv_frame(&ref[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+    create_yuv_frame(&ref[r],width,height,params->subx,params->suby,PADDING_Y,PADDING_Y);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
       encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-      create_yuv_frame(encoder_info.interp_frames[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subx,params->suby,PADDING_Y,PADDING_Y);
     }
   }
 
@@ -214,6 +214,8 @@ int main(int argc, char **argv)
   put_flc(1,params->qmtx,&stream);
   if (params->qmtx)
     put_flc(6,params->qmtx_offset+32,&stream);
+  put_flc(1,params->subx,&stream);
+  put_flc(1,params->suby,&stream);
   put_flc(4, params->num_reorder_pics, &stream);
 
   end_bits = get_bit_pos(&stream);
@@ -528,7 +530,7 @@ int main(int argc, char **argv)
 
       /* Read input frame */
       fseek(infile, frame_num*(frame_size+params->frame_headerlen)+params->file_headerlen+params->frame_headerlen, SEEK_SET);
-      read_yuv_frame(&orig,width,height,infile);
+      read_yuv_frame(&orig,infile);
       orig.frame_num = encoder_info.frame_info.frame_num;
 
       /* Encode frame */
@@ -591,7 +593,7 @@ int main(int argc, char **argv)
           {
             fprintf(reconfile, "FRAME\x0a");
           }
-          write_yuv_frame(&rec[rec_buffer_idx],width,height,reconfile);
+          write_yuv_frame(&rec[rec_buffer_idx],reconfile);
           rec_available[rec_buffer_idx]=0;
         }
       }
@@ -616,7 +618,9 @@ int main(int argc, char **argv)
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {
       rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
       if (rec_available[rec_buffer_idx]) {
-        write_yuv_frame(&rec[rec_buffer_idx],width,height,reconfile);
+        if (y4m_output)
+            fprintf(reconfile, "FRAME\x0a");
+        write_yuv_frame(&rec[rec_buffer_idx],reconfile);
         rec_available[rec_buffer_idx]=0;
       }
       else

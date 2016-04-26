@@ -55,6 +55,8 @@ typedef struct
     int pad_ver_c;
     int area_y;
     int area_c;
+    int subx;
+    int suby;
     int frame_num;
 } yuv_frame_t;
 
@@ -166,8 +168,8 @@ typedef struct
   int tb_param;
   int tb_split;
   int16_t coeff_y[MAX_SB_SIZE*MAX_SB_SIZE];
-  int16_t coeff_u[MAX_SB_SIZE / 2 * MAX_SB_SIZE / 2];
-  int16_t coeff_v[MAX_SB_SIZE / 2 * MAX_SB_SIZE / 2];
+  int16_t coeff_u[MAX_SB_SIZE*MAX_SB_SIZE];
+  int16_t coeff_v[MAX_SB_SIZE*MAX_SB_SIZE];
 } block_param_t;
 
 typedef struct

@@ -372,8 +372,8 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
     /* Vertical filtering */
     for (i=0;i<height;i+=MIN_BLOCK_SIZE){
       for (j=MIN_BLOCK_SIZE;j<width;j+=MIN_BLOCK_SIZE){
-        int i2 = i/2;
-        int j2 = j/2;
+        int i2 = i>>rec->suby;
+        int j2 = j>>rec->subx;
         q_index = (i/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (j/MIN_PB_SIZE);
         p_index = q_index - 1;
 
@@ -385,7 +385,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
         interior = j%q_size > 0 ? 1 : 0;
         do_filter = !interior && mode;
         if (do_filter){
-          for (k=0;k<MIN_BLOCK_SIZE/2;k++){
+          for (k=0;k<MIN_BLOCK_SIZE>>rec->suby;k++){
             p1 = (int)recC[(i2+k)*stride + j2 - 2];
             p0 = (int)recC[(i2+k)*stride + j2 - 1];
             q0 = (int)recC[(i2+k)*stride + j2 + 0];
@@ -402,8 +402,8 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
     /* Horizontal filtering */
     for (i=MIN_BLOCK_SIZE;i<height;i+=MIN_BLOCK_SIZE){
       for (j=0;j<width;j+=MIN_BLOCK_SIZE){
-        int i2 = i/2;
-        int j2 = j/2;
+        int i2 = i>>rec->suby;
+        int j2 = j>>rec->subx;
         q_index = (i/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (j/MIN_PB_SIZE);
         p_index = q_index - (width/MIN_PB_SIZE);
         p_mode = deblock_data[p_index].mode;
@@ -414,7 +414,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
         interior = i%q_size > 0 ? 1 : 0;
         do_filter = !interior && mode;
         if (do_filter){
-          for (l=0;l<MIN_BLOCK_SIZE/2;l++){
+          for (l=0;l<MIN_BLOCK_SIZE>>rec->subx;l++){
             p1 = (int)recC[(i2-2)*stride + j2 + l];
             p0 = (int)recC[(i2-1)*stride + j2 + l];
             q0 = (int)recC[(i2+0)*stride + j2 + l];
@@ -431,20 +431,22 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
 }
 
 
-void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int pad_ver_y, int pad_hor_y, int pad_ver_uv, int pad_hor_uv)
+void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int subx, int suby, int pad_hor, int pad_ver)
 {
+  frame->subx = subx;
+  frame->suby = suby;
   frame->width = width;
   frame->height = height;
-  frame->pad_hor_y = pad_hor_y;
-  frame->pad_ver_y = pad_ver_y;
-  frame->pad_hor_c = pad_hor_uv;
-  frame->pad_ver_c = pad_ver_uv;
-  frame->stride_y = (width + 2*pad_hor_y + 15) & ~15;
-  frame->stride_c = (width/2 + 2*pad_hor_uv + 15) & ~15;
-  frame->offset_y = pad_ver_y * frame->stride_y + pad_hor_y;
-  frame->offset_c = pad_ver_uv * frame->stride_c + pad_hor_uv;
-  frame->area_y = ((height + 2*pad_ver_y) * frame->stride_y + 16 + 15) & ~15;
-  frame->area_c = ((height/2 + 2*pad_ver_uv) * frame->stride_c + 16 + 15) & ~15;
+  frame->pad_hor_y = pad_hor;
+  frame->pad_ver_y = pad_ver;
+  frame->pad_hor_c = pad_hor >> subx;
+  frame->pad_ver_c = pad_ver >> suby;
+  frame->stride_y = (width + 2*frame->pad_hor_y + 15) & ~15;
+  frame->stride_c = ((width >> subx) + 2*frame->pad_hor_c + 15) & ~15;
+  frame->offset_y = frame->pad_ver_y * frame->stride_y + frame->pad_hor_y;
+  frame->offset_c = frame->pad_ver_c * frame->stride_c + frame->pad_hor_c;
+  frame->area_y = ((height + 2*frame->pad_ver_y) * frame->stride_y + 16 + 15) & ~15;
+  frame->area_c = (((height >> suby) + 2*frame->pad_ver_c) * frame->stride_c + 16 + 15) & ~15;
   frame->y = (uint8_t *)malloc(frame->area_y*sizeof(uint8_t))+frame->offset_y;
   frame->u = (uint8_t *)malloc(2*frame->area_c*sizeof(uint8_t))+frame->offset_c;
   frame->v = frame->u + frame->area_c*sizeof(uint8_t);
@@ -466,22 +468,27 @@ void close_yuv_frame(yuv_frame_t  *frame)
   free(frame->u-frame->offset_c);
 }
 
-void read_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *infile)
+void read_yuv_frame(yuv_frame_t *frame, FILE *infile)
 {
+  int subx = frame->subx;
+  int suby = frame->suby;
+  int width = frame->width;
+  int height = frame->height;
+
   for (int i=0; i<height; ++i) {
     if (fread(&frame->y[i*frame->stride_y], sizeof(unsigned char), width, infile) != width)
     {
       fatalerror("Error reading Y from file");
     }
   }
-  for (int i=0; i<height/2; ++i) {
-    if (fread(&frame->u[i*frame->stride_c], sizeof(unsigned char), width/2, infile) != width/2)
+  for (int i=0; i<height>>suby; ++i) {
+    if (fread(&frame->u[i*frame->stride_c], sizeof(unsigned char), width>>subx, infile) != width>>subx)
     {
       fatalerror("Error reading U from file");
     }
   }
-  for (int i=0; i<height/2; ++i) {
-    if (fread(&frame->v[i*frame->stride_c], sizeof(unsigned char), width/2, infile) != width/2)
+  for (int i=0; i<height>>suby; ++i) {
+    if (fread(&frame->v[i*frame->stride_c], sizeof(unsigned char), width>>subx, infile) != width>>subx)
     {
       fatalerror("Error reading V from file");
     }
@@ -489,22 +496,27 @@ void read_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *infile)
 
 }
 
-void write_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *outfile)
+void write_yuv_frame(yuv_frame_t *frame, FILE *outfile)
 {
+  int subx = frame->subx;
+  int suby = frame->suby;
+  int width = frame->width;
+  int height = frame->height;
+
   for (int i=0; i<height; ++i) {
     if (fwrite(&frame->y[i*frame->stride_y], sizeof(unsigned char), width, outfile) != width)
     {
       fatalerror("Error reading Y from file");
     }
   }
-  for (int i=0; i<height/2; ++i) {
-    if (fwrite(&frame->u[i*frame->stride_c], sizeof(unsigned char), width/2, outfile) != width/2)
+  for (int i=0; i<height>>suby; ++i) {
+    if (fwrite(&frame->u[i*frame->stride_c], sizeof(unsigned char), width>>subx, outfile) != width>>subx)
     {
       fatalerror("Error reading U from file");
     }
   }
-  for (int i=0; i<height/2; ++i) {
-    if (fwrite(&frame->v[i*frame->stride_c], sizeof(unsigned char), width/2, outfile) != width/2)
+  for (int i=0; i<height>>suby; ++i) {
+    if (fwrite(&frame->v[i*frame->stride_c], sizeof(unsigned char), width>>subx, outfile) != width>>subx)
     {
       fatalerror("Error reading V from file");
     }
@@ -542,8 +554,8 @@ void pad_yuv_frame(yuv_frame_t * f)
   /* UV */
 
  /* Left and right */
-  w /= 2;
-  h /= 2;
+  w >>= f->subx;
+  h >>= f->suby;
   for (i=0;i<h;i++)
   {
     val=f->u[i*sc];
@@ -583,13 +595,12 @@ void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
   for (i=0;i<height;i++){
     memcpy(&ref_y[i*ref->stride_y],&rec->y[i*rec->stride_y],width*sizeof(uint8_t)); 
   }
-  for (i=0;i<height/2;i++){
-    memcpy(&ref_u[i*ref->stride_c],&rec->u[i*rec->stride_c],width/2*sizeof(uint8_t));
-    memcpy(&ref_v[i*ref->stride_c],&rec->v[i*rec->stride_c],width/2*sizeof(uint8_t));
+  for (i=0;i<height>>ref->suby;i++){
+    memcpy(&ref_u[i*ref->stride_c],&rec->u[i*rec->stride_c],(width>>ref->subx)*sizeof(uint8_t));
+    memcpy(&ref_v[i*ref->stride_c],&rec->v[i*rec->stride_c],(width>>ref->subx)*sizeof(uint8_t));
   }
 
   pad_yuv_frame(ref);
-
 }
 
 void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,
@@ -632,18 +643,27 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
             int filter = deblock_data[index].mode != MODE_SKIP;
 
             if (filter) {
-              (use_simd ? clpf_block_simd : clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, width, height, strength);
-              (use_simd ? clpf_block_simd : clpf_block)(rec->u, dst->u, stride_c, xpos / 2, ypos / 2, bs / 2, width / 2, height / 2, strength);
-              (use_simd ? clpf_block_simd : clpf_block)(rec->v, dst->v, stride_c, xpos / 2, ypos / 2, bs / 2, width / 2, height / 2, strength);
+              (use_simd ? clpf_block_simd : clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
+              (use_simd ? clpf_block_simd : clpf_block)(rec->u, dst->u, stride_c, xpos >> rec->subx, ypos >> rec->suby, bs >> rec->subx, bs >> rec->suby, width >> rec->subx, height >> rec->suby, strength);
+              (use_simd ? clpf_block_simd : clpf_block)(rec->v, dst->v, stride_c, xpos >> rec->subx, ypos >> rec->suby, bs >> rec->subx, bs >> rec->suby, width >> rec->subx, height >> rec->suby, strength);
             } else { // Copy
               for (int c = 0; c < bs; c++)
                 *(uint64_t*)(dst->y + (ypos + c)*stride_y + xpos) =
                   *(uint64_t*)(rec->y + (ypos + c)*stride_y + xpos);
-              for (int c = 0; c < bs/2; c++) {
-                *(uint32_t*)(dst->u + (ypos/2 + c)*stride_c + xpos/2) =
-                  *(uint32_t*)(rec->u + (ypos/2 + c)*stride_c + xpos/2);
-                *(uint32_t*)(dst->v + (ypos/2 + c)*stride_c + xpos/2) =
-                  *(uint32_t*)(rec->v + (ypos/2 + c)*stride_c + xpos/2);
+              if (rec->subx) {
+                for (int c = 0; c < bs >> rec->suby; c++) {
+                  *(uint32_t*)(dst->u + ((ypos >> dst->suby) + c)*stride_c + (xpos >> 1)) =
+                    *(uint32_t*)(rec->u + ((ypos >> rec->suby) + c)*stride_c + (xpos >> 1));
+                  *(uint32_t*)(dst->v + ((ypos >> dst->suby) + c)*stride_c + (xpos >> 1)) =
+                    *(uint32_t*)(rec->v + ((ypos >> dst->suby) + c)*stride_c + (xpos >> 1));
+                }
+              } else {
+                for (int c = 0; c < bs >> rec->suby; c++) {
+                  *(uint64_t*)(dst->u + ((ypos >> dst->suby) + c)*stride_c + xpos) =
+                    *(uint64_t*)(rec->u + ((ypos >> rec->suby) + c)*stride_c + xpos);
+                  *(uint64_t*)(dst->v + ((ypos >> dst->suby) + c)*stride_c + xpos) =
+                    *(uint64_t*)(rec->v + ((ypos >> dst->suby) + c)*stride_c + xpos);
+                }
               }
             }
           }
@@ -652,11 +672,11 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
         for (int m = 0; m < h; m++)
           memcpy(dst->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2),
                  rec->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2), w);
-        for (int m = 0; m < h/2; m++) {
-          memcpy(dst->u + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2,
-                 rec->u + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2, w/2);
-          memcpy(dst->v + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2,
-                 rec->v + ((k<<fb_size_log2)/2+m)*stride_c + (l<<fb_size_log2)/2, w/2);
+        for (int m = 0; m < h >> dst->suby; m++) {
+          memcpy(dst->u + (((k<<fb_size_log2) >> dst->suby)+m)*stride_c + ((l<<fb_size_log2) >> dst->subx),
+                 rec->u + (((k<<fb_size_log2) >> rec->suby)+m)*stride_c + ((l<<fb_size_log2) >> rec->subx), w >> rec->subx);
+          memcpy(dst->v + (((k<<fb_size_log2) >> dst->suby)+m)*stride_c + ((l<<fb_size_log2) >> dst->subx),
+                 rec->v + (((k<<fb_size_log2) >> rec->subx)+m)*stride_c + ((l<<fb_size_log2) >> rec->subx), w >> rec->subx);
         }
       }
     }

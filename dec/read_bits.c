@@ -191,7 +191,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   XPOS = xpos;
 
   int sizeY = size;
-  int sizeC = size/2;
+  int sizeC = size>>(decoder_info->subx || decoder_info->suby); // TODO: What about 422?
 
   mv_t mv,zerovec;
   mv_t mvp;
@@ -525,14 +525,14 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
 
       if (cbp.v){
         bit_start = stream->bitcnt;
-        read_coeff(stream,coeff_v,size/2,coeff_block_type|1);
+        read_coeff(stream,coeff_v,sizeC,coeff_block_type|1);
         decoder_info->bit_count.coeff_v[stat_frame_type] += (stream->bitcnt - bit_start);
       }
       else
         memset(coeff_v,0,sizeC*sizeC*sizeof(int16_t));
     }
     else{
-      if (size > 8){
+      if (sizeC > 4){
         int index;
         int16_t *coeff;
 
@@ -628,7 +628,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
           memset(coeff_u,0,sizeC*sizeC*sizeof(int16_t));
         if (cbp.v){
           bit_start = stream->bitcnt;
-          read_coeff(stream,coeff_v,size/2,coeff_block_type|1);
+          read_coeff(stream,coeff_v,sizeC,coeff_block_type|1);
           decoder_info->bit_count.coeff_v[stat_frame_type] += (stream->bitcnt - bit_start);
         }
         else

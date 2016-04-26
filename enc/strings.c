@@ -282,6 +282,8 @@ enc_params *parse_config_params(int argc, char **argv)
 
   memset(params, 0, sizeof(enc_params));
   memset(&list, 0, sizeof(param_list));
+  params->subx = params->suby = 1;
+  params->aspectnum = params->aspectden = 1;
 
   add_param_to_list(&list, "-cf",                   NULL, ARG_FILENAME, NULL);
   add_param_to_list(&list, "-if",                   NULL, ARG_FILENAME, &params->infilestr);
@@ -344,6 +346,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-min_qpI",              "32", ARG_INTEGER,  &params->min_qpI);
   add_param_to_list(&list, "-qmtx",                  "0", ARG_INTEGER,  &params->qmtx);
   add_param_to_list(&list, "-qmtx_offset",           "0", ARG_INTEGER,  &params->qmtx_offset);// qp offset for qmlevel calculation -32 to 31
+  add_param_to_list(&list, "-subsample",           "420", ARG_INTEGER,  &params->subsample);
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;
@@ -376,11 +379,13 @@ enc_params *parse_config_params(int argc, char **argv)
           switch (buf[pos++]) {
           case 'W':
             params->width = strtol(buf+pos, &end, 10);
-            pos = (int)(end-buf+1);
+            pos = (int)(end-buf);
+            while (buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'H':
             params->height = strtol(buf+pos, &end, 10);
-            pos = (int)(end-buf+1);
+            pos = (int)(end-buf);
+            while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'F':
             den = strtol(buf+pos, &end, 10);
@@ -388,18 +393,37 @@ enc_params *parse_config_params(int argc, char **argv)
             num = strtol(buf+pos, &end, 10);
             pos = (int)(end-buf+1);
             params->frame_rate = (float)den/num;
+            while (buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'I':
             if (buf[pos] != 'p') {
               fprintf(stderr, "Only progressive input supported\n");
               return NULL;
             }
+            while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'C':
-            if (strcmp(buf+pos, "C420")) {
-            }
-            /* Fallthrough */
-          case 'A': /* Ignored */
+            params->subsample = strtol(buf+pos, &end, 10);
+            if (params->subsample == 444)
+              params->subx = params->suby = 0;
+            else if (params->subsample == 422) {
+              params->subx = 1;
+              params->suby = 0;
+            } else if (params->subsample == 420)
+              params->subx = params->suby = 1;
+            else
+              params->subx = params->suby = -1;
+
+            pos = (int)(end-buf);
+            while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
+            break;
+          case 'A':
+            params->aspectnum = strtol(buf+pos, &end, 10);
+            pos = (int)(end-buf+1);
+            params->aspectden = strtol(buf+pos, &end, 10);
+            pos = (int)(end-buf);
+            while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
+            break;
           case 'X':
           default:
             while (buf[pos] != ' ' && buf[pos] != '\n' && pos < len)
@@ -499,5 +523,9 @@ void check_parameters(enc_params *params)
 
   if (params->interp_ref == 2 && params->dyadic_coding == 0) {
     fatalerror("interp_ref=2 only supported with dyadic coding\n");
+  }
+
+  if (params->subsample != 420 && params->subsample != 444) {
+    fatalerror("Illegal value for subsample.  Only 420 and 444 supported.\n");
   }
 }

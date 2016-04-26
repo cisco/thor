@@ -15,7 +15,7 @@
 
 #define COST_FILTER_DIV 10
 
-#define USE_CHROMA 0
+#define USE_CHROMA 0 // 444 not supported!
 #define MAX_LEVELS 4
 
 #define SAD_COSTS
@@ -949,17 +949,17 @@ static void interpolate_frame(mv_data_t* mv_data, yuv_frame_t* indata0, yuv_fram
   int pad=mv_data->bs/2;
   int wP=w+pad;
   int hP=h+pad;
-  int wPc=wP/2;
-  int hPc=hP/2;
-  int padc=pad/2;
+  int wPc=wP >> indata0->subx;
+  int hPc=hP >> indata0->suby;
+  int padc=pad >> indata0->subx;
 
   interpolate_comp(mv_data, pic[0]->y, pic[0]->stride_y, pic[1]->y, pic[1]->stride_y, outdata->y, outdata->stride_y, wP, hP, pad, 0);
 
   // U
-  interpolate_comp(mv_data, pic[0]->u, pic[0]->stride_c, pic[1]->u, pic[1]->stride_c, outdata->u, outdata->stride_c, wPc, hPc, padc, 1);
+  interpolate_comp(mv_data, pic[0]->u, pic[0]->stride_c, pic[1]->u, pic[1]->stride_c, outdata->u, outdata->stride_c, wPc, hPc, padc, indata0->subx || indata0->suby);
 
   // V
-  interpolate_comp(mv_data, pic[0]->v, pic[0]->stride_c, pic[1]->v, pic[1]->stride_c, outdata->v, outdata->stride_c, wPc, hPc, padc, 1);
+  interpolate_comp(mv_data, pic[0]->v, pic[0]->stride_c, pic[1]->v, pic[1]->stride_c, outdata->v, outdata->stride_c, wPc, hPc, padc, indata0->subx || indata0->suby);
 
 }
 
@@ -980,7 +980,7 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   int interpolate = 1;
   for (int j=1; j<max_levels; j++) {
     out_down[j]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(out_down[j],widthin>>j,heightin>>j, 32, 32, 16, 16);
+    create_yuv_frame(out_down[j],widthin>>j,heightin>>j, 1, 1, 32, 32);
   }
   out_down[0]=new_frame;
 
@@ -995,8 +995,8 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   for (int i=1; i<max_levels; ++i) {
     in_down[i][0]=malloc(sizeof(yuv_frame_t));
     in_down[i][1]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(in_down[i][0],widthin>>i, heightin>>i, 32, 32, 16, 16);
-    create_yuv_frame(in_down[i][1],widthin>>i, heightin>>i, 32, 32, 16, 16);
+    create_yuv_frame(in_down[i][0],widthin>>i, heightin>>i, 1, 1, 32, 32);
+    create_yuv_frame(in_down[i][1],widthin>>i, heightin>>i, 1, 1, 32, 32);
   }
   // Level 0 is just the original pictures
   in_down[0][0]=ref0;

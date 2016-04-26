@@ -29,10 +29,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp);
 void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp);
-void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int pad_ver_y, int pad_hor_y, int pad_ver_uv, int pad_hor_uv);
+void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int subx, int suby, int pad_hor, int pad_ver);
 void close_yuv_frame(yuv_frame_t  *frame);
-void read_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *infile);
-void write_yuv_frame(yuv_frame_t  *frame, int width, int height, FILE *outfile);
+void read_yuv_frame(yuv_frame_t  *frame, FILE *infile);
+void write_yuv_frame(yuv_frame_t  *frame, FILE *outfile);
 void pad_yuv_frame(yuv_frame_t* f);
 void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec);
 void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,

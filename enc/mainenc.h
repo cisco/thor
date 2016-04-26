@@ -94,13 +94,18 @@ typedef struct
   int min_qpI;
   int qmtx;
   int qmtx_offset;
+  int subsample;
+  int subx;
+  int suby;
+  int aspectnum;
+  int aspectden;
 } enc_params;
 
 typedef struct
 {
   uint8_t y[MAX_SB_SIZE*MAX_SB_SIZE];
-  uint8_t u[MAX_SB_SIZE/2*MAX_SB_SIZE/2];
-  uint8_t v[MAX_SB_SIZE/2*MAX_SB_SIZE/2];
+  uint8_t u[MAX_SB_SIZE*MAX_SB_SIZE];
+  uint8_t v[MAX_SB_SIZE*MAX_SB_SIZE];
 } yuv_block_t;
 
 typedef struct

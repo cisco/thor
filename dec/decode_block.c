@@ -164,10 +164,10 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
   int height = decoder_info->height;
   int xposY = xpos;
   int yposY = ypos;
-  int xposC = xpos/2;
-  int yposC = ypos/2;
+  int xposC = xpos >> decoder_info->subx;
+  int yposC = ypos >> decoder_info->suby;
   int sizeY = size;
-  int sizeC = size/2;
+  int sizeC = size >> decoder_info->subx;
 
   block_mode_t mode;
   intra_mode_t intra_mode;
@@ -180,19 +180,19 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
 
   /* Intermediate block variables */
   uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
   int16_t *coeff_y = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeff_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeff_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *coeff_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+  int16_t *coeff_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
 
   /* Block variables for bipred */
   uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+  uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
   uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+  uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+  uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
   yuv_frame_t *rec = decoder_info->rec;
   yuv_frame_t *ref = decoder_info->ref[0];
 
@@ -235,8 +235,8 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     //int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
     int tb_split = block_info.block_param.tb_split;
     decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL);
-    decode_and_reconstruct_block_intra(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,upright_available,downleft_available,intra_mode,yposC,xposC,width/2,1,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL);
-    decode_and_reconstruct_block_intra(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8,upright_available,downleft_available,intra_mode,yposC,xposC,width/2,2,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][1] : NULL);
+    decode_and_reconstruct_block_intra(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>decoder_info->subx,1,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL);
+    decode_and_reconstruct_block_intra(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>decoder_info->subx,2,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][1] : NULL);
   }
   else
   {
@@ -244,11 +244,11 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     if (mode==MODE_SKIP){
       if (block_info.block_param.dir==2){
         uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
         uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
 
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
@@ -260,7 +260,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int sign1 = ref1->frame_num >= rec->frame_num;
         get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
 
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, decoder_info->subx, decoder_info->suby);
 
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -281,9 +281,9 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       for (j = 0; j<bheight; j++) {
         memcpy(&rec_y[j*rec->stride_y], &pblock_y[j*sizeY], bwidth*sizeof(uint8_t));
       }
-      for (j = 0; j<bheight / 2; j++) {
-        memcpy(&rec_u[j*rec->stride_c], &pblock_u[j*sizeC], (bwidth / 2)*sizeof(uint8_t));
-        memcpy(&rec_v[j*rec->stride_c], &pblock_v[j*sizeC], (bwidth / 2)*sizeof(uint8_t));
+      for (j = 0; j<bheight >> decoder_info->suby; j++) {
+        memcpy(&rec_u[j*rec->stride_c], &pblock_u[j*sizeC], (bwidth >> decoder_info->subx)*sizeof(uint8_t));
+        memcpy(&rec_v[j*rec->stride_c], &pblock_v[j*sizeC], (bwidth >> decoder_info->subx)*sizeof(uint8_t));
       }
       copy_deblock_data(decoder_info, &block_info);
       return;
@@ -292,11 +292,11 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       if (block_info.block_param.dir==2){
 
         uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
         uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
 
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
@@ -308,7 +308,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
         int sign1 = ref1->frame_num >= rec->frame_num;
         get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
 
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, decoder_info->subx, decoder_info->suby);
 
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -335,11 +335,11 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     else if (mode == MODE_BIPRED){
 
       uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+      uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+      uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
       uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
+      uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
+      uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> (decoder_info->subx + decoder_info->suby), 16);
 
       int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
       yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
@@ -351,7 +351,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
       int sign1 = ref1->frame_num >= rec->frame_num;
       get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, decoder_info->pb_split);
 
-      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos);
+      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, decoder_info->subx, decoder_info->suby);
 
       thor_free(pblock0_y);
       thor_free(pblock0_u);
@@ -364,8 +364,8 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos){
     /* Dequantize, invere tranform and reconstruct */
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
-    decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
-    decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&size>8,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
+    decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
+    decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
   }
 
   /* Copy deblock data to frame array */

@@ -294,6 +294,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   intra_mode_t intra_mode = block_param->intra_mode;
   mv_t mvp = block_info->mvp;
   int coeff_type = (mode == MODE_INTRA) << 1;
+  int size_uv = size >> (encoder_info->params->subx || encoder_info->params->subx); // TODO: what about 422?
 
   start_bits = get_bit_pos(stream);
 
@@ -445,14 +446,14 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
         write_coeff(stream,coeffq_y,size,coeff_type|0);
       }
       if (cbp_u){
-        write_coeff(stream,coeffq_u,size/2,coeff_type|1);
+        write_coeff(stream,coeffq_u,size_uv,coeff_type|1);
       }
       if (cbp_v){
-        write_coeff(stream,coeffq_v,size/2,coeff_type|1);
+        write_coeff(stream,coeffq_v,size_uv,coeff_type|1);
       }
     }
     else{
-      if (size > 8){
+      if (size_uv > 4){
         int index;
         for (index=0;index<4;index++){
           cbp_y = ((block_param->cbp.y) >> (3 - index)) & 1;
@@ -467,16 +468,16 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
 
           /* Code coefficients for each TU separately */
           coeffq_y = block_param->coeff_y + index*(size / 2)*(size / 2);
-          coeffq_u = block_param->coeff_u + index*(size / 4)*(size / 4);
-          coeffq_v = block_param->coeff_v + index*(size / 4)*(size / 4);
+          coeffq_u = block_param->coeff_u + index*(size_uv / 2)*(size_uv / 2);
+          coeffq_v = block_param->coeff_v + index*(size_uv / 2)*(size_uv / 2);
           if (cbp_y){
             write_coeff(stream,coeffq_y,size/2,coeff_type|0);
           }
           if (cbp_u){
-            write_coeff(stream,coeffq_u,size/4,coeff_type|1);
+            write_coeff(stream,coeffq_u,size_uv/2,coeff_type|1);
           }
           if (cbp_v){
-            write_coeff(stream,coeffq_v,size/4,coeff_type|1);
+            write_coeff(stream,coeffq_v,size_uv/2,coeff_type|1);
           }
         } //for index=
       } //if (size > 8)
@@ -496,10 +497,10 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
         cbp = cbp_u + 2*cbp_v;
         put_vlc(13, cbp, stream);
         if (cbp_u){
-          write_coeff(stream,coeffq_u,size/2,coeff_type|1);
+          write_coeff(stream,coeffq_u,size_uv,coeff_type|1);
         }
         if (cbp_v){
-          write_coeff(stream,coeffq_v,size/2,coeff_type|1);
+          write_coeff(stream,coeffq_v,size_uv,coeff_type|1);
         }
       } //if (size > 8)
     } //if (tb_split==0

@@ -109,10 +109,12 @@ int main(int argc, char** argv)
     init_use_simd();
 
     parse_arg(argc, argv, &infile, &outfile);
+    char *p = strrchr(argv[2], '.');
+    int y4m_output = p != NULL && !strcmp(p,".y4m");
     
-	  fseek(infile, 0, SEEK_END);
-	  int input_file_size = ftell(infile);
-	  fseek(infile, 0, SEEK_SET);
+    fseek(infile, 0, SEEK_END);
+    int input_file_size = ftell(infile);
+    fseek(infile, 0, SEEK_SET);
     
     initbits_dec(infile, &stream);
 
@@ -151,25 +153,34 @@ int main(int argc, char** argv)
       decoder_info.qmtx_offset = get_flc(6, &stream) - 32;
       alloc_wmatrices(decoder_info.iwmatrix, 1);
     }
+    decoder_info.subx = get_flc(1, &stream);
+    decoder_info.suby = get_flc(1, &stream);
+
     decoder_info.num_reorder_pics = get_flc(4, &stream);
 
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
     for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-      create_yuv_frame(&rec[r],width,height,0,0,0,0);
+      create_yuv_frame(&rec[r],width,height,decoder_info.subx,decoder_info.suby,0,0);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
-      create_yuv_frame(&ref[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+      create_yuv_frame(&ref[r],width,height,decoder_info.subx,decoder_info.suby,PADDING_Y,PADDING_Y);
       decoder_info.ref[r] = &ref[r];
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){
         decoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-        create_yuv_frame(decoder_info.interp_frames[r],width,height,PADDING_Y,PADDING_Y,PADDING_Y/2,PADDING_Y/2);
+        create_yuv_frame(decoder_info.interp_frames[r],width,height,decoder_info.subx,decoder_info.suby,PADDING_Y,PADDING_Y);
       }
     }
 
     decoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
+
+    if (y4m_output) {
+      fprintf(outfile,
+              "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d\x0a",
+              width, height, 30, 1, 1, decoder_info.suby ? 420 : (decoder_info.subx ? 422 : 444));
+    }
 
     do
     {
@@ -183,7 +194,9 @@ int main(int argc, char** argv)
       op_rec_buffer_idx = (last_frame_output+1)%MAX_REORDER_BUFFER;
       if (rec_available[op_rec_buffer_idx]) {
         last_frame_output++;
-        write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
+        if (y4m_output)
+          fprintf(outfile, "FRAME\x0a");
+        write_yuv_frame(&rec[op_rec_buffer_idx],outfile);
         rec_available[op_rec_buffer_idx] = 0;
       }
       printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
@@ -195,9 +208,11 @@ int main(int argc, char** argv)
     int i,j;
     for (i=1; i<=MAX_REORDER_BUFFER; ++i) {
       op_rec_buffer_idx=(last_frame_output+i) % MAX_REORDER_BUFFER;
-      if (rec_available[op_rec_buffer_idx])
-        write_yuv_frame(&rec[op_rec_buffer_idx],width,height,outfile);
-      else
+      if (rec_available[op_rec_buffer_idx]) {
+        if (y4m_output)
+          fprintf(outfile, "FRAME\x0a");
+        write_yuv_frame(&rec[op_rec_buffer_idx],outfile);
+      } else
         break;
     }
 

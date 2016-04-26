@@ -200,9 +200,9 @@ int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int b) {
   return (8 + delta - (delta < 0)) >> 4;
 }
 
-void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int size, int width, int height, unsigned int strength) {
-  for (int y = y0; y < y0+size; y++){
-    for (int x = x0; x < x0+size; x++) {
+void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
+  for (int y = y0; y < y0+sizey; y++){
+    for (int x = x0; x < x0+sizex; x++) {
       int X = src[y*stride + x];
       int A = src[max(0, y-1)*stride + x];
       int B = src[y*stride + max(0, x-2)];

@@ -55,9 +55,6 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int num_sb_ver = (height + sb_size - 1) / sb_size;
   stream_t *stream = decoder_info->stream;
 
-  if (decoder_info->frame_info.frame_type == I_FRAME) {
-    memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
-  }
   int bit_start = stream->bitcnt;
   int rec_buffer_idx;
 
@@ -80,6 +77,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = get_flc(5, stream)-1;
     }
   } else {
+    memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
     decoder_info->frame_info.num_ref = 0;
   }
   decoder_info->frame_info.display_frame_num = get_flc(16, stream);

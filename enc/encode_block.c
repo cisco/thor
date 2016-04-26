@@ -2395,37 +2395,37 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   yuv_block_t *rec_block = thor_alloc(sizeof(yuv_block_t),16);
   yuv_block_t *rec_block_best = thor_alloc(sizeof(yuv_block_t),16);
   block_context_t block_context;
-  block_info_t block_info;
-  block_param_t block_param;
+  block_info_t *block_info = thor_alloc(sizeof(block_info_t), 16);
+  block_param_t *block_param = thor_alloc(sizeof(block_param_t), 16);
 
-  block_info.org_block = org_block;
-  block_info.rec_block = rec_block;
-  block_info.rec_block_best = rec_block_best;
-  block_info.block_pos.size = size;
-  block_info.block_pos.bwidth = min(size,width-xpos);
-  block_info.block_pos.bheight = min(size,height-ypos);
-  block_info.block_pos.ypos = ypos;
-  block_info.block_pos.xpos = xpos;
-  block_info.block_pos.sb_size = 1 << encoder_info->params->log2_sb_size;
-  block_info.max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
-  block_info.max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
-  block_info.qp = qp;
-  block_info.delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
-  block_info.block_context = &block_context;
+  block_info->org_block = org_block;
+  block_info->rec_block = rec_block;
+  block_info->rec_block_best = rec_block_best;
+  block_info->block_pos.size = size;
+  block_info->block_pos.bwidth = min(size,width-xpos);
+  block_info->block_pos.bheight = min(size,height-ypos);
+  block_info->block_pos.ypos = ypos;
+  block_info->block_pos.xpos = xpos;
+  block_info->block_pos.sb_size = 1 << encoder_info->params->log2_sb_size;
+  block_info->max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
+  block_info->max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
+  block_info->qp = qp;
+  block_info->delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
+  block_info->block_context = &block_context;
   if (encoder_info->params->max_delta_qp > 0)
-    block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[encoder_info->frame_info.qp];
+    block_info->lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[encoder_info->frame_info.qp];
   else
-    block_info.lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
+    block_info->lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
 
   /* Copy original data to smaller compact block */
-  copy_frame_to_block(block_info.org_block,encoder_info->orig,&block_info.block_pos);
+  copy_frame_to_block(block_info->org_block,encoder_info->orig,&block_info->block_pos);
 
   find_block_contexts(ypos, xpos, height, width, size, encoder_info->deblock_data, &block_context, encoder_info->params->use_block_contexts);
 
   if (frame_type != I_FRAME && (encode_this_size || encode_rectangular_size)) {
     /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
-    block_info.num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.skip_candidates);
-    block_info.num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info.merge_candidates);
+    block_info->num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info->skip_candidates);
+    block_info->num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info->merge_candidates);
   }
 
   if (encode_this_size && frame_type != I_FRAME && encoder_info->params->early_skip_thr > 0.0){
@@ -2434,8 +2434,8 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     XPOS = xpos;
 
     /* Search through all skip candidates for early skip */
-    block_info.final_encode = 2;
-    early_skip_flag = search_early_skip_candidates(encoder_info,&block_info);
+    block_info->final_encode = 2;
+    early_skip_flag = search_early_skip_candidates(encoder_info,block_info);
 
     /* Rewind stream to start position of this block size */
     write_stream_pos(stream,&stream_pos_ref);
@@ -2443,15 +2443,15 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     if (early_skip_flag){
 
       /* Encode block with final choice of skip_idx */
-      block_info.final_encode = 3;
-      nbit = encode_block(encoder_info,stream,&block_info,&block_info.block_param);
+      block_info->final_encode = 3;
+      nbit = encode_block(encoder_info,stream,block_info,&block_info->block_param);
       cost = cost_calc(org_block,rec_block,size,size,size,encoder_info->params->subx,encoder_info->params->suby,nbit,lambda);
 
       /* Copy reconstructed data from smaller compact block to frame array */
-      copy_block_to_frame(encoder_info->rec,rec_block,&block_info.block_pos);
+      copy_block_to_frame(encoder_info->rec,rec_block,&block_info->block_pos);
 
       /* Store deblock information for this block to frame array */
-      copy_deblock_data(encoder_info,&block_info);
+      copy_deblock_data(encoder_info,block_info);
 
       thor_free(org_block);
       thor_free(rec_block);
@@ -2463,9 +2463,9 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   if (encode_smaller_size && !top_down){
     new_size = size/2;
     split_flag = 1;
-    write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
+    write_super_mode(stream, encoder_info, block_info, block_param, split_flag, encode_this_size);
     if (size == sb_size && (encoder_info->params->max_delta_qp || encoder_info->params->bitrate)) {
-      write_delta_qp(stream,block_info.delta_qp);
+      write_delta_qp(stream,block_info->delta_qp);
     }
     cost_small = 0; //TODO: Why not nbit * lambda?
     cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
@@ -2479,13 +2479,13 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     XPOS = xpos;
 
     /* RDO-based mode decision */
-    block_info.final_encode = 0;
-    cost = mode_decision_rdo(encoder_info,&block_info);
+    block_info->final_encode = 0;
+    cost = mode_decision_rdo(encoder_info,block_info);
 
     if (top_down && cost > top_down_threshold) {
       new_size = size/2;
       split_flag = 1;
-      write_super_mode(stream, encoder_info, &block_info, &block_param, split_flag, encode_this_size);
+      write_super_mode(stream, encoder_info, block_info, block_param, split_flag, encode_this_size);
       cost_small = 0; //TODO: Why not nbit * lambda?
       cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp);
       cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp);
@@ -2496,23 +2496,25 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     if (cost <= cost_small) {
       /* Rewind bitstream to reference position of this block size */
       write_stream_pos(stream, &stream_pos_ref);
-      block_info.final_encode = 1;
-      encode_block(encoder_info, stream, &block_info, &block_info.block_param);
+      block_info->final_encode = 1;
+      encode_block(encoder_info, stream, block_info, &block_info->block_param);
 
       /* Copy reconstructed data from smaller compact block to frame array */
-      copy_block_to_frame(encoder_info->rec, block_info.rec_block, &block_info.block_pos);
+      copy_block_to_frame(encoder_info->rec,block_info->rec_block, &block_info->block_pos);
 
       /* Store deblock information for this block to frame array */
-      copy_deblock_data(encoder_info, &block_info);
+      copy_deblock_data(encoder_info, block_info);
     }
   }
 
   if (size == sb_size) {
-    if (cost > cost_small || block_info.block_param.mode != MODE_SKIP) {
+    if (cost > cost_small || block_info->block_param.mode != MODE_SKIP) {
       encoder_info->frame_info.prev_qp = qp;
     }
   }
 
+  thor_free(block_info);
+  thor_free(block_param);
   thor_free(org_block);
   thor_free(rec_block);
   thor_free(rec_block_best);

@@ -167,9 +167,9 @@ typedef struct
   cbp_t cbp;
   int tb_param;
   int tb_split;
-  int16_t coeff_y[MAX_SB_SIZE*MAX_SB_SIZE];
-  int16_t coeff_u[MAX_SB_SIZE*MAX_SB_SIZE];
-  int16_t coeff_v[MAX_SB_SIZE*MAX_SB_SIZE];
+  int16_t coeff_y[4*MAX_QUANT_SIZE*MAX_QUANT_SIZE]; //TODO: Not needed in decoder
+  int16_t coeff_u[4*MAX_QUANT_SIZE*MAX_QUANT_SIZE];
+  int16_t coeff_v[4*MAX_QUANT_SIZE*MAX_QUANT_SIZE];
 } block_param_t;
 
 typedef struct

@@ -159,7 +159,7 @@ void read_coeff(stream_t *stream,int16_t *coeff,int size,int type){
     zigzagptr = zigzag256;
   for (i=0;i<qsize;i++){
     for (j=0;j<qsize;j++){
-      coeff[i*size+j] = scoeff[zigzagptr[i*qsize+j]];
+      coeff[i*qsize + j] = scoeff[zigzagptr[i*qsize + j]];
     }
   }
 }

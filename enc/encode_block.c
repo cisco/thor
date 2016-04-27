@@ -144,7 +144,7 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
 
   for (i = 0; i < qsize; i++) {
     for (j = 0; j < qsize; j++) {
-      coeffq[i*size + j] = scoeffq[zigzagptr[i*qsize + j]];
+      coeffq[i*qsize + j] = scoeffq[zigzagptr[i*qsize + j]];
     }
   }
   return (cbp != 0);
@@ -1122,10 +1122,8 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
           else{
             memset(rblock2,0,size2*size2*sizeof(int16_t));
           }
-
           cbp = (cbp<<1) + cbpbit;
-          index += size2 * size2;
-
+          index += MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
           reconstruct_block (rblock2, pblock, &rec_block[i*size+j], size2, size);
         }
       }
@@ -1196,7 +1194,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
             memcpy(&rblock[(i+k)*size+j],&rblock2[k*size2],size2*sizeof(int16_t));
           }
           cbp = (cbp<<1) + cbpbit;
-          index += size2 * size2;
+          index += MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
         }
       }
       reconstruct_block (rblock, pblock, rec, size, size);
@@ -1309,9 +1307,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     cbp.v = encode_and_reconstruct_block_intra (encoder_info, org_v,sizeC,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,
         tb_split&&(sizeC>4),encoder_info->params->rdoq,width>>encoder_info->params->subx,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][2][1],encoder_info->iwmatrix[ql][2][1]);
 
-    if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
-    if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, (size*size >> (encoder_info->params->subx+encoder_info->params->suby)) * sizeof(uint16_t));
-    if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, (size*size >> (encoder_info->params->subx+encoder_info->params->suby)) * sizeof(uint16_t));
+    if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
+    if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
+    if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
   }
   else {
     int sign,split;
@@ -1356,9 +1354,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && (sizeC>4),
         encoder_info->params->rdoq, encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
 
-      if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, size*size*sizeof(uint16_t));
-      if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, (size*size >> (encoder_info->params->subx+encoder_info->params->suby)) * sizeof(uint16_t));
-      if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, (size*size >> (encoder_info->params->subx+encoder_info->params->suby)) * sizeof(uint16_t));
+      if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
+      if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
+      if (cbp.v) memcpy(block_param->coeff_v, coeffq_v, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
     }
 
   }
@@ -1575,9 +1573,9 @@ static void copy_best_parameters(int size, int subx, int suby, block_info_t *blo
   memcpy(block_info->rec_block_best->y, rec_block->y, size*size*sizeof(uint8_t));
   memcpy(block_info->rec_block_best->u, rec_block->u, (size*size >> (subx + suby)) * sizeof(uint8_t));
   memcpy(block_info->rec_block_best->v, rec_block->v, (size*size >> (subx + suby)) * sizeof(uint8_t));
-  if (block_param.cbp.y) memcpy(block_info->block_param.coeff_y, block_param.coeff_y, size*size*sizeof(uint16_t));
-  if (block_param.cbp.u) memcpy(block_info->block_param.coeff_u, block_param.coeff_u, (size*size >> (subx + suby))*sizeof(uint16_t));
-  if (block_param.cbp.v) memcpy(block_info->block_param.coeff_v, block_param.coeff_v, (size*size >> (subx + suby))*sizeof(uint16_t));
+  if (block_param.cbp.y) memcpy(block_info->block_param.coeff_y, block_param.coeff_y, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(uint16_t)); //TODO: Pack better when tb_split
+  if (block_param.cbp.u) memcpy(block_info->block_param.coeff_u, block_param.coeff_u, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(uint16_t));
+  if (block_param.cbp.v) memcpy(block_info->block_param.coeff_v, block_param.coeff_v, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE*sizeof(uint16_t));
   block_info->block_param.pb_part = block_param.pb_part;
   block_info->block_param.skip_idx = block_param.skip_idx;
   block_info->block_param.mode = block_param.mode;

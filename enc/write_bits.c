@@ -89,7 +89,7 @@ void write_coeff(stream_t *stream,int16_t *coeff,int size,int type)
   /* Zigzag scan */
   for (i = 0; i < qsize; i++)
     for (j = 0; j < qsize; j++)
-      scoeff[zigzagptr[i*qsize+j]] = coeff[i*size+j];
+      scoeff[zigzagptr[i*qsize + j]] = coeff[i*qsize + j];
 
   /* Find last_pos to determine when to send EOB */
   for (pos = N-1; !scoeff[pos] && pos; pos--);
@@ -467,9 +467,10 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
           put_vlc(0,code,stream);
 
           /* Code coefficients for each TU separately */
-          coeffq_y = block_param->coeff_y + index*(size / 2)*(size / 2);
-          coeffq_u = block_param->coeff_u + index*(size_uv / 2)*(size_uv / 2);
-          coeffq_v = block_param->coeff_v + index*(size_uv / 2)*(size_uv / 2);
+          coeffq_y = block_param->coeff_y + index*MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
+          coeffq_u = block_param->coeff_u + index*MAX_QUANT_SIZE*MAX_QUANT_SIZE;
+          coeffq_v = block_param->coeff_v + index*MAX_QUANT_SIZE*MAX_QUANT_SIZE;
+
           if (cbp_y){
             write_coeff(stream,coeffq_y,size/2,coeff_type|0);
           }
@@ -489,7 +490,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
           put_flc(1,cbp_y,stream);
 
           /* Code coefficients for each TU separately */
-          coeffq_y = block_param->coeff_y + index*(size / 2)*(size / 2);
+          coeffq_y = block_param->coeff_y + index*MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
           if (cbp_y){
             write_coeff(stream,coeffq_y,size/2,coeff_type|0);
           }

@@ -142,7 +142,7 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
   if (lshift >= rshift) {
     for (int i = 0; i < qsize ; i++){
       for (int j = 0; j < qsize; j++){
-        int c = coeff[i*size+j];
+        int c = coeff[i*qsize + j];
         if (wt_matrix)
           c = c*wt_matrix[i*qsize+j];
         rcoeff[i*size+j] = (int16_t)((c * scale) << (lshift-rshift));// needs clipping?
@@ -151,7 +151,7 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
   } else {
     for (int i = 0; i < qsize ; i++){
       for (int j = 0; j < qsize; j++){
-        int c = coeff[i*size+j];
+        int c = coeff[i*qsize+j];
         if (wt_matrix)
           c = c*wt_matrix[i*qsize+j];
         rcoeff[i*size+j] = (int16_t)((c * scale + add) >> (rshift - lshift));//needs clipping

@@ -278,8 +278,38 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
   mv_t mvin, mvout;
   double offset = 0.125;
   static double scale_array[4] = { 8.0 / 4.0, 16.0 / 4.0, 9.0 / 4.0, 11.0 / 4.0 };
+
   int scale, p, lev, inc, delta;
   int num_lev = log2i(gop_size);
+
+  if (gop_size == 3) { //Support for 2B
+    static double scale_array2[3] = { 3.0 / 3.0, 6.0 / 3.0, 5.0 / 3.0 };
+    for (i = 0; i < height; i += MIN_PB_SIZE) {
+      for (j = 0; j < width; j += MIN_PB_SIZE) {
+        block_posy = i / MIN_PB_SIZE;
+        block_posx = j / MIN_PB_SIZE;
+        block_index = block_posy*block_stride + block_posx;
+        ref_idx0 = deblock_data[block_index].inter_pred.ref_idx0;
+        bipred_flag = deblock_data[block_index].inter_pred.bipred_flag;
+        inter_pred = &deblock_data[block_index].inter_pred;
+
+        if (frame_type == P_FRAME) {
+          mvin = inter_pred->mv0;
+          scale_mv(&mvin, &mvout, (3.0 / 1.0)*scale_array2[ref_idx0], offset);
+          deblock_data[block_index].inter_pred_arr[1].mv0 = mvout;
+          deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
+        }
+        else if (frame_type == B_FRAME && phase == 1) {
+          if (bipred_flag || ref_idx0 == 2) {
+            mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
+            scale_mv(&mvin, &mvout, 2.0, offset);
+            deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
+          }
+        }
+      }
+    }
+    return;
+  }
 
   for (i = 0; i < height; i += MIN_PB_SIZE) {
     for (j = 0; j < width; j += MIN_PB_SIZE) {
@@ -332,7 +362,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
   }
 }
 
-void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase) {
+void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase,int gop_size) {
 
   int sizeY = MIN_PB_SIZE;
   int sizeC = sizeY >> (ref0->subx || ref0->suby);
@@ -381,6 +411,10 @@ void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *r
       sign = 0;
       get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
       sign = 1;
+      if (gop_size == 3 && phase == 1) { //Support for 2B
+        mv_arr[0].x = 2 * mv_arr[0].x;
+        mv_arr[0].y = 2 * mv_arr[0].y;
+      }
       get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
       average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_pos, ref0->subx, ref0->suby);
 

@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "types.h"
 
 void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos);
-void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase);
+void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase, int gop_size);
 void scale_mv(mv_t *mv_in, mv_t *mv_out, int scale);
 void store_mv(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data);
 

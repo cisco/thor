@@ -217,12 +217,13 @@ void encode_frame(encoder_info_t *encoder_info)
   put_flc(16,encoder_info->frame_info.frame_num,stream);
 
   if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref>1){
-    int phase = encoder_info->frame_info.frame_num % (encoder_info->params->num_reorder_pics + 1);
+    int gop_size = encoder_info->params->num_reorder_pics + 1;
+    int phase = encoder_info->frame_info.frame_num % gop_size;
     int r0 = encoder_info->frame_info.ref_array[1];
     int r1 = encoder_info->frame_info.ref_array[2];
     yuv_frame_t *ref0 = encoder_info->ref[r0];
     yuv_frame_t *ref1 = encoder_info->ref[r1];
-    interpolate_frame0(width, height, encoder_info->interp_frames[0], ref0, ref1, encoder_info->deblock_data, phase);
+    interpolate_frame0(width, height, encoder_info->interp_frames[0], ref0, ref1, encoder_info->deblock_data, phase, gop_size);
     pad_yuv_frame(encoder_info->interp_frames[0]);
   }
 

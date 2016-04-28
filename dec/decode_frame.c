@@ -122,12 +122,13 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   //Generate new interpolated frame
   if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref>1) {
-    int phase = decoder_info->frame_info.display_frame_num % (decoder_info->num_reorder_pics + 1);
+    int gop_size = decoder_info->num_reorder_pics + 1;
+    int phase = decoder_info->frame_info.display_frame_num % gop_size;
     int r0 = decoder_info->frame_info.ref_array[1];
     int r1 = decoder_info->frame_info.ref_array[2];
     yuv_frame_t *ref0 = decoder_info->ref[r0];
     yuv_frame_t *ref1 = decoder_info->ref[r1];
-    interpolate_frame0(width, height, decoder_info->interp_frames[0], ref0, ref1, decoder_info->deblock_data, phase);
+    interpolate_frame0(width, height, decoder_info->interp_frames[0], ref0, ref1, decoder_info->deblock_data, phase, gop_size);
     pad_yuv_frame(decoder_info->interp_frames[0]);
   }
 

@@ -299,7 +299,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
           deblock_data[block_index].inter_pred_arr[1].mv0 = mvout;
           deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
         }
-        else if (frame_type == B_FRAME && phase == 1) {
+        else if (frame_type == B_FRAME && phase == 1 && deblock_data[block_index].mode != MODE_INTRA) {
           if (bipred_flag || ref_idx0 == 2) {
             mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
             scale_mv(&mvin, &mvout, 2.0, offset);
@@ -332,7 +332,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
           }
         }
       }
-      else if (frame_type == B_FRAME && b_level < num_lev-1) {
+      else if (frame_type == B_FRAME && b_level < num_lev-1 && deblock_data[block_index].mode != MODE_INTRA) {
         if (bipred_flag || ref_idx0 == 1) {
           mvin = inter_pred->mv0;
           for (lev = b_level + 1; lev < num_lev; lev++) {

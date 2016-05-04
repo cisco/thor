@@ -422,7 +422,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     if (decoder_info->bit_count.stat_frame_type == B_FRAME) {
       block_info->block_param.ref_idx0 = 0;
       block_info->block_param.ref_idx1 = 1;
-      if (decoder_info->frame_info.interp_ref == 1) {
+      if (decoder_info->frame_info.interp_ref > 0) {
         block_info->block_param.ref_idx0 += 1;
         block_info->block_param.ref_idx1 += 1;
       }

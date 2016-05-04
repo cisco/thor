@@ -216,7 +216,7 @@ void encode_frame(encoder_info_t *encoder_info)
   // 16 bit frame number for now
   put_flc(16,encoder_info->frame_info.frame_num,stream);
 
-  if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref>1){
+  if (encoder_info->frame_info.interp_ref>1) {
     int gop_size = encoder_info->params->num_reorder_pics + 1;
     int phase = encoder_info->frame_info.frame_num % gop_size;
     int r0 = encoder_info->frame_info.ref_array[1];

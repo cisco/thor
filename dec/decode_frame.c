@@ -71,7 +71,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     for (r=0;r<decoder_info->frame_info.num_ref;r++){
       decoder_info->frame_info.ref_array[r] = get_flc(6, stream)-1;
       if (decoder_info->frame_info.ref_array[r]==-1)
-        decoder_info->frame_info.interp_ref = 1;
+        decoder_info->frame_info.interp_ref = decoder_info->interp_ref;
     }
     if (decoder_info->frame_info.num_ref==2 && decoder_info->frame_info.ref_array[0]==-1) {
       decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = get_flc(5, stream)-1;
@@ -121,7 +121,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   decoder_info->frame_info.qpb = qp;
 
   //Generate new interpolated frame
-  if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref>1) {
+  if (decoder_info->frame_info.interp_ref>1) {
     int gop_size = decoder_info->num_reorder_pics + 1;
     int phase = decoder_info->frame_info.display_frame_num % gop_size;
     int r0 = decoder_info->frame_info.ref_array[1];

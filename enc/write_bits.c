@@ -195,6 +195,10 @@ void write_super_mode(stream_t *stream,encoder_info_t *encoder_info, block_info_
     int interp_ref = encoder_info->frame_info.interp_ref;
     maxbit = 2 + encoder_info->frame_info.num_ref + split_possible_flag + bipred_possible_flag;
 
+    if (interp_ref > 2) {
+      maxbit -= 1; //ref_idx = 0 is disallowed
+    }
+
     if (split_flag == 1) {
       if (size > MAX_TR_SIZE) {
         put_flc(1, 0, stream);

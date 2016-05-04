@@ -1701,7 +1701,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
   /* Iterative unipred search for mv0 and mv1 */
 
   /* Initialize using ME for ref_idx=0 */
-  if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->frame_info.interp_ref == 1)
+  if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->frame_info.interp_ref > 0)
     ref_idx = 1;
   else
     ref_idx = 0;
@@ -1911,6 +1911,10 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         max_idx = frame_info->num_ref - 1;
       } else
         min_idx = max_idx = frame_info->best_ref;
+
+      if (frame_type == B_FRAME && encoder_info->frame_info.interp_ref > 2) {
+        min_idx = 1; //ref_idx = 0 is disallowed
+      }
 
       uint32_t worst_cost = 0, best_cost = MAX_UINT32;
       for (ref_idx=min_idx;ref_idx<=max_idx;ref_idx++){

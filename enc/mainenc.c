@@ -337,7 +337,7 @@ int main(int argc, char **argv)
                 // Need to add another reference if we are at the beginning
                 if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
 
-                encoder_info.frame_info.interp_ref = 1;
+                encoder_info.frame_info.interp_ref = params->interp_ref;
 
                 encoder_info.frame_info.ref_array[1]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase-ref_offset+1]-1);
                 encoder_info.frame_info.ref_array[2]=min(num_encoded_frames-1,coded_phase-dyadic_reorder_display_to_code[log2i(sub_gop)][display_phase+ref_offset+1]-1);
@@ -385,7 +385,7 @@ int main(int argc, char **argv)
                 // Need to add another reference if we are at the beginning
                 if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
 
-                encoder_info.frame_info.interp_ref = 1;
+                encoder_info.frame_info.interp_ref = params->interp_ref;
 
                 // Use the last encoded frame as the first true ref
                 if (encoder_info.frame_info.num_ref>0) {

@@ -427,6 +427,10 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
 
   int interp_ref = decoder_info->frame_info.interp_ref;
 
+  if (interp_ref > 2) {
+    maxbit -= 1; //ref_idx = 0 is disallowed
+  }
+
   code = get_vlc(10 + maxbit, stream);
 
   if (interp_ref) {

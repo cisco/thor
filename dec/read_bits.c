@@ -191,7 +191,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   XPOS = xpos;
 
   int sizeY = size;
-  int sizeC = size>>(decoder_info->subx || decoder_info->suby); // TODO: What about 422?
+  int sizeC = size>>block_info->sub;
 
   mv_t mv,zerovec;
   mv_t mvp;

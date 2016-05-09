@@ -282,7 +282,6 @@ enc_params *parse_config_params(int argc, char **argv)
 
   memset(params, 0, sizeof(enc_params));
   memset(&list, 0, sizeof(param_list));
-  params->subx = params->suby = 1;
   params->aspectnum = params->aspectden = 1;
 
   add_param_to_list(&list, "-cf",                   NULL, ARG_FILENAME, NULL);
@@ -404,16 +403,6 @@ enc_params *parse_config_params(int argc, char **argv)
             break;
           case 'C':
             params->subsample = strtol(buf+pos, &end, 10);
-            if (params->subsample == 444)
-              params->subx = params->suby = 0;
-            else if (params->subsample == 422) {
-              params->subx = 1;
-              params->suby = 0;
-            } else if (params->subsample == 420)
-              params->subx = params->suby = 1;
-            else
-              params->subx = params->suby = -1;
-
             pos = (int)(end-buf);
             while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
             break;

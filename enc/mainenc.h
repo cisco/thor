@@ -95,8 +95,6 @@ typedef struct
   int qmtx;
   int qmtx_offset;
   int subsample;
-  int subx;
-  int suby;
   int aspectnum;
   int aspectden;
 } enc_params;
@@ -129,6 +127,8 @@ typedef struct
   yuv_block_t *rec_block_best;
   double lambda;
   int qp;
+  int sub;
+  int adaptive_chroma;
 } block_info_t; //TODO: Consider merging with block_pos_t
 
 

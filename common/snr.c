@@ -38,9 +38,9 @@ int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width)
     double plse;
 
     xdim = width;
-    xdim_chr = xdim >> f1->subx;
+    xdim_chr = xdim >> f1->sub;
     ydim = height;
-    ydim_chr = ydim >> f1->suby;
+    ydim_chr = ydim >> f1->sub;
 
     int s1y = f1->stride_y;
     int s2y = f2->stride_y;

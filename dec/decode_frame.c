@@ -45,6 +45,16 @@ static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_
   return get_flc(1, (stream_t*)stream);
 }
 
+static void swap_chroma_ref(decoder_info_t *decoder_info)
+{
+  for (int i = 0; i < MAX_REF_FRAMES; i++)
+    swap_chroma(decoder_info->ref[i]);
+
+  if (decoder_info->interp_ref)
+    for (int i = 0; i < MAX_SKIP_FRAMES; i++)
+      swap_chroma(decoder_info->interp_frames[i]);
+}
+
 void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 {
   int height = decoder_info->height;
@@ -71,7 +81,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     for (r=0;r<decoder_info->frame_info.num_ref;r++){
       decoder_info->frame_info.ref_array[r] = get_flc(6, stream)-1;
       if (decoder_info->frame_info.ref_array[r]==-1)
-        decoder_info->frame_info.interp_ref = decoder_info->interp_ref;
+	decoder_info->frame_info.interp_ref = decoder_info->interp_ref;
     }
     if (decoder_info->frame_info.num_ref==2 && decoder_info->frame_info.ref_array[0]==-1) {
       decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = get_flc(5, stream)-1;
@@ -111,6 +121,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     }
     // FIXME: won't work for the 1-sided case
     interpolate_frames(decoder_info->interp_frames[0], ref1, ref2, off1+off2 , off2);
+    subsample_yuv_frame(decoder_info->interp_frames[0]);
     pad_yuv_frame(decoder_info->interp_frames[0]);
     decoder_info->interp_frames[0]->frame_num = display_frame_num;
   }
@@ -129,14 +140,60 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     yuv_frame_t *ref0 = decoder_info->ref[r0];
     yuv_frame_t *ref1 = decoder_info->ref[r1];
     interpolate_frame0(width, height, decoder_info->interp_frames[0], ref0, ref1, decoder_info->deblock_data, phase, gop_size);
+    subsample_yuv_frame(decoder_info->interp_frames[0]);
     pad_yuv_frame(decoder_info->interp_frames[0]);
   }
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
+      int sub, adaptive_chroma;
+      if (decoder_info->subsample == 444) {
+        sub = adaptive_chroma = get_flc(1, stream);
+        if (adaptive_chroma)
+          swap_chroma_ref(decoder_info);
+      } else {
+	adaptive_chroma = 0;
+	sub = 1;
+      }
+
       int xposY = l*sb_size;
       int yposY = k*sb_size;
-      process_block_dec(decoder_info, sb_size, yposY, xposY);
+      yuv_frame_t *rec = decoder_info->rec;
+      uint8_t *rec_u = &rec->u[yposY*rec->stride_c+xposY];
+      uint8_t *rec_v = &rec->v[yposY*rec->stride_c+xposY];
+      uint8_t *rec_u2 = &rec->u2[yposY/2*rec->stride_c2+xposY/2];
+      uint8_t *rec_v2 = &rec->v2[yposY/2*rec->stride_c2+xposY/2];
+
+      process_block_dec(decoder_info, sb_size, yposY, xposY, sub, adaptive_chroma);
+
+      if (adaptive_chroma) {
+	// Make 444 from 420
+	swap_chroma_ref(decoder_info);
+	for (int i = 0; i < min(yposY + MAX_SB_SIZE, height) - yposY; i += 2) {
+	  int pos = i * rec->stride_c;
+	  int pos2 = (i+1) * rec->stride_c;
+	  if (!rec->sub) {
+	    for (int j = 0; j < min(xposY + MAX_SB_SIZE, width) - xposY; j += 2) {
+	      rec_u[pos+j] = rec_u[pos+1+j] = rec_u[pos2+j] = rec_u[pos2+1+j] = rec_u2[i/2*rec->stride_c2+j/2];
+	      rec_v[pos+j] = rec_v[pos+1+j] = rec_v[pos2+j] = rec_v[pos2+1+j] = rec_v2[i/2*rec->stride_c2+j/2];
+	    }
+	  }
+	}
+      } else {
+	// Make 420 from 444
+	for (int i = 0; i < min(yposY + MAX_SB_SIZE, height) - yposY; i += 2) {
+	  int pos = i * rec->stride_c;
+	  int pos2 = (i+1) * rec->stride_c;
+	  if (!rec->sub) {
+	    for (int j = 0; j < min(xposY + MAX_SB_SIZE, width) - xposY; j += 2) {
+	      rec_u2[i/2*rec->stride_c2+j/2] =
+		(rec_u[pos+j] + rec_u[pos+1+j] + rec_u[pos2+j] + rec_u[pos2+1+j] + 2) >> 2;
+	      rec_v2[i/2*rec->stride_c2+j/2] =
+		(rec_v[pos+j] + rec_v[pos+1+j] + rec_v[pos2+j] + rec_v[pos2+1+j] + 2) >> 2;
+	    }
+	  }
+	}
+      }
     }
   }
 

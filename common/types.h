@@ -43,20 +43,25 @@ typedef struct
     uint8_t *y;
     uint8_t *u;
     uint8_t *v;
+    uint8_t *u2;
+    uint8_t *v2;
     int width;
     int height;
     int stride_y;
     int stride_c;
+    int stride_c2;
     int offset_y;
     int offset_c;
+    int offset_c2;
     int pad_hor_y;
     int pad_hor_c;
+    int pad_hor_c2;
     int pad_ver_y;
     int pad_ver_c;
+    int pad_ver_c2;
     int area_y;
     int area_c;
-    int subx;
-    int suby;
+    int sub;
     int frame_num;
 } yuv_frame_t;
 

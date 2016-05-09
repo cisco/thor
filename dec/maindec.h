@@ -54,6 +54,7 @@ typedef struct
   int16_t *coeffq_u;
   int16_t *coeffq_v;
   int delta_qp;
+  int sub;
 } block_info_dec_t;
 
 typedef struct 
@@ -86,8 +87,7 @@ typedef struct
   int qmtx_offset;
   int log2_sb_size;
   int num_reorder_pics;
-  int subx;
-  int suby;
+  int subsample;
   qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 

@@ -156,21 +156,21 @@ int main(int argc, char **argv)
   height = params->height;
   width = params->width;
   ysize = height * width;
-  csize = ysize >> (params->subx + params->suby);
+  csize = ysize >> 2*(params->subsample == 420);
   frame_size = ysize + 2*csize;
 
   /* Create frames*/
-  create_yuv_frame(&orig,width,height,params->subx,params->suby,0,0);
+  create_yuv_frame(&orig,width,height,params->subsample == 420,0,0,0);
   for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-    create_yuv_frame(&rec[r],width,height,params->subx,params->suby,0,0);
+    create_yuv_frame(&rec[r],width,height,params->subsample == 420,0,0,1);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
-    create_yuv_frame(&ref[r],width,height,params->subx,params->suby,PADDING_Y,PADDING_Y);
+    create_yuv_frame(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,1);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
       encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subx,params->suby,PADDING_Y,PADDING_Y);
+      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,1);
     }
   }
 
@@ -214,8 +214,7 @@ int main(int argc, char **argv)
   put_flc(1,params->qmtx,&stream);
   if (params->qmtx)
     put_flc(6,params->qmtx_offset+32,&stream);
-  put_flc(1,params->subx,&stream);
-  put_flc(1,params->suby,&stream);
+  put_flc(1, params->subsample == 420, &stream);
   put_flc(4, params->num_reorder_pics, &stream);
 
   end_bits = get_bit_pos(&stream);
@@ -348,6 +347,7 @@ int main(int argc, char **argv)
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
                 interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, 2, 1);
+		subsample_yuv_frame(encoder_info.interp_frames[0]);
                 pad_yuv_frame(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
                 /* use most recent frames for the last ref(s)*/
@@ -405,6 +405,7 @@ int main(int argc, char **argv)
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
                 interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, sub_gop-phase,phase!=0 ? 1 : sub_gop-phase-1);
+		subsample_yuv_frame(encoder_info.interp_frames[0]);
                 pad_yuv_frame(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
 

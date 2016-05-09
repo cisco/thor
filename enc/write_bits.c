@@ -298,7 +298,7 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   intra_mode_t intra_mode = block_param->intra_mode;
   mv_t mvp = block_info->mvp;
   int coeff_type = (mode == MODE_INTRA) << 1;
-  int size_uv = size >> (encoder_info->params->subx || encoder_info->params->subx); // TODO: what about 422?
+  int size_uv = size >> block_info->sub;
 
   start_bits = get_bit_pos(stream);
 

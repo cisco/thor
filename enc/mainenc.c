@@ -443,6 +443,14 @@ int main(int argc, char **argv)
               }
             }
           }
+
+          if (encoder_info.params->num_reorder_pics == 2 && encoder_info.frame_info.frame_type == B_FRAME && b_level == 0) {
+            int off = encoder_info.params->interp_ref ? 1 : 0;
+            int tmp = encoder_info.frame_info.ref_array[0 + off];
+            encoder_info.frame_info.ref_array[0 + off] = encoder_info.frame_info.ref_array[1 + off];
+            encoder_info.frame_info.ref_array[1 + off] = tmp;
+          }
+
         } else {
           if (encoder_info.frame_info.num_ref>=1){
             /* If num_ref==1 always use most recent frame */

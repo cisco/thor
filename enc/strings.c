@@ -481,7 +481,11 @@ void check_parameters(enc_params *params)
 
   if (params->dyadic_coding) {
     int nrp1 = params->num_reorder_pics+1;
-    if (nrp1 != (1<<(log2i(nrp1)))) {
+    if (params->num_reorder_pics == 2) {
+      params->dyadic_coding = 0;
+      printf("Warning: dyadic coding forced to 0 for num_reorder_pics=2\n");
+    }
+    else if (nrp1 != (1<<(log2i(nrp1)))) {
       fatalerror("num_reorder_pics+1 must be a power of 2 with dyadic coding.\n");
     }
   }

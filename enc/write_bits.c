@@ -46,6 +46,26 @@ extern int zigzag64[64];
 extern int zigzag256[256];
 extern int YPOS,XPOS;
 
+void write_sequence_header(stream_t *stream, enc_params *params) {
+  put_flc(16, params->width, stream);
+  put_flc(16, params->height, stream);
+  put_flc(3, params->log2_sb_size, stream);
+  put_flc(1, params->enable_pb_split, stream);
+  put_flc(1, params->enable_tb_split, stream);
+  put_flc(2, params->max_num_ref - 1, stream); //TODO: Support more than 4 reference frames
+  put_flc(2, params->interp_ref, stream);// Use an interpolated reference frame
+  put_flc(1, (params->max_delta_qp || params->bitrate), stream);
+  put_flc(1, params->deblocking, stream);
+  put_flc(1, params->clpf ? 1 : 0, stream);
+  put_flc(1, params->use_block_contexts, stream);
+  put_flc(1, params->enable_bipred, stream);
+  put_flc(1, params->qmtx, stream);
+  if (params->qmtx)
+    put_flc(6, params->qmtx_offset + 32, stream);
+  put_flc(1, params->subsample == 420, stream);
+  put_flc(4, params->num_reorder_pics, stream);
+}
+
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 {
     uint16_t  mvabs,mvsign;

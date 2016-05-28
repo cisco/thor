@@ -45,6 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "../common/simd.h"
 #include "rc.h"
 #include "wt_matrix.h"
+#include "write_bits.h"
 
 // Coding order to display order
 static const int cd1[1] = {0};
@@ -199,23 +200,7 @@ int main(int argc, char **argv)
 
   /* Write sequence header */ //TODO: Separate function for sequence header
   start_bits = get_bit_pos(&stream);
-  put_flc(16,width,&stream);
-  put_flc(16,height,&stream);
-  put_flc(3,params->log2_sb_size, &stream);
-  put_flc(1,params->enable_pb_split,&stream);
-  put_flc(1,params->enable_tb_split,&stream);
-  put_flc(2,params->max_num_ref-1,&stream); //TODO: Support more than 4 reference frames
-  put_flc(2,params->interp_ref,&stream);// Use an interpolated reference frame
-  put_flc(1, (params->max_delta_qp || params->bitrate), &stream);
-  put_flc(1,params->deblocking,&stream);
-  put_flc(1,params->clpf ? 1 : 0,&stream);
-  put_flc(1,params->use_block_contexts,&stream);
-  put_flc(1,params->enable_bipred,&stream);
-  put_flc(1,params->qmtx,&stream);
-  if (params->qmtx)
-    put_flc(6,params->qmtx_offset+32,&stream);
-  put_flc(1, params->subsample == 420, &stream);
-  put_flc(4, params->num_reorder_pics, &stream);
+  write_sequence_header(&stream, params);
 
   end_bits = get_bit_pos(&stream);
   num_bits = end_bits-start_bits;

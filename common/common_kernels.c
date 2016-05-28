@@ -759,7 +759,7 @@ void get_inter_prediction_luma_simd(int width, int height, int xoff, int yoff,
                                     uint8_t *restrict qp, int qstride,
                                     const uint8_t *restrict ip, int istride, int bipred)
 {
-  if (xoff == 2 && yoff == 2)
+  if (xoff == 2 && yoff == 2 && bipred < 2)
     get_inter_prediction_luma_centre(width, height, qp, qstride, ip, istride);
   else {
     /* Use symmetric property of the filter */

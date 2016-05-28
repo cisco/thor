@@ -150,6 +150,7 @@ typedef struct
   double lambda_coeff;
   int prev_qp;
   int min_ref_dist;
+  int phase;
 } frame_info_t;
 
 typedef struct 

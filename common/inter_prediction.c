@@ -164,7 +164,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
   if (use_simd)
     get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred);
   /* Special lowpass filter at center position */
-  else if (ver_frac == 2 && hor_frac == 2) {
+  else if (ver_frac == 2 && hor_frac == 2 && bipred < 2) {
     for(i=0;i<height;i++){
       for (j=0;j<width;j++){
         int sum = 0;
@@ -268,7 +268,6 @@ void scale_mv(mv_t *mv_in, mv_t *mv_out, double scale, double offset) {
   mv_out->x = signx * (int)floor(scalef * absx + offset);
   mv_out->y = signy * (int)floor(scalef * absy + offset);
 }
-
 void store_mv(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data) {
   int i, j, block_index, block_posy, block_posx;
   int block_stride = width / MIN_PB_SIZE;
@@ -300,7 +299,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
           deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
         }
         else if (frame_type == B_FRAME && phase == 1 && deblock_data[block_index].mode != MODE_INTRA) {
-          if (bipred_flag || ref_idx0 == 2) {
+          if (bipred_flag || ref_idx0 == 1) {
             mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
             scale_mv(&mvin, &mvout, 2.0, offset);
             deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
@@ -333,7 +332,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
         }
       }
       else if (frame_type == B_FRAME && b_level < num_lev-1 && deblock_data[block_index].mode != MODE_INTRA) {
-        if (bipred_flag || ref_idx0 == 1) {
+        if (bipred_flag || ref_idx0 == 0) {
           mvin = inter_pred->mv0;
           for (lev = b_level + 1; lev < num_lev; lev++) {
             scale = (1 << (lev - b_level));
@@ -345,7 +344,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
             }
           }
         }
-        if (bipred_flag || ref_idx0 == 2) {
+        if (bipred_flag || ref_idx0 == 1) {
           mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
           for (lev = b_level + 1; lev < num_lev; lev++) {
             scale = (1 << (lev - b_level));
@@ -362,81 +361,63 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
   }
 }
 
-void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase,int gop_size) {
+void get_inter_prediction_temp(int width, int height, yuv_frame_t *ref0, yuv_frame_t *ref1, block_pos_t *block_pos, deblock_data_t *deblock_data, int gop_size, int phase, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v) {
+  int i, m, n;
+  block_pos_t tmp_block_pos;
+  int ypos0, xpos0;
+  int block_stride, block_posy, block_posx, block_index;
+  mv_t mv_arr[4];
+  uint8_t pblock0_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock0_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock0_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock1_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock1_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock1_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock2_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock2_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  uint8_t pblock2_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  int sign;// , r0, r1;
+  int yposY = block_pos->ypos;
+  int xposY = block_pos->xpos;
+  int size = block_pos->size;
+  for (ypos0 = yposY; ypos0 < yposY + block_pos->bheight; ypos0 += MIN_PB_SIZE) {
+    for (xpos0 = xposY; xpos0 < xposY + block_pos->bwidth; xpos0 += MIN_PB_SIZE) {
 
-  int sizeY = MIN_PB_SIZE;
-  int sizeC = sizeY >> ref0->sub;
+      m = ypos0 - yposY;
+      n = xpos0 - xposY;
+      tmp_block_pos.size = MIN_PB_SIZE;
+      tmp_block_pos.bwidth = MIN_PB_SIZE;
+      tmp_block_pos.bheight = MIN_PB_SIZE;
+      tmp_block_pos.ypos = ypos0;
+      tmp_block_pos.xpos = xpos0;
 
-  uint8_t *pblock_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
-  uint8_t *pblock_u = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-  uint8_t *pblock_v = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-  uint8_t *pblock0_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
-  uint8_t *pblock0_u = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-  uint8_t *pblock0_v = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-  uint8_t *pblock1_y = malloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(uint8_t));
-  uint8_t *pblock1_u = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-  uint8_t *pblock1_v = malloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*ref0->sub)*sizeof(uint8_t));
-
-  int ypos, xpos;
-  for (ypos = 0; ypos < height; ypos += MIN_PB_SIZE) {
-    for (xpos = 0; xpos < width; xpos += MIN_PB_SIZE) {
-      int m;
-      int sign;
-      mv_t mv_arr[4];
-      int enable_bipred = 1;
-
-      int yposY = ypos;
-      int xposY = xpos;
-      int yposC = yposY / 2;
-      int xposC = xposY / 2;
-
-      block_pos_t block_pos;
-      block_pos.size = MIN_PB_SIZE;
-      block_pos.bwidth = MIN_PB_SIZE;
-      block_pos.bheight = MIN_PB_SIZE;
-      block_pos.ypos = ypos;
-      block_pos.xpos = xpos;
-
-      int block_stride = width / MIN_PB_SIZE;
-      int block_posy = ypos/MIN_PB_SIZE;
-      int block_posx = xpos/MIN_PB_SIZE;
-      int block_index = block_posy * block_stride + block_posx;
+      block_stride = width / MIN_PB_SIZE;
+      block_posy = ypos0 / MIN_PB_SIZE;
+      block_posx = xpos0 / MIN_PB_SIZE;
+      block_index = block_posy * block_stride + block_posx;
 
       mv_arr[0] = deblock_data[block_index].inter_pred_arr[phase].mv0;
 
-      uint8_t* ref2_y = &ref2->y[yposY*ref2->stride_y + xposY];
-      uint8_t* ref2_u = &ref2->u[yposC*ref2->stride_c + xposC];
-      uint8_t* ref2_v = &ref2->v[yposC*ref2->stride_c + xposC];
-
       sign = 0;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
+      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0);
+
       sign = 1;
       if (gop_size == 3 && phase == 1) { //Support for 2B
         mv_arr[0].x = 2 * mv_arr[0].x;
         mv_arr[0].y = 2 * mv_arr[0].y;
       }
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_pos, mv_arr, sign, width, height, enable_bipred, 0);
-      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_pos, ref0->sub);
+      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0);
 
-      for (m = 0; m < sizeY; m++) {
-        memcpy(ref2_y + m * ref2->stride_y, pblock_y + m*sizeY, sizeY*sizeof(uint8_t));
+      average_blocks_all(pblock2_y, pblock2_u, pblock2_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, ref0->sub);
+      for (i = 0; i < MIN_PB_SIZE; i++) {
+        memcpy(pblock_y + (m + i)*size + n, pblock2_y + i*MIN_PB_SIZE, MIN_PB_SIZE*sizeof(uint8_t));
       }
-      for (m = 0; m < sizeC; m++) {
-        memcpy(ref2_u + m * ref2->stride_c, pblock_u + m*sizeC, sizeC*sizeof(uint8_t));
-        memcpy(ref2_v + m * ref2->stride_c, pblock_v + m*sizeC, sizeC*sizeof(uint8_t));
+      for (i = 0; i < MIN_PB_SIZE / 2; i++) {
+        memcpy(pblock_u + (m / 2 + i)*size / 2 + n / 2, pblock2_u + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(uint8_t) / 2);
+        memcpy(pblock_v + (m / 2 + i)*size / 2 + n / 2, pblock2_v + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(uint8_t) / 2);
       }
     }
   }
-
-  free(pblock_y);
-  free(pblock_u);
-  free(pblock_v);
-  free(pblock0_y);
-  free(pblock0_u);
-  free(pblock0_v);
-  free(pblock1_y);
-  free(pblock1_u);
-  free(pblock1_v);
 }
 
 mv_t get_mv_pred(int ypos,int xpos,int width,int height,int bwidth, int bheight, int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
@@ -859,5 +840,52 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bhe
       num_skip_vec++;
     }
   }
+  return num_skip_vec;
+}
+
+int get_mv_skip_temp(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
+{
+  int m, n;
+  int num_skip_vec;
+  int block_posy = block_pos->ypos / MIN_PB_SIZE;
+  int block_posx = block_pos->xpos / MIN_PB_SIZE;
+  int block_stride = width / MIN_PB_SIZE;
+  int block_index;
+  int bwidth = block_pos->bwidth;
+  int bheight = block_pos->bheight;
+  mv_t mv0, mv1;
+  int ref_idx0, ref_idx1, bipred_flag;
+  int duplicate = 1;
+  for (m = 0; m < bheight / MIN_PB_SIZE; m++) {
+    for (n = 0; n < bwidth / MIN_PB_SIZE; n++) {
+      block_index = (block_posy + m)*block_stride + block_posx + n;
+      mv0 = deblock_data[block_index].inter_pred_arr[phase].mv0;
+      mv1 = deblock_data[block_index].inter_pred_arr[phase].mv0;
+      if (gop_size == 3 && phase == 1) {
+        mv1.x *= 2;
+        mv1.y *= 2;
+      }
+      ref_idx0 = 0;
+      ref_idx1 = 1;
+      bipred_flag = 2;
+      if (mv0.x != skip_candidates[0].mv0.x) duplicate = 0;
+      if (mv0.y != skip_candidates[0].mv0.y) duplicate = 0;
+      if (mv1.x != skip_candidates[0].mv1.x) duplicate = 0;
+      if (mv1.y != skip_candidates[0].mv1.y) duplicate = 0;
+      if (ref_idx0 != skip_candidates[0].ref_idx0) duplicate = 0;
+      if (ref_idx1 != skip_candidates[0].ref_idx1) duplicate = 0;
+      if (bipred_flag != skip_candidates[0].bipred_flag) duplicate = 0;
+    }
+  }
+  if (!duplicate) {
+    num_skip_vec = 2;
+    skip_candidates[1] = skip_candidates[0];
+  }
+  else {
+   num_skip_vec = 1;
+  }
+  skip_candidates[0].ref_idx0 = 0;
+  skip_candidates[0].ref_idx1 = 1;
+  skip_candidates[0].bipred_flag = 2;
   return num_skip_vec;
 }

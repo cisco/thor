@@ -149,9 +149,20 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
       decoder_info->deblock_data[block_index].size = block_info->block_pos.size;
 
       decoder_info->deblock_data[block_index].mode = block_info->block_param.mode;
-      decoder_info->deblock_data[block_index].inter_pred.mv0 = block_info->block_param.mv_arr0[index];
+      if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref == 2 && block_info->block_param.mode == MODE_SKIP && block_info->block_param.skip_idx==0) {
+        int phase = decoder_info->frame_info.phase;
+        decoder_info->deblock_data[block_index].inter_pred.mv0 = decoder_info->deblock_data[block_index].inter_pred_arr[phase].mv0;
+        decoder_info->deblock_data[block_index].inter_pred.mv1 = decoder_info->deblock_data[block_index].inter_pred_arr[phase].mv0;
+        if (decoder_info->num_reorder_pics == 2 && phase == 1) {
+          decoder_info->deblock_data[block_index].inter_pred.mv1.x *= 2;
+          decoder_info->deblock_data[block_index].inter_pred.mv1.y *= 2;
+        }
+      }
+      else {
+        decoder_info->deblock_data[block_index].inter_pred.mv0 = block_info->block_param.mv_arr0[index];
+        decoder_info->deblock_data[block_index].inter_pred.mv1 = block_info->block_param.mv_arr1[index];
+      }
       decoder_info->deblock_data[block_index].inter_pred.ref_idx0 = block_info->block_param.ref_idx0;
-      decoder_info->deblock_data[block_index].inter_pred.mv1 = block_info->block_param.mv_arr1[index];
       decoder_info->deblock_data[block_index].inter_pred.ref_idx1 = block_info->block_param.ref_idx1;
       decoder_info->deblock_data[block_index].inter_pred.bipred_flag = block_info->block_param.dir;
     }
@@ -254,15 +265,17 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
         int sign0 = ref0->frame_num >= rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
-
         int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
         yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
         int sign1 = ref1->frame_num >= rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
-
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
-
+        if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref == 2 && block_info.block_param.skip_idx==0) {
+          get_inter_prediction_temp(width, height, ref0, ref1, &block_info.block_pos, decoder_info->deblock_data, decoder_info->num_reorder_pics + 1, decoder_info->frame_info.phase, pblock_y, pblock_u, pblock_v);
+        }
+        else {
+          get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+          get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+          average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
+        }
         thor_free(pblock0_y);
         thor_free(pblock0_u);
         thor_free(pblock0_v);

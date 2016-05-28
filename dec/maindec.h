@@ -42,6 +42,7 @@ typedef struct
   int decode_order_frame_num;
   int display_frame_num;
   int interp_ref;
+  int phase;
 } frame_info_t;
 
 typedef struct

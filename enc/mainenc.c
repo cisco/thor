@@ -273,6 +273,8 @@ int main(int argc, char **argv)
       int b_level = log2i(coded_phase);
       encoder_info.frame_info.b_level = b_level;
 
+      encoder_info.frame_info.phase = encoder_info.frame_info.frame_num % (encoder_info.params->num_reorder_pics + 1);
+
       if (encoder_info.frame_info.frame_type == I_FRAME){
         encoder_info.frame_info.qp = params->qp + params->dqpI;
         last_intra_frame_num = encoder_info.frame_info.frame_num;
@@ -331,8 +333,7 @@ int main(int argc, char **argv)
 
               int display_phase =  (encoder_info.frame_info.frame_num-1) % sub_gop;
               int ref_offset=sub_gop>>(b_level+1);
-              if (b_level >= min_interp_depth && params->interp_ref) {
-
+              if (b_level >= min_interp_depth && params->interp_ref == 1) {
                 // Need to add another reference if we are at the beginning
                 if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
 
@@ -380,8 +381,7 @@ int main(int argc, char **argv)
               }
 
             } else {
-              if (params->interp_ref && encoder_info.frame_info.num_ref>0) {
-
+              if (params->interp_ref > 0 && params->interp_ref == 1) {
                 // Need to add another reference if we are at the beginning
                 if (encoder_info.frame_info.num_ref==2) encoder_info.frame_info.num_ref++;
 
@@ -445,7 +445,7 @@ int main(int argc, char **argv)
           }
 
           if (encoder_info.params->num_reorder_pics == 2 && encoder_info.frame_info.frame_type == B_FRAME && b_level == 0) {
-            int off = encoder_info.params->interp_ref ? 1 : 0;
+            int off = encoder_info.params->interp_ref == 1 ? 1 : 0;
             int tmp = encoder_info.frame_info.ref_array[0 + off];
             encoder_info.frame_info.ref_array[0 + off] = encoder_info.frame_info.ref_array[1 + off];
             encoder_info.frame_info.ref_array[1 + off] = tmp;

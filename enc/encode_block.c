@@ -833,6 +833,8 @@ int motion_estimate_bi(uint8_t *orig, uint8_t *ref0, uint8_t *ref1, int size, in
         mv_cand.y = mv_ref.y + k;
         mv_cand.x = mv_ref.x + l;
 
+
+
         clip_mv(&mv_cand, ypos, xpos, fwidth, fheight, size, size, sign);
         get_inter_prediction_luma(rf0, ref0, width, height, stride_r, width, &mv_cand, sign, enable_bipred,fwidth,fheight,xpos,ypos); //ME-bi: telescope search - ref0
 
@@ -1319,16 +1321,19 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       split = 0;
     if (block_param->dir==2 || mode == MODE_BIPRED){
       r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
-      ref0 = r0>=0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
-      sign = ref0->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
-
+      ref0 = r0 >= 0 ? encoder_info->ref[r0] : encoder_info->interp_frames[0];
       r1 = encoder_info->frame_info.ref_array[block_param->ref_idx1];
       ref1 = r1 >= 0 ? encoder_info->ref[r1] : encoder_info->interp_frames[0];
-      sign = ref1->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
-
-      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_info->sub);
+      if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref == 2 && mode == MODE_SKIP && block_param->skip_idx==0) {
+        get_inter_prediction_temp(width, height, ref0, ref1, &block_info->block_pos, encoder_info->deblock_data, encoder_info->params->num_reorder_pics + 1, encoder_info->frame_info.phase, pblock_y, pblock_u, pblock_v);
+      }
+      else {
+        sign = ref0->frame_num > rec->frame_num;
+        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info->block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+        sign = ref1->frame_num > rec->frame_num;
+        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_param->mv_arr1, sign, encoder_info->width, encoder_info->height, enable_bipred, split);
+        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info->block_pos, block_info->sub);
+      }
     }
     else{
       r0 = encoder_info->frame_info.ref_array[block_param->ref_idx0];
@@ -1590,9 +1595,20 @@ void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
       encoder_info->deblock_data[block_index].pb_part = pb_part;
       encoder_info->deblock_data[block_index].size = block_info->block_pos.size;
       encoder_info->deblock_data[block_index].mode = block_info->block_param.mode;
-      encoder_info->deblock_data[block_index].inter_pred.mv0 = block_info->block_param.mv_arr0[index];
+      if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref == 2 && block_info->block_param.mode == MODE_SKIP && block_info->block_param.skip_idx == 0) {
+        int phase = encoder_info->frame_info.phase;
+        encoder_info->deblock_data[block_index].inter_pred.mv0 = encoder_info->deblock_data[block_index].inter_pred_arr[phase].mv0;
+        encoder_info->deblock_data[block_index].inter_pred.mv1 = encoder_info->deblock_data[block_index].inter_pred_arr[phase].mv0;
+        if (encoder_info->params->num_reorder_pics == 2 && phase==1) {
+          encoder_info->deblock_data[block_index].inter_pred.mv1.x *= 2;
+          encoder_info->deblock_data[block_index].inter_pred.mv1.y *= 2;
+        }
+      }
+      else {
+        encoder_info->deblock_data[block_index].inter_pred.mv0 = block_info->block_param.mv_arr0[index];
+        encoder_info->deblock_data[block_index].inter_pred.mv1 = block_info->block_param.mv_arr1[index];
+      }
       encoder_info->deblock_data[block_index].inter_pred.ref_idx0 = block_info->block_param.ref_idx0;
-      encoder_info->deblock_data[block_index].inter_pred.mv1 = block_info->block_param.mv_arr1[index];
       encoder_info->deblock_data[block_index].inter_pred.ref_idx1 = block_info->block_param.ref_idx1;
       encoder_info->deblock_data[block_index].inter_pred.bipred_flag = block_info->block_param.dir;
     }
@@ -1720,8 +1736,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
     uint8_t *ref0_y = ref0->y + ref_posY;
     uint8_t *ref1_y = ref1->y + ref_posY;
 
-    sad = motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[r_idx0], mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[r_idx0], frame_info->mvcand_num + r_idx0, 2);
-
+    sad = motion_estimate_bi(org_block->y, ref0_y, ref1_y, ostride, rstride, size, size, &mv, &mv_center[r_idx0], mvp, sqrt(lambda), encoder_info->params, sign, encoder_info->width, encoder_info->height, xpos, ypos, frame_info->mvcand[r_idx0], frame_info->mvcand_num + r_idx0, 1);
     *ref_idx0 = r_idx0;
     *ref_idx1 = r_idx1;
     mv_arr0[0] = mv_arr0[1] = mv_arr0[2] = mv_arr0[3] = mv;
@@ -1899,6 +1914,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
   /* Evaluate inter mode */
   if ((size < 128 || encoder_info->params->encoder_speed == 0) &&
       !rectangular_flag && size <= MAX_TR_SIZE) { //Only evaluate intra or inter mode if the block is square
+
     if (frame_type != I_FRAME){
       tb_param = 0;
       tmp_block_param.tb_param = 0;
@@ -1906,6 +1922,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
       mode = MODE_MERGE;
       int merge_idx;
       int num_merge_vec = block_info->num_merge_vec;
+
       for (merge_idx=0;merge_idx<num_merge_vec;merge_idx++){
         tmp_block_param.skip_idx = merge_idx;
         tmp_block_param.ref_idx0 = block_info->merge_candidates[merge_idx].ref_idx0;
@@ -2017,7 +2034,7 @@ int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_info)
         min_tb_param = 0;
         max_tb_param = block_info->max_num_tb_part - 1;
         for (part = 0; part < num_bi_part; part++) {
-          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1,0);
+          search_bipred_prediction_params(encoder_info, block_info, part, mv_center, &mvp, &ref_idx0, &ref_idx1, mv_arr0, mv_arr1, 0);
           tmp_block_param.pb_part = part;
           tmp_block_param.ref_idx0 = ref_idx0;
           memcpy(tmp_block_param.mv_arr0, mv_arr0, 4 * sizeof(mv_t));
@@ -2297,11 +2314,20 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
         tmp_block_pos.xpos = xpos + j;
         tmp_block_pos.size = size0;
 
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, enable_bipred, 0);
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, enable_bipred, 0);
-
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_info->sub);
-
+        if (encoder_info->frame_info.frame_type == B_FRAME && encoder_info->params->interp_ref == 2 && block_param->skip_idx==0) {
+          int gop_size = encoder_info->params->num_reorder_pics + 1;
+          int phase = encoder_info->frame_info.frame_num % gop_size;
+          int r0 = encoder_info->frame_info.ref_array[0];
+          ref0 = encoder_info->ref[r0];
+          int r1 = encoder_info->frame_info.ref_array[1];
+          ref1 = encoder_info->ref[r1];
+          get_inter_prediction_temp(encoder_info->width, encoder_info->height, ref0, ref1, &tmp_block_pos, encoder_info->deblock_data, gop_size, phase, pblock_y, pblock_u, pblock_v);
+        }
+        else {
+          get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, 2, 0);
+          get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, 2, 0);
+          average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_info->sub);
+        }
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, sizec, size0c, qpC, pblock_u, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c, sizec, size0c, qpC, pblock_v, early_skip_threshold);
@@ -2461,6 +2487,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   if (frame_type != I_FRAME && (encode_this_size || encode_rectangular_size)) {
     /* Find motion vector predictor (mvp) and skip vector candidates (mv-skip) */
     block_info->num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info->skip_candidates);
+
+    if (frame_type == B_FRAME && encoder_info->params->interp_ref == 2) {
+      block_info->num_skip_vec = get_mv_skip_temp(encoder_info->width, encoder_info->frame_info.phase, encoder_info->params->num_reorder_pics + 1, &block_info->block_pos, encoder_info->deblock_data, block_info->skip_candidates);
+    }
     block_info->num_merge_vec = get_mv_merge(ypos, xpos, width, height, size, size, 1 << encoder_info->params->log2_sb_size, encoder_info->deblock_data, block_info->merge_candidates);
   }
 

@@ -221,6 +221,9 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     int num_skip_vec,skip_idx;
     inter_pred_t skip_candidates[MAX_NUM_SKIP];
     num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, skip_candidates);
+    if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref == 2) {
+      num_skip_vec = get_mv_skip_temp(decoder_info->width, decoder_info->frame_info.phase, decoder_info->num_reorder_pics + 1, &block_info->block_pos, decoder_info->deblock_data, skip_candidates);
+    }
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = skip_candidates[idx].mv0;
     }

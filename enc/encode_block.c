@@ -2324,8 +2324,8 @@ int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *block_info
           get_inter_prediction_temp(encoder_info->width, encoder_info->height, ref0, ref1, &tmp_block_pos, encoder_info->deblock_data, gop_size, phase, pblock_y, pblock_u, pblock_v);
         }
         else {
-          get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, 2, 0);
-          get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, 2, 0);
+          get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, block_param->mv_arr0, sign0, encoder_info->width, encoder_info->height, enable_bipred, 0);
+          get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_param->mv_arr1, sign1, encoder_info->width, encoder_info->height, enable_bipred, 0);
           average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, block_info->sub);
         }
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);

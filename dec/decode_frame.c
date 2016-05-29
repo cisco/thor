@@ -69,7 +69,6 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int bit_start = stream->bitcnt;
   int rec_buffer_idx;
 
-#if 1
   decoder_info->frame_info.interp_ref = 0;
   read_frame_header(&decoder_info->frame_info, stream);
   decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
@@ -85,31 +84,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
     decoder_info->frame_info.num_ref = 0;
   }
-#else
-  decoder_info->frame_info.frame_type = get_flc(1, stream);
-  decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
-  int qp = get_flc(8, stream);
 
-  decoder_info->frame_info.num_intra_modes = get_flc(4, stream);
-
-  decoder_info->frame_info.interp_ref = 0;
-  if (decoder_info->frame_info.frame_type != I_FRAME) {
-    decoder_info->frame_info.num_ref = get_flc(2, stream)+1;
-    int r;
-    for (r=0;r<decoder_info->frame_info.num_ref;r++){
-      decoder_info->frame_info.ref_array[r] = get_flc(6, stream)-1;
-      if (decoder_info->frame_info.ref_array[r]==-1)
-	      decoder_info->frame_info.interp_ref = decoder_info->interp_ref;
-    }
-    if (decoder_info->frame_info.num_ref==2 && decoder_info->frame_info.ref_array[0]==-1) {
-      decoder_info->frame_info.ref_array[decoder_info->frame_info.num_ref++] = get_flc(5, stream)-1;
-    }
-  } else {
-    memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
-    decoder_info->frame_info.num_ref = 0;
-  }
-  decoder_info->frame_info.display_frame_num = get_flc(16, stream);
-#endif
   decoder_info->frame_info.phase = decoder_info->frame_info.display_frame_num % (decoder_info->num_reorder_pics + 1);
   for (r=0; r<decoder_info->frame_info.num_ref; ++r){
     if (decoder_info->frame_info.ref_array[r]!=-1) {

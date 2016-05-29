@@ -42,6 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 
 void write_sequence_header(stream_t *stream, enc_params *params);
+void write_frame_header(stream_t *stream, frame_info_t *frame_info);
 int write_delta_qp(stream_t *stream, int delta_qp);
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp);
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type);

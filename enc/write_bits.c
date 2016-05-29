@@ -66,6 +66,24 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
   put_flc(4, params->num_reorder_pics, stream);
 }
 
+void write_frame_header(stream_t *stream, frame_info_t *frame_info) {
+
+  put_flc(1, frame_info->frame_type != I_FRAME, stream);
+  put_flc(8, (int)frame_info->qp, stream);
+  put_flc(4, (int)frame_info->num_intra_modes, stream);
+
+  // Signal actual number of reference frames
+  if (frame_info->frame_type != I_FRAME)
+    put_flc(2, frame_info->num_ref - 1, stream);
+
+  int r;
+  for (r = 0; r < frame_info->num_ref; r++) {
+    put_flc(6, frame_info->ref_array[r] + 1, stream);
+  }
+  // 16 bit frame number for now
+  put_flc(16, frame_info->frame_num, stream);
+}
+
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 {
     uint16_t  mvabs,mvsign;

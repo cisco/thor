@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "wt_matrix.h"
 #include "enc_kernels.h"
 #include "inter_prediction.h"
+#include "write_bits.h"
 
 extern int chroma_qp[52];
 const double squared_lambda_QP [52] = {
@@ -211,20 +212,7 @@ void encode_frame(encoder_info_t *encoder_info)
     init_rate_control_per_frame(encoder_info->rc, min_qp, max_qp);
   }
 
-  put_flc(1,encoder_info->frame_info.frame_type!=I_FRAME,stream);
-  put_flc(8,(int)qp,stream);
-  put_flc(4,(int)encoder_info->frame_info.num_intra_modes,stream);
-
-  // Signal actual number of reference frames
-  if (frame_info->frame_type!=I_FRAME)
-    put_flc(2,encoder_info->frame_info.num_ref-1,stream);
-
-  int r;
-  for (r=0;r<encoder_info->frame_info.num_ref;r++){
-    put_flc(6,encoder_info->frame_info.ref_array[r]+1,stream);
-  }
-  // 16 bit frame number for now
-  put_flc(16,encoder_info->frame_info.frame_num,stream);
+  write_frame_header(stream, frame_info);
 
   // Initialize prev_qp to qp used in frame header
   encoder_info->frame_info.prev_qp = encoder_info->frame_info.qp;

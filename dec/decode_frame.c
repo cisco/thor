@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "wt_matrix.h"
 #include "getvlc.h"
 #include "inter_prediction.h"
+#include "read_bits.h"
 
 extern int chroma_qp[52];
 
@@ -68,6 +69,23 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   int bit_start = stream->bitcnt;
   int rec_buffer_idx;
 
+#if 1
+  decoder_info->frame_info.interp_ref = 0;
+  read_frame_header(&decoder_info->frame_info, stream);
+  decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
+  int qp = decoder_info->frame_info.qp;
+  if (decoder_info->frame_info.frame_type != I_FRAME) {
+    int r;
+    for (r = 0; r < decoder_info->frame_info.num_ref; r++) {
+      if (decoder_info->frame_info.ref_array[r] == -1)
+        decoder_info->frame_info.interp_ref = decoder_info->interp_ref;
+    }
+  }
+  else {
+    memset(decoder_info->deblock_data, 0, ((height / MIN_PB_SIZE) * (width / MIN_PB_SIZE) * sizeof(deblock_data_t)));
+    decoder_info->frame_info.num_ref = 0;
+  }
+#else
   decoder_info->frame_info.frame_type = get_flc(1, stream);
   decoder_info->bit_count.stat_frame_type = decoder_info->frame_info.frame_type;
   int qp = get_flc(8, stream);
@@ -91,6 +109,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     decoder_info->frame_info.num_ref = 0;
   }
   decoder_info->frame_info.display_frame_num = get_flc(16, stream);
+#endif
   decoder_info->frame_info.phase = decoder_info->frame_info.display_frame_num % (decoder_info->num_reorder_pics + 1);
   for (r=0; r<decoder_info->frame_info.num_ref; ++r){
     if (decoder_info->frame_info.ref_array[r]!=-1) {

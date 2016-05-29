@@ -43,6 +43,48 @@ extern int zigzag256[256];
 
 int YPOS, XPOS;
 
+void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
+  decoder_info->width = get_flc(16, stream);
+  decoder_info->height = get_flc(16, stream);
+  decoder_info->log2_sb_size = get_flc(3, stream);
+  decoder_info->pb_split = get_flc(1, stream);
+  decoder_info->tb_split_enable = get_flc(1, stream);
+  decoder_info->max_num_ref = get_flc(2, stream) + 1;
+  decoder_info->interp_ref = get_flc(2, stream);
+  decoder_info->max_delta_qp = get_flc(1, stream);
+  decoder_info->deblocking = get_flc(1, stream);
+  decoder_info->clpf = get_flc(1, stream);
+  decoder_info->use_block_contexts = get_flc(1, stream);
+  decoder_info->bipred = get_flc(1, stream);
+  decoder_info->qmtx = get_flc(1, stream);
+  if (decoder_info->qmtx) {
+    decoder_info->qmtx_offset = get_flc(6, stream) - 32;
+  }
+  decoder_info->subsample = get_flc(1, stream) ? 420 : 444;
+  decoder_info->num_reorder_pics = get_flc(4, stream);
+}
+
+void read_frame_header(frame_info_t *frame_info, stream_t *stream) {
+  frame_info->frame_type = get_flc(1, stream);
+  frame_info->qp = get_flc(8, stream);
+  frame_info->num_intra_modes = get_flc(4, stream);
+  if (frame_info->frame_type != I_FRAME) {
+    frame_info->num_ref = get_flc(2, stream) + 1;
+    int r;
+    for (r = 0; r < frame_info->num_ref; r++) {
+      frame_info->ref_array[r] = get_flc(6, stream) - 1;
+    }
+    if (frame_info->num_ref == 2 && frame_info->ref_array[0] == -1) {
+      frame_info->ref_array[frame_info->num_ref++] = get_flc(5, stream) - 1;
+    }
+  }
+  else {
+    frame_info->num_ref = 0;
+  }
+  frame_info->display_frame_num = get_flc(16, stream);
+}
+
+
 void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp)
 {
     mv_t mvd;

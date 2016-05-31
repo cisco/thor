@@ -99,7 +99,7 @@ static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width
   ver_int = max(ver_int,-xpos-height);
   hor_int = min(hor_int,pic_width2-xpos);
   hor_int = max(hor_int,-xpos-width);
-  int16_t tmp[80][80];
+  int16_t tmp[MAX_SB_SIZE / 2 + 16][MAX_SB_SIZE / 2 + 16];
 
   if (ver_frac==0 && hor_frac==0){
     j_off = 0 + hor_int;

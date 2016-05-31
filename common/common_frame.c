@@ -431,7 +431,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
 }
 
 
-void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver, int subsample)
+void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver)
 {
   int align;
 
@@ -451,20 +451,6 @@ void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int p
   frame->y = (uint8_t *)malloc(frame->area_y*sizeof(uint8_t))+frame->offset_y;
   frame->u = (uint8_t *)malloc(2*frame->area_c*sizeof(uint8_t))+frame->offset_c;
   frame->v = frame->u + frame->area_c*sizeof(uint8_t);
-  if (!sub && subsample) {
-    frame->pad_hor_c2 = pad_hor >> 1;
-    frame->pad_ver_c2 = pad_ver >> 1;
-    frame->stride_c2 = ((width >> 1) + 2*frame->pad_hor_c2 + 15) & ~15;
-    frame->offset_c2 = frame->pad_ver_c2 * frame->stride_c2 + frame->pad_hor_c2;
-    int area_c = (((height >> 1) + 2*frame->pad_ver_c2) * frame->stride_c2 + 16 + 15) & ~15;
-    frame->u2 = (uint8_t *)malloc(2*area_c*sizeof(uint8_t))+frame->offset_c2;
-    frame->v2 = frame->u2 + area_c*sizeof(uint8_t);
-    align = (16 - ((int)(uintptr_t)frame->u2)) & 15;
-    frame->offset_c2 += align;
-    frame->u2 += align;
-    frame->v2 += align;
-  } else
-    frame->u2 = frame->v2 = 0;
 
   align = (16 - ((int)(uintptr_t)frame->y)) & 15;
   frame->offset_y += align;
@@ -480,43 +466,6 @@ void close_yuv_frame(yuv_frame_t  *frame)
 {
   free(frame->y-frame->offset_y);
   free(frame->u-frame->offset_c);
-  if (frame->u2)
-    free(frame->u2-frame->offset_c2);
-}
-
-void subsample_yuv_frame(yuv_frame_t  *frame)
-{
-  if (frame->u2)
-    for (int i = 0; i < frame->height; i += 2) {
-      int pos = i * frame->stride_c;
-      int pos2 = pos + frame->stride_c;
-      for (int j = 0; j < frame->width; j += 2) {
-	frame->u2[i/2*frame->stride_c2+j/2] =
-	  (frame->u[pos+j] + frame->u[pos+1+j] + frame->u[pos2+j] + frame->u[pos2+1+j] + 2) >> 2;
-	frame->v2[i/2*frame->stride_c2+j/2] =
-	  (frame->v[pos+j] + frame->v[pos+1+j] + frame->v[pos2+j] + frame->v[pos2+1+j] + 2) >> 2;
-      }
-    }
-}
-
-void swap_chroma(yuv_frame_t *frame)
-{
-  uint8_t *tmp;
-  int tmp2;
-
-  tmp = frame->u2;
-  frame->u2 = frame->u;
-  frame->u = tmp;
-  tmp = frame->v2;
-  frame->v2 = frame->v;
-  frame->v = tmp;
-  tmp2 = frame->stride_c2;
-  frame->stride_c2 = frame->stride_c;
-  frame->stride_c = tmp2;
-  tmp2 = frame->offset_c2;
-  frame->offset_c2 = frame->offset_c;
-  frame->offset_c = tmp2;
-  frame->sub ^= 1;
 }
 
 void read_yuv_frame(yuv_frame_t *frame, FILE *infile)
@@ -629,38 +578,6 @@ void pad_yuv_frame(yuv_frame_t * f)
     memcpy(&f->u[i*sc-f->pad_hor_c], &f->u[(h-1)*sc-f->pad_hor_c], w+2*f->pad_hor_c);
     memcpy(&f->v[i*sc-f->pad_hor_c], &f->v[(h-1)*sc-f->pad_hor_c], w+2*f->pad_hor_c);
   }
-
-  if (f->u2) {
-    sc = f->stride_c2;
-
-    /* Left and right */
-    w = f->width >> 1;
-    h = f->height >> 1;
-    for (i=0;i<h;i++)
-    {
-      val=f->u2[i*sc];
-      memset(&f->u2[i*sc-f->pad_hor_c2],val,f->pad_hor_c2*sizeof(uint8_t));
-      val=f->u2[i*sc+w-1];
-      memset(&f->u2[i*sc+w],val,f->pad_hor_c2*sizeof(uint8_t));
-
-      val=f->v2[i*sc];
-      memset(&f->v2[i*sc-f->pad_hor_c2],val,f->pad_hor_c2*sizeof(uint8_t));
-      val=f->v2[i*sc+w-1];
-      memset(&f->v2[i*sc+w],val,f->pad_hor_c2*sizeof(uint8_t));
-    }
-
-    /* Top and bottom */
-    for (i=-f->pad_ver_c2;i<0;i++)
-    {
-      memcpy(&f->u2[i*sc-f->pad_hor_c2], &f->u2[-f->pad_hor_c2], w+2*f->pad_hor_c2);
-      memcpy(&f->v2[i*sc-f->pad_hor_c2], &f->v2[-f->pad_hor_c2], w+2*f->pad_hor_c2);
-    }
-    for (i=h;i<h+f->pad_ver_c2;i++)
-    {
-      memcpy(&f->u2[i*sc-f->pad_hor_c2], &f->u2[(h-1)*sc-f->pad_hor_c2], w+2*f->pad_hor_c2);
-      memcpy(&f->v2[i*sc-f->pad_hor_c2], &f->v2[(h-1)*sc-f->pad_hor_c2], w+2*f->pad_hor_c2);
-    }
-  }
 }
 
 void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
@@ -680,7 +597,6 @@ void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
     memcpy(&ref_v[i*ref->stride_c],&rec->v[i*rec->stride_c],(width>>ref->sub)*sizeof(uint8_t));
   }
 
-  subsample_yuv_frame(ref);
   pad_yuv_frame(ref);
 }
 

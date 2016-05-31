@@ -136,16 +136,16 @@ int main(int argc, char** argv)
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
     for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-      create_yuv_frame(&rec[r],width,height,decoder_info.subsample == 420,0,0,1);
+      create_yuv_frame(&rec[r],width,height,decoder_info.subsample == 420,0,0);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
-      create_yuv_frame(&ref[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,1);
+      create_yuv_frame(&ref[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y);
       decoder_info.ref[r] = &ref[r];
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){
         decoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-        create_yuv_frame(decoder_info.interp_frames[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,1);
+        create_yuv_frame(decoder_info.interp_frames[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y);
       }
     }
 

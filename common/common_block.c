@@ -161,12 +161,12 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
   }
 }
 
-void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int stride)
+void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int pstride, int stride)
 { 
   int i,j;
   for(i=0;i<size;i++){    
     for (j=0;j<size;j++){
-      rec[i*stride+j] = (uint8_t)clip255(block[i*size+j] + (int16_t)pblock[i*size+j]);      
+      rec[i*stride+j] = (uint8_t)clip255(block[i*size+j] + (int16_t)pblock[i*pstride+j]);
     }
   }
 }
@@ -213,6 +213,48 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, in
       int delta;
       delta = clpf_sample(X, A, B, C, D, E, F, strength);
       dst[y*stride + x] = X + delta;
+    }
+  }
+}
+
+void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub)
+{
+  int n = min(8, size);
+
+  for (int k = 0; k < size-n+1; k += n) {
+    for (int l = 0; l < size-n+1; l += n) {
+      double ysum = 0, csum = 0, yysum = 0, ycsum = 0, ccsum = 0;
+      for (int i = k; i < k+n; i++)
+        for (int j = l; j < l+n; j++) {
+          // Compute linear fit between predicted chroma and predicted luma
+          int cs = c[(i >> sub) * (cstride >> sub) + (j >> sub)];
+          ysum  += y[i*size+j];
+          yysum += y[i*size+j] * y[i*size+j];
+          csum  += cs;
+          ycsum += y[i*size+j] * cs;
+          ccsum += cs * cs;
+        }
+
+      double ssyy = yysum - (ysum/n)*(ysum/n);
+      double sscc = ccsum - (csum/n)*(csum/n);
+      double ssyc = ycsum - (ysum/n)*(csum/n);
+
+      if (ssyy){// && 4 * ssyc * ssyc > ssyy * sscc) {
+	double a = ssyc / ssyy;
+	double b = (csum - a*ysum) / (n*n);
+
+	// Map reconstructed luma to new predicted chroma
+        if (sub) {
+          for (int i = k/2; i < (k+n)/2; i++)
+            for (int j = l/2; j < (l+n)/2; j++)
+              c[i*cstride/2+j] =
+                (int)(clip255(a*ry[(i*2+0)*stride+j*2+0] + b) + clip255(a*ry[(i*2+0)*stride+j*2+1] + b) +
+                      clip255(a*ry[(i*2+1)*stride+j*2+0] + b) + clip255(a*ry[(i*2+1)*stride+j*2+1] + b) + 2) >> 2;
+        } else
+          for (int i = k; i < k+n; i++)
+            for (int j = l; j < l+n; j++)
+              c[i*cstride+j] = clip255(a*ry[i*stride+j] + b);
+      }
     }
   }
 }

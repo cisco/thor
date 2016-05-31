@@ -156,16 +156,6 @@ void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *d
   *best_strength = best ? 1<<((best-1) & 3) : 0;
 }
 
-static void swap_chroma_ref(encoder_info_t *encoder_info)
-{
-  for (int i = 0; i < MAX_REF_FRAMES; i++)
-    swap_chroma(encoder_info->ref[i]);
-
-  if (encoder_info->params->interp_ref)
-    for (int i = 0; i < MAX_SKIP_FRAMES; i++)
-      swap_chroma(encoder_info->interp_frames[i]);
-}
-
 void encode_frame(encoder_info_t *encoder_info)
 {
   int k,l;
@@ -219,8 +209,7 @@ void encode_frame(encoder_info_t *encoder_info)
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int adaptive_chroma;
-      int sub;
+      int sub = encoder_info->params->subsample != 444;
       int xposY = l*sb_size;
       int yposY = k*sb_size;
       for (int ref_idx = 0; ref_idx <= frame_info->num_ref - 1; ref_idx++){
@@ -228,19 +217,6 @@ void encode_frame(encoder_info_t *encoder_info)
         frame_info->mvcand_mask[ref_idx] = 0;
       }
       frame_info->best_ref = -1;
-
-      if (encoder_info->params->subsample == 444) {
-	adaptive_chroma = 1;
-        put_flc(1, adaptive_chroma, stream);
-        if (adaptive_chroma) {
-          sub = 1;
-          swap_chroma_ref(encoder_info);
-        } else
-	  sub = 0;
-      } else {
-	adaptive_chroma = 0;
-	sub = 1;
-      }
 
       int max_delta_qp = encoder_info->params->max_delta_qp;
       if (max_delta_qp){
@@ -255,7 +231,7 @@ void encode_frame(encoder_info_t *encoder_info)
         max_qp = qp+max_delta_qp;
         int pqp = encoder_info->frame_info.prev_qp; // Save prev_qp in local variable
         for (qp0=min_qp;qp0<=max_qp;qp0+=encoder_info->params->delta_qp_step){
-          cost = process_block(encoder_info, sb_size, yposY, xposY, qp0, sub, adaptive_chroma);
+          cost = process_block(encoder_info, sb_size, yposY, xposY, qp0, sub);
           if (cost < min_cost){
             min_cost = cost;
             best_qp = qp0;
@@ -263,23 +239,21 @@ void encode_frame(encoder_info_t *encoder_info)
         }
         encoder_info->frame_info.prev_qp = pqp; // Restore prev_qp from local variable
         write_stream_pos(stream,&stream_pos_ref);
-        process_block(encoder_info, sb_size, yposY, xposY, best_qp, sub, adaptive_chroma);
+        process_block(encoder_info, sb_size, yposY, xposY, best_qp, sub);
       }
       else{
         if (encoder_info->params->bitrate > 0) {
           start_bits_sb = get_bit_pos(stream);
-          process_block(encoder_info, sb_size, yposY, xposY, qp, sub, adaptive_chroma);
+          process_block(encoder_info, sb_size, yposY, xposY, qp, sub);
           end_bits_sb = get_bit_pos(stream);
           num_bits_sb = end_bits_sb - start_bits_sb;
           qp = update_rate_control_sb(encoder_info->rc, sb_idx, num_bits_sb, qp);
           sb_idx++;
         }
         else {
-          process_block(encoder_info, sb_size, yposY, xposY, qp, sub, adaptive_chroma);
+          process_block(encoder_info, sb_size, yposY, xposY, qp, sub);
         }
       }
-      if (adaptive_chroma)
-	swap_chroma_ref(encoder_info);
     }
   }
 

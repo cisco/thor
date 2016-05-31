@@ -27,8 +27,7 @@ COMMON_SOURCES = \
 	common/snr.c \
 	common/simd.c \
         common/temporal_interp.c \
-        common/wt_matrix.c \
-        common/chroma.c
+        common/wt_matrix.c
 
 
 ENCODER_SOURCES = \

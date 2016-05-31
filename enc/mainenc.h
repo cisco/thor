@@ -77,7 +77,6 @@ typedef struct
   int dqpI;
   int intra_period;
   int intra_rdo;
-  int rdoq;
   int max_delta_qp;
   int delta_qp_step;
   int encoder_speed;
@@ -128,7 +127,6 @@ typedef struct
   double lambda;
   int qp;
   int sub;
-  int adaptive_chroma;
 } block_info_t; //TODO: Consider merging with block_pos_t
 
 

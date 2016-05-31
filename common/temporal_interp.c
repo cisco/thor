@@ -980,7 +980,7 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   int interpolate = 1;
   for (int j=1; j<max_levels; j++) {
     out_down[j]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(out_down[j],widthin>>j,heightin>>j, 1, 32, 32, 0);
+    create_yuv_frame(out_down[j],widthin>>j,heightin>>j, 1, 32, 32);
   }
   out_down[0]=new_frame;
 
@@ -995,8 +995,8 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   for (int i=1; i<max_levels; ++i) {
     in_down[i][0]=malloc(sizeof(yuv_frame_t));
     in_down[i][1]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(in_down[i][0],widthin>>i, heightin>>i, 1, 32, 32, 0);
-    create_yuv_frame(in_down[i][1],widthin>>i, heightin>>i, 1, 32, 32, 0);
+    create_yuv_frame(in_down[i][0],widthin>>i, heightin>>i, 1, 32, 32);
+    create_yuv_frame(in_down[i][1],widthin>>i, heightin>>i, 1, 32, 32);
   }
   // Level 0 is just the original pictures
   in_down[0][0]=ref0;

@@ -142,7 +142,7 @@ void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* 
   }
 }
 
-void get_dc_pred(uint8_t* left, uint8_t* top, int size,uint8_t *pblock){
+void get_dc_pred(uint8_t* left, uint8_t* top, int size, uint8_t *pblock, int pstride){
   int i,j,dc=128,sum;
 
   sum = 0;
@@ -152,34 +152,34 @@ void get_dc_pred(uint8_t* left, uint8_t* top, int size,uint8_t *pblock){
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*size+j] = dc;
+      pblock[i*pstride+j] = dc;
     }
   }
 }
 
 
-void get_hor_pred(uint8_t* left, int size,uint8_t *pblock){
+void get_hor_pred(uint8_t* left, int size, uint8_t *pblock, int pstride) {
   int i,j;
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*size+j] = left[i];
+      pblock[i*pstride+j] = left[i];
     }
   }
 }
 
 
-void get_ver_pred(uint8_t* top, int size,uint8_t *pblock){
+void get_ver_pred(uint8_t* top, int size, uint8_t *pblock, int pstride) {
   int i,j;
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*size+j] = top[j];
+      pblock[i*pstride+j] = top[j];
     }
   }
 }
 
-void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left,int size,uint8_t *pblock){
+void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
   int i,j;
 
   int16_t topF[MAX_TR_SIZE];
@@ -208,12 +208,12 @@ void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left,int size,uint
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*size+j] = clip255((leftF[i] + topF[j] - top_leftF + 4) / 8);
+      pblock[i*pstride+j] = clip255((leftF[i] + topF[j] - top_leftF + 4) / 8);
     }
   }
 }
 
-void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock){
+void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   uint8_t topF[MAX_TR_SIZE];
@@ -227,20 +227,20 @@ void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uin
     for (j=0;j<size;j++){
       diag = i-j;
       if (diag > 0){
-        pblock[i*size+j] = leftF[diag-1];
+        pblock[i*pstride+j] = leftF[diag-1];
         if (diag-1 < 0) printf("error\n");
       }
       else if (diag==0)
-        pblock[i*size+j] = top_leftF;
+        pblock[i*pstride+j] = top_leftF;
       else{
-        pblock[i*size+j] = topF[-diag-1];
+        pblock[i*pstride+j] = topF[-diag-1];
         if (-diag-1 < 0) printf("error\n");
       }
     }
   }
 }
 
-void get_upright_pred(uint8_t *top, int size, uint8_t *pblock){
+void get_upright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   //int upright_available;
@@ -252,12 +252,12 @@ void get_upright_pred(uint8_t *top, int size, uint8_t *pblock){
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
       diag = i+j;
-      pblock[i*size+j] = topF[diag+1];
+      pblock[i*pstride+j] = topF[diag+1];
     }
   }
 }
 
-void get_upupright_pred(uint8_t *top,int size,uint8_t *pblock){
+void get_upupright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   uint8_t topF[2*MAX_TR_SIZE];
@@ -269,16 +269,16 @@ void get_upupright_pred(uint8_t *top,int size,uint8_t *pblock){
     for (j=0;j<size;j++){
       diag = i+2*j;
       if (diag&1){
-        pblock[i*size+j] = topF[(diag+1)/2];
+        pblock[i*pstride+j] = topF[(diag+1)/2];
       }
       else{
-        pblock[i*size+j] = (topF[diag/2] + topF[diag/2 + 1])>>1;
+        pblock[i*pstride+j] = (topF[diag/2] + topF[diag/2 + 1])>>1;
       }
     }
   }
 }
 
-void get_upupleft_pred(uint8_t *left,uint8_t * top, uint8_t top_left, int size,uint8_t *pblock){
+void get_upupleft_pred(uint8_t *left, uint8_t * top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   uint8_t topF[MAX_TR_SIZE];
@@ -292,24 +292,24 @@ void get_upupleft_pred(uint8_t *left,uint8_t * top, uint8_t top_left, int size,u
     for (j=0;j<size;j++){
       diag = i-2*j;
       if (diag > 1){
-        pblock[i*size+j] = leftF[diag-2];
+        pblock[i*pstride+j] = leftF[diag-2];
       }
       else if (diag == 1)
-        pblock[i*size+j] = top_leftF;
+        pblock[i*pstride+j] = top_leftF;
       else if (diag == 0)
-        pblock[i*size+j] = (top_leftF + topF[0])>>1;
+        pblock[i*pstride+j] = (top_leftF + topF[0])>>1;
       else{
         assert((-diag)/2 < size);
         if (diag&1)
-          pblock[i*size+j] = topF[(-diag)/2];
+          pblock[i*pstride+j] = topF[(-diag)/2];
         else
-          pblock[i*size+j] = (topF[(-diag)/2] + topF[((-diag)/2) - 1])>>1;
+          pblock[i*pstride+j] = (topF[(-diag)/2] + topF[((-diag)/2) - 1])>>1;
       }
     }
   }
 }
 
-void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock){
+void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   uint8_t topF[MAX_TR_SIZE];
@@ -323,24 +323,24 @@ void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size
     for (j=0;j<size;j++){
       diag = 2*i-j;
       if (diag < -1){
-        pblock[i*size+j] = topF[-diag-2];
+        pblock[i*pstride+j] = topF[-diag-2];
       }
       else if (diag == -1)
-        pblock[i*size+j] = top_leftF;
+        pblock[i*pstride+j] = top_leftF;
       else if (diag == 0)
-        pblock[i*size+j] = (top_leftF + leftF[0])>>1;
+        pblock[i*pstride+j] = (top_leftF + leftF[0])>>1;
       else{
         assert(diag/2 < size);
         if (diag&1)
-          pblock[i*size+j] = leftF[diag/2];
+          pblock[i*pstride+j] = leftF[diag/2];
         else
-          pblock[i*size+j] = (leftF[diag/2] + leftF[diag/2 - 1])>>1;
+          pblock[i*pstride+j] = (leftF[diag/2] + leftF[diag/2 - 1])>>1;
       }
     }
   }
 }
 
-void get_downleftleft_pred(uint8_t *left,int size,uint8_t *pblock){
+void get_downleftleft_pred(uint8_t *left, int size, uint8_t *pblock, int pstride) {
   int i,j,diag;
 
   uint8_t leftF[2*MAX_TR_SIZE];
@@ -352,38 +352,37 @@ void get_downleftleft_pred(uint8_t *left,int size,uint8_t *pblock){
     for (j=0;j<size;j++){
       diag = 2*i+j;
       if (diag&1) {
-        pblock[i*size+j] = leftF[(diag+1)/2];
+        pblock[i*pstride+j] = leftF[(diag+1)/2];
       } else {
-        pblock[i*size+j] = (leftF[diag/2] + leftF[diag/2 + 1])>>1;
+        pblock[i*pstride+j] = (leftF[diag/2] + leftF[diag/2 + 1])>>1;
       }
     }
   }
 }
 
 void get_intra_prediction(uint8_t* left, uint8_t* top, uint8_t top_left, int ypos,int xpos,
-    int size, uint8_t *pblock,intra_mode_t intra_mode)
+			  int size, uint8_t *pblock, int pstride, intra_mode_t intra_mode)
 {
   if (intra_mode == MODE_DC)
-    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left ,size,pblock);
+    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride);
   else if (intra_mode == MODE_HOR)
-    get_hor_pred(left,size,pblock);
+    get_hor_pred(left, size, pblock, pstride);
   else if (intra_mode == MODE_VER)
-    get_ver_pred(top,size,pblock);
+    get_ver_pred(top, size, pblock, pstride);
   else if (intra_mode == MODE_PLANAR)
-    get_planar_pred(left,top,top_left,size,pblock);
+    get_planar_pred(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_UPLEFT)
-    get_upleft_pred(left,top,top_left,size,pblock);
+    get_upleft_pred(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_UPRIGHT)
-    get_upright_pred(top,size,pblock);
+    get_upright_pred(top, size, pblock, pstride);
   else if (intra_mode == MODE_UPUPRIGHT)
-    get_upupright_pred(top,size,pblock);
+    get_upupright_pred(top, size, pblock, pstride);
   else if (intra_mode == MODE_UPUPLEFT)
-    get_upupleft_pred(left,top,top_left,size,pblock);
+    get_upupleft_pred(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_UPLEFTLEFT)
-    get_upleftleft_pred(left,top,top_left,size,pblock);
+    get_upleftleft_pred(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_DOWNLEFTLEFT)
-    get_downleftleft_pred(left,size,pblock);
+    get_downleftleft_pred(left, size, pblock, pstride);
   else
-    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left ,size,pblock);
+    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride);
 }
-

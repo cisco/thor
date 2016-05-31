@@ -36,12 +36,14 @@ int get_upright_available(int ypos, int xpos, int bwidth, int bheight, int fwidt
 int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
 
 void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix);
-void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int stride);
+void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int pstride, int stride);
 
 void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
 
 void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength);
 
 int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int b);
+
+void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub);
 
 #endif

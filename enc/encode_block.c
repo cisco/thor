@@ -150,13 +150,12 @@ int quantize (int16_t *coeff, int16_t *coeffq, int qp, int size, int coeff_block
   return (cbp != 0);
 }
 
-void get_residual(int16_t *block,uint8_t *pblock, uint8_t *orig, int size, int orig_stride)
+static void get_residual(int16_t *block, uint8_t *pblock, uint8_t *orig, int size, int pred_stride, int orig_stride)
 { 
   int i,j;
-  
   for(i=0;i<size;i++){    
     for (j=0;j<size;j++){
-      block[i*size+j] = (int16_t)orig[i*orig_stride+j] - (int16_t)pblock[i*size+j];
+      block[i*size+j] = (int16_t)orig[i*orig_stride+j] - (int16_t)pblock[i*pred_stride+j];
     }
   }
 }
@@ -940,27 +939,27 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
   min_sad = (1<<30);
   *intra_mode = MODE_DC;
 
-  get_dc_pred(xposY >=0 ? left:top,yposY >= 0 ? top:left,size,pblock);
+  get_dc_pred(xposY >=0 ? left:top,yposY >= 0 ? top:left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_DC;
     min_sad = sad;
   }
-  get_hor_pred(left,size,pblock);
+  get_hor_pred(left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_HOR;
     min_sad = sad;
   }
 
-  get_ver_pred(top,size,pblock);
+  get_ver_pred(top,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_VER;
     min_sad = sad;
   }
 
-  get_planar_pred(left,top,top_left,size,pblock);
+  get_planar_pred(left,top,top_left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_PLANAR;
@@ -974,42 +973,42 @@ int search_intra_prediction_params(uint8_t *org_y,yuv_frame_t *rec,block_pos_t *
     return min_sad;
   }
 
-  get_upleft_pred(left,top,top_left,size,pblock);
+  get_upleft_pred(left,top,top_left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPLEFT;
     min_sad = sad;
   }
 
-  get_upright_pred(top,size,pblock);
+  get_upright_pred(top,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPRIGHT;
     min_sad = sad;
   }
 
-  get_upupright_pred(top,size,pblock);
+  get_upupright_pred(top,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPUPRIGHT;
     min_sad = sad;
   }
 
-  get_upupleft_pred(left,top,top_left,size,pblock);
+  get_upupleft_pred(left,top,top_left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPUPLEFT;
     min_sad = sad;
   }
 
-  get_upleftleft_pred(left,top,top_left,size,pblock);
+  get_upleftleft_pred(left,top,top_left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_UPLEFTLEFT;
     min_sad = sad;
   }
 
-  get_downleftleft_pred(left,size,pblock);
+  get_downleftleft_pred(left,size,pblock,size);
   sad = sad_calc(org_y,pblock,size,size,size,size);
   if (sad < min_sad){
     *intra_mode = MODE_DOWNLEFTLEFT;
@@ -1089,8 +1088,8 @@ int search_inter_prediction_params(uint8_t *org_y,yuv_frame_t *ref,block_pos_t *
 }
 
 int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, uint8_t* rec, int rec_stride, int ypos, int xpos, int size, int qp,
-    uint8_t *pblock, int16_t *coeffq, uint8_t *rec_block, int coeff_type, int tb_split,int rdoq, int width, intra_mode_t intra_mode, int upright_available,int downleft_available,
-    qmtx_t ** wmatrix, qmtx_t ** iwmatrix)
+                                        uint8_t *pblock, int16_t *coeffq, uint8_t *rec_block, int coeff_type, int tb_split, int width, intra_mode_t intra_mode, int upright_available,int downleft_available,
+                                        qmtx_t ** wmatrix, qmtx_t ** iwmatrix, uint8_t *pblock_y, uint8_t *rec_y, int rec_stride2, int sub)
 {
     int cbp,cbpbit;
     int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
@@ -1110,11 +1109,13 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
       int i,j,index=0;
       for (i=0;i<size;i+=size2){
         for (j=0;j<size;j+=size2){
-
           make_top_and_left(left_data,top_data,&top_left,rec,rec_stride,&rec_block[i*size+j],size,i,j,ypos,xpos,size2,upright_available,downleft_available,1);
 
-          get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,pblock,intra_mode);
-          get_residual (block2, pblock, &orig[i*orig_stride+j], size2, orig_stride);
+          get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode);
+          if (pblock_y)
+            get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride2+(j<<sub)], size2 << sub, size << sub, rec_stride2, sub);
+
+          get_residual (block2, &pblock[i*size+j], &orig[i*orig_stride+j], size2, size, orig_stride);
           transform (block2, coeff, size2, encoder_info->params->encoder_speed > 1);
           cbpbit = quantize (coeff, coeffq+index, qp, size2, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size2/4)] : NULL);
           if (cbpbit){
@@ -1126,21 +1127,24 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
           }
           cbp = (cbp<<1) + cbpbit;
           index += MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
-          reconstruct_block (rblock2, pblock, &rec_block[i*size+j], size2, size);
+          reconstruct_block (rblock2, &pblock[i*size+j], &rec_block[i*size+j], size2, size, size);
         }
       }
     }
     else{
       make_top_and_left(left_data,top_data,&top_left,rec,rec_stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-      get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,intra_mode);
-      get_residual (block, pblock, orig, size, orig_stride);
+      get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode);
+      if (pblock_y)
+        get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride2, sub);
+
+      get_residual (block, pblock, orig, size, size, orig_stride);
 
       transform (block, coeff, size, encoder_info->params->encoder_speed > 1);
       cbp = quantize (coeff, coeffq, qp, size, coeff_type, encoder_info->params->qmtx ? wmatrix[log2i(size/4)] : NULL);
       if (cbp){
         dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL);
         inverse_transform (rcoeff, rblock, size);
-        reconstruct_block (rblock, pblock, rec_block, size, size);
+        reconstruct_block (rblock, pblock, rec_block, size, size, size);
       }
       else{
         memcpy(rec_block,pblock,size*size*sizeof(uint8_t));
@@ -1158,7 +1162,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
     return cbp;
 }
 
-int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, int size, int qp, uint8_t *pblock, int16_t *coeffq, uint8_t *rec, int coeff_type, int tb_split,int rdoq, qmtx_t ** wmatrix, qmtx_t ** iwmatrix)
+int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *orig, int orig_stride, int size, int qp, uint8_t *pblock, int16_t *coeffq, uint8_t *rec, int coeff_type, int tb_split, qmtx_t ** wmatrix, qmtx_t ** iwmatrix)
 {
     int cbp,cbpbit;
     int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
@@ -1168,7 +1172,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
     int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
     int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
-    get_residual (block, pblock, orig, size, orig_stride);
+    get_residual (block, pblock, orig, size, size, orig_stride);
 
     if (tb_split){
       int size2 = size/2;
@@ -1199,7 +1203,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
           index += MAX_QUANT_SIZE*MAX_QUANT_SIZE; //TODO: Pack better when tb_split
         }
       }
-      reconstruct_block (rblock, pblock, rec, size, size);
+      reconstruct_block (rblock, pblock, rec, size, size, size);
     }
     else{
       transform (block, coeff, size, (size == 64 && encoder_info->params->encoder_speed > 0) || encoder_info->params->encoder_speed > 1);
@@ -1207,7 +1211,7 @@ int encode_and_reconstruct_block_inter (encoder_info_t *encoder_info, uint8_t *o
       if (cbp){
         dequantize (coeffq, rcoeff, qp, size, encoder_info->params->qmtx ? iwmatrix[log2i(size/4)] : NULL);
         inverse_transform (rcoeff, rblock, size);
-        reconstruct_block (rblock, pblock, rec, size, size);
+        reconstruct_block (rblock, pblock, rec, size, size, size);
       }
       else{
         memcpy(rec,pblock,size*size*sizeof(uint8_t));
@@ -1297,17 +1301,19 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
     int downleft_available = get_downleft_available(yposY, xposY, bwidth, bheight, width, height, 1 << encoder_info->params->log2_sb_size);
 
     uint8_t* yrec = &rec->y[yposY*rec->stride_y+xposY];
-    uint8_t* urec = block_info->adaptive_chroma ? &rec->u2[yposC*rec->stride_c2+xposC] : &rec->u[yposC*rec->stride_c+xposC];
-    uint8_t* vrec = block_info->adaptive_chroma ? &rec->v2[yposC*rec->stride_c2+xposC] : &rec->v[yposC*rec->stride_c+xposC];
+    uint8_t* urec = &rec->u[yposC*rec->stride_c+xposC];
+    uint8_t* vrec = &rec->v[yposC*rec->stride_c+xposC];
 
     /* Predict, create residual, transform, quantize, and reconstruct.*/
     int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
-    cbp.y = encode_and_reconstruct_block_intra (encoder_info, org_y,sizeY,yrec,rec->stride_y,yposY,xposY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,
-        tb_split,encoder_info->params->rdoq,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][0][1],encoder_info->iwmatrix[ql][0][1]);
-    cbp.u = encode_and_reconstruct_block_intra (encoder_info, org_u,sizeC,urec,block_info->adaptive_chroma  ? rec->stride_c2 : rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,
-        tb_split&&(sizeC>4),encoder_info->params->rdoq,width>>block_info->sub,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][1][1],encoder_info->iwmatrix[ql][1][1]);
-    cbp.v = encode_and_reconstruct_block_intra (encoder_info, org_v,sizeC,vrec,block_info->adaptive_chroma  ? rec->stride_c2 : rec->stride_c,yposC,xposC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,
-        tb_split&&(sizeC>4),encoder_info->params->rdoq,width>>block_info->sub,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][2][1],encoder_info->iwmatrix[ql][2][1]);
+    cbp.y = encode_and_reconstruct_block_intra(encoder_info, org_y,sizeY,yrec,rec->stride_y,yposY,xposY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,
+					       tb_split,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][0][1],encoder_info->iwmatrix[ql][0][1], NULL, 0, 0, 0);
+    cbp.u = encode_and_reconstruct_block_intra(encoder_info, org_u,sizeC,urec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,coeffq_u,rec_u,((frame_type==I_FRAME)<<1)|1,
+					       tb_split && sizeC > 4,width>>block_info->sub,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][1][1],encoder_info->iwmatrix[ql][1][1],
+					       !block_info->sub && (cbp.y || tb_split) ? pblock_y : 0, rec_y, sizeY, block_info->sub);
+    cbp.v = encode_and_reconstruct_block_intra(encoder_info, org_v,sizeC,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_v,coeffq_v,rec_v,((frame_type==I_FRAME)<<1)|1,
+					       tb_split && sizeC > 4,width>>block_info->sub,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][2][1],encoder_info->iwmatrix[ql][2][1],
+					       !block_info->sub && (cbp.y || tb_split) ? pblock_y : 0, rec_y, sizeY, block_info->sub);
 
     if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
     if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
@@ -1352,12 +1358,16 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       /* Create residual, transform, quantize, and reconstruct.
       NB: coeff block type is here determined by the frame type not the mode. This is only used for quantisation optimisation */
       int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
-      cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split, encoder_info->params->rdoq,
-        encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
-      cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && (sizeC>4),
-        encoder_info->params->rdoq, encoder_info->wmatrix[ql][1][0], encoder_info->iwmatrix[ql][1][0]);
-      cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && (sizeC>4),
-        encoder_info->params->rdoq, encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
+      cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split,
+						 encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
+      if (!block_info->sub && (cbp.y || tb_split)) {  // Use reconstructed luma to improve chroma prediction
+        get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, sizeY, block_info->sub);
+        get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, sizeY, block_info->sub);
+      }
+      cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
+						 encoder_info->wmatrix[ql][1][0], encoder_info->iwmatrix[ql][1][0]);
+      cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
+						 encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
 
       if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
       if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
@@ -1389,14 +1399,14 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
   return nbits;
 }
 
-void copy_block_to_frame(yuv_frame_t *frame, yuv_block_t *block, block_pos_t *block_pos, int adaptive_chroma)
+void copy_block_to_frame(yuv_frame_t *frame, yuv_block_t *block, block_pos_t *block_pos)
 {
   int size = block_pos->size;
   int ypos = block_pos->ypos;
   int xpos = block_pos->xpos;
   int bwidth = block_pos->bwidth;
   int bheight = block_pos->bheight;
-  int pos, pos2, pos3;
+  int pos, pos2;
   for (int i = 0; i < bheight; i++) {
     pos = (ypos+i) * frame->stride_y + xpos;
     memcpy(&frame->y[pos],&block->y[i*size],bwidth*sizeof(uint8_t));
@@ -1404,32 +1414,14 @@ void copy_block_to_frame(yuv_frame_t *frame, yuv_block_t *block, block_pos_t *bl
   for (int i = 0; i < bheight >> frame->sub; i += 2) {
     pos = ((ypos>>frame->sub)+i) * frame->stride_c + (xpos>>frame->sub);
     pos2 = ((ypos>>frame->sub)+i+1) * frame->stride_c + (xpos>>frame->sub);
-    pos3 = ((ypos+i)>>1) * frame->stride_c2 + (xpos>>1);
-    if (adaptive_chroma) {
-      for (int j = 0; j < bwidth; j += 2) {
-        frame->u[pos+j] = frame->u[pos+1+j] = frame->u[pos2+j] = frame->u[pos2+1+j] = block->u[i/2*size/2+j/2];
-        frame->v[pos+j] = frame->v[pos+1+j] = frame->v[pos2+j] = frame->v[pos2+1+j] = block->v[i/2*size/2+j/2];
-      }
-      memcpy(&frame->u2[pos3],&block->u[i/2*size/2],bwidth/2*sizeof(uint8_t));
-      memcpy(&frame->v2[pos3],&block->v[i/2*size/2],bwidth/2*sizeof(uint8_t));
-    } else {
-      memcpy(&frame->u[pos],&block->u[i*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&frame->v[pos],&block->v[i*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&frame->u[pos2],&block->u[(i+1)*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&frame->v[pos2],&block->v[(i+1)*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
-      if (frame->u2) {
-	for (int j = 0; j < bwidth; j += 2) {
-	  frame->u2[pos3 + j/2] =
-	    (frame->u[pos+j] + frame->u[pos+1+j] + frame->u[pos2+j] + frame->u[pos2+1+j] + 2) >> 2;
-	  frame->v2[pos3 + j/2] =
-	    (frame->v[pos+j] + frame->v[pos+1+j] + frame->v[pos2+j] + frame->v[pos2+1+j] + 2) >> 2;
-	}
-      }
-    }
+    memcpy(&frame->u[pos],&block->u[i*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&frame->v[pos],&block->v[i*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&frame->u[pos2],&block->u[(i+1)*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&frame->v[pos2],&block->v[(i+1)*size>>frame->sub],(bwidth>>frame->sub)*sizeof(uint8_t));
   }
 }
 
-void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_pos_t *block_pos, int adaptive_chroma)
+void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_pos_t *block_pos)
 {
   int size = block_pos->size;
   int ypos = block_pos->ypos;
@@ -1445,17 +1437,10 @@ void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_pos_t *bl
   for (int i = 0; i < bheight >> frame->sub; i += 2) {
     pos = ((ypos>>frame->sub)+i) * frame->stride_c + (xpos>>frame->sub);
     pos2 = ((ypos>>frame->sub)+i+1) * frame->stride_c + (xpos>>frame->sub);
-    if (adaptive_chroma) {
-      for (int j = 0; j < bwidth; j += 2) {
-        block->u[i/2*size/2+j/2] = (frame->u[pos+j] + frame->u[pos+1+j] + frame->u[pos2+j] + frame->u[pos2+1+j] + 2) >> 2;
-        block->v[i/2*size/2+j/2] = (frame->v[pos+j] + frame->v[pos+1+j] + frame->v[pos2+j] + frame->v[pos2+1+j] + 2) >> 2;
-      }
-    } else {
-      memcpy(&block->u[i*size>>frame->sub],&frame->u[pos],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&block->v[i*size>>frame->sub],&frame->v[pos],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&block->u[(i+1)*size>>frame->sub],&frame->u[pos2],(bwidth>>frame->sub)*sizeof(uint8_t));
-      memcpy(&block->v[(i+1)*size>>frame->sub],&frame->v[pos2],(bwidth>>frame->sub)*sizeof(uint8_t));
-    }
+    memcpy(&block->u[i*size>>frame->sub],&frame->u[pos],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&block->v[i*size>>frame->sub],&frame->v[pos],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&block->u[(i+1)*size>>frame->sub],&frame->u[pos2],(bwidth>>frame->sub)*sizeof(uint8_t));
+    memcpy(&block->v[(i+1)*size>>frame->sub],&frame->v[pos2],(bwidth>>frame->sub)*sizeof(uint8_t));
   }
 }
 
@@ -2153,7 +2138,7 @@ int check_early_skip_sub_block (encoder_info_t *encoder_info, uint8_t *orig, int
   int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *coeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
-  get_residual(block, pblock, orig, size, orig_stride);
+  get_residual(block, pblock, orig, size, size, orig_stride);
 
   int fast = 0; //Core transform is never larger than 16x16 when EARLY_SKIP_BLOCK_SIZE=16
   if (size > 4){
@@ -2192,7 +2177,7 @@ int check_early_skip_sub_blockC (encoder_info_t *encoder_info, uint8_t *orig, in
   int16_t *block = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *coeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
 
-  get_residual(block, pblock, orig, size, orig_stride);
+  get_residual(block, pblock, orig, size, size, orig_stride);
 
   cbp = 0;
   if (size==8){
@@ -2423,7 +2408,7 @@ static const uint16_t iq_8x8[52] =
 768, 862, 968, 1086, 1219, 1368, 1536, 1724, 1935, 2172 };
 
 
-int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp,int sub,int adaptive_chroma){
+int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp,int sub){
 
   int height = encoder_info->height;
   int width = encoder_info->width;
@@ -2470,7 +2455,6 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
   block_info->max_num_tb_part = (encoder_info->params->enable_tb_split==1) ? 2 : 1;
   block_info->max_num_pb_part = encoder_info->params->enable_pb_split ? 4 : 1;
   block_info->qp = qp;
-  block_info->adaptive_chroma = adaptive_chroma;
   block_info->sub = sub;
   block_info->delta_qp = qp - encoder_info->frame_info.prev_qp; //TODO: clip qp to 0,51
   block_info->block_context = &block_context;
@@ -2480,7 +2464,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
     block_info->lambda = encoder_info->frame_info.lambda_coeff*squared_lambda_QP[qp];
 
   /* Copy original data to smaller compact block */
-  copy_frame_to_block(block_info->org_block,encoder_info->orig,&block_info->block_pos,block_info->adaptive_chroma);
+  copy_frame_to_block(block_info->org_block,encoder_info->orig,&block_info->block_pos);
 
   find_block_contexts(ypos, xpos, height, width, size, encoder_info->deblock_data, &block_context, encoder_info->params->use_block_contexts);
 
@@ -2514,7 +2498,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       cost = cost_calc(org_block,rec_block,size,size,size,block_info->sub,nbit,lambda);
 
       /* Copy reconstructed data from smaller compact block to frame array */
-      copy_block_to_frame(encoder_info->rec,rec_block,&block_info->block_pos,block_info->adaptive_chroma);
+      copy_block_to_frame(encoder_info->rec,rec_block,&block_info->block_pos);
 
       /* Store deblock information for this block to frame array */
       copy_deblock_data(encoder_info,block_info);
@@ -2534,10 +2518,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       write_delta_qp(stream,block_info->delta_qp);
     }
     cost_small = 0; //TODO: Why not nbit * lambda?
-    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp,sub,adaptive_chroma);
-    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp,sub,adaptive_chroma);
-    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp,sub,adaptive_chroma);
-    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp,sub,adaptive_chroma);
+    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp,sub);
+    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp,sub);
+    cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp,sub);
+    cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp,sub);
   }
 
   if (encode_this_size || encode_rectangular_size){
@@ -2553,10 +2537,10 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       split_flag = 1;
       write_super_mode(stream, encoder_info, block_info, block_param, split_flag, encode_this_size);
       cost_small = 0; //TODO: Why not nbit * lambda?
-      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp,sub,adaptive_chroma);
-      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp,sub,adaptive_chroma);
-      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp,sub,adaptive_chroma);
-      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp,sub,adaptive_chroma);
+      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+0*new_size,qp,sub);
+      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+0*new_size,qp,sub);
+      cost_small += process_block(encoder_info,new_size,ypos+0*new_size,xpos+1*new_size,qp,sub);
+      cost_small += process_block(encoder_info,new_size,ypos+1*new_size,xpos+1*new_size,qp,sub);
     }
 
     if (cost <= cost_small) {
@@ -2566,7 +2550,7 @@ int process_block(encoder_info_t *encoder_info,int size,int ypos,int xpos,int qp
       encode_block(encoder_info, stream, block_info, &block_info->block_param);
 
       /* Copy reconstructed data from smaller compact block to frame array */
-      copy_block_to_frame(encoder_info->rec,block_info->rec_block, &block_info->block_pos, block_info->adaptive_chroma);
+      copy_block_to_frame(encoder_info->rec,block_info->rec_block, &block_info->block_pos);
 
       /* Store deblock information for this block to frame array */
       copy_deblock_data(encoder_info, block_info);

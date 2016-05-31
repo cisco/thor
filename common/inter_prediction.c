@@ -91,8 +91,8 @@ static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width
   mv_t mvtemp;
   mvtemp.x = sign ? -mv->x : mv->x;
   mvtemp.y = sign ? -mv->y : mv->y;
-  int ver_frac = sub ? (mvtemp.y)&7 : (mvtemp.y)&3;
-  int hor_frac = sub ? (mvtemp.x)&7 : (mvtemp.x)&3;
+  int ver_frac = sub ? (mvtemp.y)&7 : 2*((mvtemp.y)&3);
+  int hor_frac = sub ? (mvtemp.x)&7 : 2*((mvtemp.x)&3);
   int ver_int = sub ? (mvtemp.y)>>3 : (mvtemp.y)>>2;
   int hor_int = sub ? (mvtemp.x)>>3 : (mvtemp.x)>>2;
   ver_int = min(ver_int,pic_height2-ypos);

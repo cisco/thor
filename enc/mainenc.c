@@ -161,17 +161,17 @@ int main(int argc, char **argv)
   frame_size = ysize + 2*csize;
 
   /* Create frames*/
-  create_yuv_frame(&orig,width,height,params->subsample == 420,0,0,0);
+  create_yuv_frame(&orig,width,height,params->subsample == 420,0,0);
   for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-    create_yuv_frame(&rec[r],width,height,params->subsample == 420,0,0,1);
+    create_yuv_frame(&rec[r],width,height,params->subsample == 420,0,0);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
-    create_yuv_frame(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,1);
+    create_yuv_frame(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
       encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,1);
+      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y);
     }
   }
 
@@ -333,7 +333,6 @@ int main(int argc, char **argv)
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
                 interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, 2, 1);
-		subsample_yuv_frame(encoder_info.interp_frames[0]);
                 pad_yuv_frame(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
                 /* use most recent frames for the last ref(s)*/
@@ -390,7 +389,6 @@ int main(int argc, char **argv)
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
                 interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, sub_gop-phase,phase!=0 ? 1 : sub_gop-phase-1);
-		subsample_yuv_frame(encoder_info.interp_frames[0]);
                 pad_yuv_frame(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
 

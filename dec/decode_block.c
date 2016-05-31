@@ -46,8 +46,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern int chroma_qp[52];
 
 void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock, int16_t *coeffq,
-    int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp, 
-    qmtx_t ** iwmatrix){
+					 int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp,
+					 qmtx_t ** iwmatrix, uint8_t *pblock_y, uint8_t *rec_y, int rec_stride, int sub){
 
   int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
   int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
@@ -65,20 +65,24 @@ void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int
       for (j=0;j<size;j+=size2){
         make_top_and_left(left_data,top_data,&top_left,rec,stride,&rec[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1);
 
-        get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,pblock,intra_mode);
+        get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode);
+	if (pblock_y)
+	  get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride+(j<<sub)], size2 << sub, size << sub, rec_stride, sub);
         index = 2*(i/size2) + (j/size2);
         dequantize (coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
         inverse_transform (rcoeff, rblock2, size2);
-        reconstruct_block(rblock2,pblock,&rec[i*stride+j],size2,stride);
+        reconstruct_block(rblock2,&pblock[i*size+j],&rec[i*stride+j],size2,size,stride);
       }
     }
   }
   else{
     make_top_and_left(left_data,top_data,&top_left,rec,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-    get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,intra_mode);
+    get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode);
+    if (pblock_y)
+      get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride, sub);
     dequantize (coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
     inverse_transform (rcoeff, rblock, size);
-    reconstruct_block(rblock,pblock,rec,size,stride);
+    reconstruct_block(rblock,pblock,rec,size,size,stride);
   }
 
   thor_free(top_data - 1);
@@ -115,7 +119,7 @@ void decode_and_reconstruct_block_inter (uint8_t *rec, int stride, int size, int
 
     inverse_transform (rcoeff, rblock, size);
   }
-  reconstruct_block(rblock,pblock,rec,size,stride);
+  reconstruct_block(rblock,pblock,rec,size,size,stride);
 
   thor_free(rcoeff);
   thor_free(rblock);
@@ -169,7 +173,7 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
   }
 }
 
-void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int sub,int adaptive_chroma){
+void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int sub){
 
   int width = decoder_info->width;
   int height = decoder_info->height;
@@ -210,8 +214,8 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
 
   /* Pointers to current position in reconstructed frame*/
   uint8_t *rec_y = &rec->y[yposY*rec->stride_y+xposY];
-  uint8_t *rec_u = adaptive_chroma ? &rec->u2[yposC*rec->stride_c2+xposC] : &rec->u[yposC*rec->stride_c+xposC];
-  uint8_t *rec_v = adaptive_chroma ? &rec->v2[yposC*rec->stride_c2+xposC] : &rec->v[yposC*rec->stride_c+xposC];
+  uint8_t *rec_u = &rec->u[yposC*rec->stride_c+xposC];
+  uint8_t *rec_v = &rec->v[yposC*rec->stride_c+xposC];
 
   stream_t *stream = decoder_info->stream;
 
@@ -246,9 +250,9 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
     //int upright_available = get_upright_available(ypos, xpos, size, width, 1 << decoder_info->log2_sb_size);
     //int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
     int tb_split = block_info.block_param.tb_split;
-    decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL);
-    decode_and_reconstruct_block_intra(rec_u,adaptive_chroma ? rec->stride_c2 : rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL);
-    decode_and_reconstruct_block_intra(rec_v,adaptive_chroma ? rec->stride_c2 : rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,2,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][1] : NULL);
+    decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL, NULL, 0, 0, 0);
+    decode_and_reconstruct_block_intra(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL, !sub && (block_info.cbp.y || tb_split) ? pblock_y : 0, rec_y, rec->stride_y, sub);
+    decode_and_reconstruct_block_intra(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,2,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][1] : NULL, !sub && (block_info.cbp.y || tb_split) ? pblock_y : 0, rec_y, rec->stride_y, sub);
   }
   else
   {
@@ -296,8 +300,8 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
         memcpy(&rec_y[j*rec->stride_y], &pblock_y[j*sizeY], bwidth*sizeof(uint8_t));
       }
       for (j = 0; j<bheight >> sub; j++) {
-        memcpy(&rec_u[j*(adaptive_chroma ? rec->stride_c2 : rec->stride_c)], &pblock_u[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
-        memcpy(&rec_v[j*(adaptive_chroma ? rec->stride_c2 : rec->stride_c)], &pblock_v[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
+        memcpy(&rec_u[j*rec->stride_c], &pblock_u[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
+        memcpy(&rec_v[j*rec->stride_c], &pblock_v[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
       }
       copy_deblock_data(decoder_info, &block_info);
       return;
@@ -378,8 +382,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
     /* Dequantize, invere tranform and reconstruct */
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
-    decode_and_reconstruct_block_inter(rec_u,adaptive_chroma ? rec->stride_c2 : rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
-    decode_and_reconstruct_block_inter(rec_v,adaptive_chroma ? rec->stride_c2 : rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
+    if (!sub && (block_info.cbp.y || tb_split)) {  // Use reconstructed luma to improve chroma prediction
+      get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, rec->stride_y, sub);
+      get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub);
+    }
+    decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
+    decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
   }
 
   /* Copy deblock data to frame array */
@@ -556,7 +564,7 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
 }
 
 
-void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY,int sub,int adaptive_chroma)
+void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY,int sub)
 {
   int width = decoder_info->width;
   int height = decoder_info->height;
@@ -597,12 +605,12 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
 
   if (split_flag){
     int new_size = size/2;
-    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size,sub,adaptive_chroma);
-    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size,sub,adaptive_chroma);
-    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+1*new_size,sub,adaptive_chroma);
-    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+1*new_size,sub,adaptive_chroma);
+    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size,sub);
+    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size,sub);
+    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+1*new_size,sub);
+    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+1*new_size,sub);
   }
   else if (decode_this_size || decode_rectangular_size){
-    decode_block(decoder_info,size,yposY,xposY,sub,adaptive_chroma);
+    decode_block(decoder_info,size,yposY,xposY,sub);
   }
 }

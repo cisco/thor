@@ -83,7 +83,7 @@ void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwi
   mv_cand->x = sign ? -mvx : mvx;
 }
 
-static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int pic_width2, int pic_height2, int xpos, int ypos, int sub)
+static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int pic_width2, int pic_height2, int xpos, int ypos)
 {
   int i,j;
 
@@ -91,10 +91,10 @@ static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width
   mv_t mvtemp;
   mvtemp.x = sign ? -mv->x : mv->x;
   mvtemp.y = sign ? -mv->y : mv->y;
-  int ver_frac = sub ? (mvtemp.y)&7 : 2*((mvtemp.y)&3);
-  int hor_frac = sub ? (mvtemp.x)&7 : 2*((mvtemp.x)&3);
-  int ver_int = sub ? (mvtemp.y)>>3 : (mvtemp.y)>>2;
-  int hor_int = sub ? (mvtemp.x)>>3 : (mvtemp.x)>>2;
+  int ver_frac = (mvtemp.y)&7;
+  int hor_frac = (mvtemp.x)&7;
+  int ver_int = (mvtemp.y)>>3;
+  int hor_int = (mvtemp.x)>>3;
   ver_int = min(ver_int,pic_height2-ypos);
   ver_int = max(ver_int,-xpos-height);
   hor_int = min(hor_int,pic_width2-xpos);
@@ -233,8 +233,14 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     mv = mv_arr[index];
     clip_mv(&mv, yposY, xposY, width, height, bwidth, bheight, sign);
     get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
-    get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, ref->sub);
-    get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, ref->sub);
+    if (ref->sub) {
+      get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC);
+      get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC);
+    } else {
+      // Use luma prediction for chroma in 4:4:4
+      get_inter_prediction_luma(pblock_u + offsetpC, ref_u + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC);
+      get_inter_prediction_luma(pblock_v + offsetpC, ref_v + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC);
+    }
   }
 }
 

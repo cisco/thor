@@ -67,7 +67,7 @@ void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int
 
         get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode);
 	if (pblock_y)
-	  get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride+(j<<sub)], size2 << sub, size << sub, rec_stride, sub);
+	  get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride+(j<<sub)], size2 << sub, size << sub, rec_stride, sub, 0);
         index = 2*(i/size2) + (j/size2);
         dequantize (coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
         inverse_transform (rcoeff, rblock2, size2);
@@ -79,7 +79,7 @@ void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int
     make_top_and_left(left_data,top_data,&top_left,rec,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
     get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode);
     if (pblock_y)
-      get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride, sub);
+      get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride, sub, 0);
     dequantize (coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
     inverse_transform (rcoeff, rblock, size);
     reconstruct_block(rblock,pblock,rec,size,size,stride);
@@ -383,8 +383,9 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
     if (!sub && (block_info.cbp.y || tb_split)) {  // Use reconstructed luma to improve chroma prediction
-      get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, rec->stride_y, sub);
-      get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub);
+      int threshold = clip(17 - qpY/3, 0, 10);
+      get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, rec->stride_y, sub, threshold);
+      get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub, threshold);
     }
     decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
     decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);

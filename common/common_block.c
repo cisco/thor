@@ -217,7 +217,7 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, in
   }
 }
 
-void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub)
+void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub, int threshold)
 {
   int n = min(8, size);
 
@@ -239,7 +239,7 @@ void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int 
       double sscc = ccsum - (csum/n)*(csum/n);
       double ssyc = ycsum - (ysum/n)*(csum/n);
 
-      if (ssyy){// && 4 * ssyc * ssyc > ssyy * sscc) {
+      if (ssyy && 10 * ssyc * ssyc > threshold * ssyy * sscc) {
 	double a = ssyc / ssyy;
 	double b = (csum - a*ysum) / (n*n);
 

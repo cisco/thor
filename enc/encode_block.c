@@ -1113,7 +1113,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
 
           get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode);
           if (pblock_y)
-            get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride2+(j<<sub)], size2 << sub, size << sub, rec_stride2, sub);
+            get_c_prediction_from_y(&pblock_y[i*size+j], &pblock[i*size+j], &rec_y[(i<<sub)*rec_stride2+(j<<sub)], size2 << sub, size << sub, rec_stride2, sub, 0);
 
           get_residual (block2, &pblock[i*size+j], &orig[i*orig_stride+j], size2, size, orig_stride);
           transform (block2, coeff, size2, encoder_info->params->encoder_speed > 1);
@@ -1135,7 +1135,7 @@ int encode_and_reconstruct_block_intra (encoder_info_t *encoder_info, uint8_t *o
       make_top_and_left(left_data,top_data,&top_left,rec,rec_stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
       get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode);
       if (pblock_y)
-        get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride2, sub);
+        get_c_prediction_from_y(pblock_y, pblock, rec_y, size << sub, size << sub, rec_stride2, sub, 0);
 
       get_residual (block, pblock, orig, size, size, orig_stride);
 
@@ -1361,8 +1361,9 @@ int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_info_t *b
       cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split,
 						 encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
       if (!block_info->sub && (cbp.y || tb_split)) {  // Use reconstructed luma to improve chroma prediction
-        get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, sizeY, block_info->sub);
-        get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, sizeY, block_info->sub);
+	int threshold = clip(17 - qpY/3, 0, 10);
+        get_c_prediction_from_y(pblock_y, pblock_u, rec_y, sizeY, sizeY, sizeY, block_info->sub, threshold);
+        get_c_prediction_from_y(pblock_y, pblock_v, rec_y, sizeY, sizeY, sizeY, block_info->sub, threshold);
       }
       cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
 						 encoder_info->wmatrix[ql][1][0], encoder_info->iwmatrix[ql][1][0]);

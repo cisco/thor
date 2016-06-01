@@ -44,6 +44,6 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, in
 
 int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int b);
 
-void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub);
+void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub, int threshold);
 
 #endif

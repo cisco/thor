@@ -219,29 +219,44 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, in
 
 void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub, int threshold)
 {
-  int n = min(8, size);
+  int n = size;
+  int nc = size >> sub;
 
   for (int k = 0; k < size-n+1; k += n) {
     for (int l = 0; l < size-n+1; l += n) {
       double ysum = 0, csum = 0, yysum = 0, ycsum = 0, ccsum = 0;
-      for (int i = k; i < k+n; i++)
-        for (int j = l; j < l+n; j++) {
-          // Compute linear fit between predicted chroma and predicted luma
-          int cs = c[(i >> sub) * (cstride >> sub) + (j >> sub)];
-          ysum  += y[i*size+j];
-          yysum += y[i*size+j] * y[i*size+j];
-          csum  += cs;
-          ycsum += y[i*size+j] * cs;
-          ccsum += cs * cs;
-        }
+      // Compute linear fit between predicted chroma and predicted luma
+      if (sub) {
+        for (int i = k/2; i < (k+n)/2; i++)
+          for (int j = l/2; j < (l+n)/2; j++) {
+            int cs = c[i * cstride/2 + j];
+            int ys = (y[(i*2+0)*size+j*2+0]+y[(i*2+0)*size+j*2+1]+y[(i*2+1)*size+j*2+0]+y[(i*2+1)*size+j*2+1]+2)>>2;
+            ysum  += ys;
+            yysum += ys*ys;
+            csum  += cs;
+            ycsum += ys * cs;
+            ccsum += cs * cs;
+          }
+      } else {
+        for (int i = k; i < k+n; i++)
+          for (int j = l; j < l+n; j++) {
+            int cs = c[i * cstride + j];
+            int ys = y[i * cstride + j];
+            ysum  += ys;
+            yysum += ys*ys;
+            csum  += cs;
+            ycsum += ys * cs;
+            ccsum += cs * cs;
+          }
+      }
 
-      double ssyy = yysum - (ysum/n)*(ysum/n);
-      double sscc = ccsum - (csum/n)*(csum/n);
-      double ssyc = ycsum - (ysum/n)*(csum/n);
+      double ssyy = yysum - (ysum/nc)*(ysum/nc);
+      double sscc = ccsum - (csum/nc)*(csum/nc);
+      double ssyc = ycsum - (ysum/nc)*(csum/nc);
 
       if (ssyy && 10 * ssyc * ssyc > threshold * ssyy * sscc) {
 	double a = ssyc / ssyy;
-	double b = (csum - a*ysum) / (n*n);
+	double b = (csum - a*ysum) / (nc*nc);
 
 	// Map reconstructed luma to new predicted chroma
         if (sub) {

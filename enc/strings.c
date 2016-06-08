@@ -345,7 +345,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-qmtx",                  "0", ARG_INTEGER,  &params->qmtx);
   add_param_to_list(&list, "-qmtx_offset",           "0", ARG_INTEGER,  &params->qmtx_offset);// qp offset for qmlevel calculation -32 to 31
   add_param_to_list(&list, "-subsample",           "420", ARG_INTEGER,  &params->subsample);
-  add_param_to_list(&list, "-max_clpf_strength",     "0", ARG_INTEGER,  &params->max_clpf_strength);
+  add_param_to_list(&list, "-max_clpf_strength",     "4", ARG_INTEGER,  &params->max_clpf_strength);
   add_param_to_list(&list, "-enable_cfl_intra",      "1", ARG_INTEGER,  &params->cfl_intra);
   add_param_to_list(&list, "-enable_cfl_inter",      "0", ARG_INTEGER,  &params->cfl_inter);
 

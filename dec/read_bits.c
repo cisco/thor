@@ -55,7 +55,7 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   decoder_info->deblocking = get_flc(1, stream);
   decoder_info->clpf = get_flc(1, stream);
   decoder_info->use_block_contexts = get_flc(1, stream);
-  decoder_info->bipred = get_flc(1, stream);
+  decoder_info->bipred = get_flc(2, stream);
   decoder_info->qmtx = get_flc(1, stream);
   if (decoder_info->qmtx) {
     decoder_info->qmtx_offset = get_flc(6, stream) - 32;

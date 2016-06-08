@@ -336,7 +336,7 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-clpf",                  "1", ARG_INTEGER,  &params->clpf); //0: off, 1: SB-level, 2: frame-level
   add_param_to_list(&list, "-snrcalc",               "1", ARG_INTEGER,  &params->snrcalc);
   add_param_to_list(&list, "-use_block_contexts",    "0", ARG_INTEGER,  &params->use_block_contexts);
-  add_param_to_list(&list, "-enable_bipred",         "0", ARG_INTEGER,  &params->enable_bipred);
+  add_param_to_list(&list, "-enable_bipred",         "0", ARG_INTEGER,  &params->enable_bipred); //TODO: enable_bipred=2 means disable SFP, use separate parameter for SFP instead for clarity
   add_param_to_list(&list, "-bitrate",               "0", ARG_INTEGER,  &params->bitrate);
   add_param_to_list(&list, "-max_qp",               "51", ARG_INTEGER,  &params->max_qp);
   add_param_to_list(&list, "-min_qp",                "1", ARG_INTEGER,  &params->min_qp);
@@ -345,6 +345,8 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-qmtx",                  "0", ARG_INTEGER,  &params->qmtx);
   add_param_to_list(&list, "-qmtx_offset",           "0", ARG_INTEGER,  &params->qmtx_offset);// qp offset for qmlevel calculation -32 to 31
   add_param_to_list(&list, "-subsample",           "420", ARG_INTEGER,  &params->subsample);
+  add_param_to_list(&list, "-max_clpf_strength",     "0", ARG_INTEGER,  &params->max_clpf_strength);
+
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;

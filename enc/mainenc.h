@@ -96,6 +96,7 @@ typedef struct
   int subsample;
   int aspectnum;
   int aspectden;
+  int max_clpf_strength;
 } enc_params;
 
 typedef struct
@@ -149,6 +150,7 @@ typedef struct
   int prev_qp;
   int min_ref_dist;
   int phase;
+  int max_clpf_strength;
 } frame_info_t;
 
 typedef struct 

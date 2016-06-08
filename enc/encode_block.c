@@ -1686,7 +1686,7 @@ int search_bipred_prediction_params (encoder_info_t *encoder_info, block_info_t 
   int height = encoder_info->height;
   double lambda = block_info->lambda;
   mv_t mv_all[4][4];
-  int enable_bipred = 1;
+  int enable_bipred = encoder_info->params->enable_bipred;
   int size = block_info->block_pos.size;
   int n, num_iter, list;
 #if BIPRED_PART

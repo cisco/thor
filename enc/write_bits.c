@@ -58,7 +58,7 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
   put_flc(1, params->deblocking, stream);
   put_flc(1, params->clpf ? 1 : 0, stream);
   put_flc(1, params->use_block_contexts, stream);
-  put_flc(1, params->enable_bipred, stream);
+  put_flc(2, params->enable_bipred ,stream);
   put_flc(1, params->qmtx, stream);
   if (params->qmtx)
     put_flc(6, params->qmtx_offset + 32, stream);

@@ -108,7 +108,7 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
       int ypos = y + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-	(use_simd ? detect_multi_clpf_simd : detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum);
+	      (use_simd ? detect_multi_clpf_simd : detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum);
         filtered = 1;
       }
     }
@@ -142,8 +142,11 @@ void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *d
   }
   for (int j = 0; j < 4; j++) {
     int cost = (int)((frame_info->lambda * sums[j][0] + 0.5));
-    for (int i = 0; i < 4; i++)
-      sums[j][i] = ((sums[j][i] + (i && j) * cost) << 4) + j*4+i;
+    for (int i = 0; i < 4; i++) {
+      int i_max = min(frame_info->max_clpf_strength, 3);
+      if (i > i_max) sums[j][i] = 1 << 30;
+      sums[j][i] = ((sums[j][i] + (i && j) * cost) << 4) + j * 4 + i;
+    }
   }
 
   int64_t best = (int64_t)1 << 62;
@@ -153,7 +156,7 @@ void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *d
         best = sums[i][j];
   best &= 15;
   *best_bs = (best > 3) * (5 + (best < 12) + (best < 8));
-  *best_strength = best ? 1<<((best-1) & 3) : 0;
+  *best_strength = best ? 1<<((best-1) & 3) : 0;  
 }
 
 void encode_frame(encoder_info_t *encoder_info)

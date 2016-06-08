@@ -192,6 +192,7 @@ int main(int argc, char **argv)
   encoder_info.stream = &stream;
   encoder_info.width = width;
   encoder_info.height = height;
+  encoder_info.frame_info.max_clpf_strength = encoder_info.params->max_clpf_strength;
 
   encoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 

@@ -89,6 +89,8 @@ typedef struct
   int log2_sb_size;
   int num_reorder_pics;
   int subsample;
+  int cfl_inter;
+  int cfl_intra;
   qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 

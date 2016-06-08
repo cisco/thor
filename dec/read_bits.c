@@ -62,6 +62,8 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   }
   decoder_info->subsample = get_flc(1, stream) ? 420 : 444;
   decoder_info->num_reorder_pics = get_flc(4, stream);
+  decoder_info->cfl_intra = get_flc(1, stream);
+  decoder_info->cfl_inter = get_flc(1, stream);
 }
 
 void read_frame_header(frame_info_t *frame_info, stream_t *stream) {

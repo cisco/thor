@@ -64,6 +64,8 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
     put_flc(6, params->qmtx_offset + 32, stream);
   put_flc(1, params->subsample == 420, stream);
   put_flc(4, params->num_reorder_pics, stream);
+  put_flc(1, params->cfl_intra, stream);
+  put_flc(1, params->cfl_inter, stream);
 }
 
 void write_frame_header(stream_t *stream, frame_info_t *frame_info) {

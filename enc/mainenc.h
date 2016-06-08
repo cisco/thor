@@ -97,6 +97,8 @@ typedef struct
   int aspectnum;
   int aspectden;
   int max_clpf_strength;
+  int cfl_intra;
+  int cfl_inter;
 } enc_params;
 
 typedef struct

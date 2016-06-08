@@ -161,14 +161,18 @@ void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_
   }
 }
 
-void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int pstride, int stride)
+unsigned int reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int pstride, int stride)
 { 
   int i,j;
+  unsigned int ss = 0;
   for(i=0;i<size;i++){    
     for (j=0;j<size;j++){
       rec[i*stride+j] = (uint8_t)clip255(block[i*size+j] + (int16_t)pblock[i*pstride+j]);
+      ss += block[i*size+j]*block[i*size+j];
     }
   }
+  ss >>= log2i(size)*2;
+  return ss;
 }
 
 void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable){
@@ -217,59 +221,47 @@ void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, in
   }
 }
 
-void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int size, int cstride, int stride, int sub, int threshold)
+void get_c_prediction_from_y(uint8_t *y, uint8_t *c, uint8_t *ry, int n, int cstride, int stride, int sub)
 {
-  int n = size;
-  int nc = size >> sub;
+  int nc = n >> sub;
+  int lognc = log2i(nc);
 
-  for (int k = 0; k < size-n+1; k += n) {
-    for (int l = 0; l < size-n+1; l += n) {
-      double ysum = 0, csum = 0, yysum = 0, ycsum = 0, ccsum = 0;
-      // Compute linear fit between predicted chroma and predicted luma
-      if (sub) {
-        for (int i = k/2; i < (k+n)/2; i++)
-          for (int j = l/2; j < (l+n)/2; j++) {
-            int cs = c[i * cstride/2 + j];
-            int ys = (y[(i*2+0)*size+j*2+0]+y[(i*2+0)*size+j*2+1]+y[(i*2+1)*size+j*2+0]+y[(i*2+1)*size+j*2+1]+2)>>2;
-            ysum  += ys;
-            yysum += ys*ys;
-            csum  += cs;
-            ycsum += ys * cs;
-            ccsum += cs * cs;
-          }
-      } else {
-        for (int i = k; i < k+n; i++)
-          for (int j = l; j < l+n; j++) {
-            int cs = c[i * cstride + j];
-            int ys = y[i * cstride + j];
-            ysum  += ys;
-            yysum += ys*ys;
-            csum  += cs;
-            ycsum += ys * cs;
-            ccsum += cs * cs;
-          }
-      }
-
-      double ssyy = yysum - (ysum/nc)*(ysum/nc);
-      double sscc = ccsum - (csum/nc)*(csum/nc);
-      double ssyc = ycsum - (ysum/nc)*(csum/nc);
-
-      if (ssyy && 10 * ssyc * ssyc > threshold * ssyy * sscc) {
-	double a = ssyc / ssyy;
-	double b = (csum - a*ysum) / (nc*nc);
-
-	// Map reconstructed luma to new predicted chroma
-        if (sub) {
-          for (int i = k/2; i < (k+n)/2; i++)
-            for (int j = l/2; j < (l+n)/2; j++)
-              c[i*cstride/2+j] =
-                (int)(clip255(a*ry[(i*2+0)*stride+j*2+0] + b) + clip255(a*ry[(i*2+0)*stride+j*2+1] + b) +
-                      clip255(a*ry[(i*2+1)*stride+j*2+0] + b) + clip255(a*ry[(i*2+1)*stride+j*2+1] + b) + 2) >> 2;
-        } else
-          for (int i = k; i < k+n; i++)
-            for (int j = l; j < l+n; j++)
-              c[i*cstride+j] = clip255(a*ry[i*stride+j] + b);
-      }
+  // Compute linear fit between predicted chroma and predicted luma
+  int32_t ysum = 0, csum = 0, yysum = 0, ycsum = 0, ccsum = 0;
+  for (int i = 0; i < nc; i++)
+    for (int j = 0; j < nc; j++) {
+      int cs = c[i * (cstride >> sub) + j];
+      int ys = sub ?
+	(y[(i*2 + 0)*n + j*2 + 0] + y[(i*2 + 0)*n+j*2 + 1] +
+	 y[(i*2 + 1)*n + j*2 + 0] + y[(i*2 + 1)*n+j*2 + 1] + 2) >> 2 :
+	y[i * cstride + j];
+      ysum  += ys;
+      csum  += cs;
+      yysum += ys * ys;
+      ycsum += ys * cs;
+      ccsum += cs * cs;
     }
+
+  int64_t ssyy = yysum - ((int64_t)ysum*ysum >> lognc * 2);
+  int64_t sscc = ccsum - ((int64_t)csum*csum >> lognc * 2);
+  int64_t ssyc = ycsum - ((int64_t)ysum*csum >> lognc * 2);
+
+  // Require a correlation above a threshold
+  if (ssyy && ssyc * ssyc * 2 > ssyy * sscc) {
+    int64_t a64 = ((int64_t)ssyc << 16) / ssyy;
+    int64_t b64 = (((int64_t)csum << 16) - a64 * ysum) >> lognc * 2;
+    int32_t a = (int32_t)clip(a64, -1 << 23, 1 << 23);
+    int32_t b = (int32_t)clip(b64, -1 << 31, (1U << 31) - 1);
+
+    // Map reconstructed luma to new predicted chroma
+    for (int i = 0; i < nc; i++)
+      for (int j = 0; j < nc; j++) {
+	c[i*(cstride >> sub) + j] = sub ?
+	  (clip255((a*ry[(i*2+0)*stride+j*2+0] + b) >> 16) +
+           clip255((a*ry[(i*2+0)*stride+j*2+1] + b) >> 16) +
+           clip255((a*ry[(i*2+1)*stride+j*2+0] + b) >> 16) +
+           clip255((a*ry[(i*2+1)*stride+j*2+1] + b) >> 16) + 2) >> 2 :
+	  clip255((a*ry[i*stride+j] + b) >> 16);
+      }
   }
 }

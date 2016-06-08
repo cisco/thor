@@ -16,3 +16,5 @@
 -use_block_contexts 1                                             ; Use block contexts
 -enable_bipred      0                                             ; Enable biprediction
 -encoder_speed      2                                             ; Encoder complexity parameter (0: Slow, 1: Moderate: 2: Fast)
+-enable_cfl_intra   1                                             ; Enable chroma prediction from luma for intra
+-enable_cfl_inter   0                                             ; Enable chroma prediction from luma for inter

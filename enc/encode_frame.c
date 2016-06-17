@@ -83,8 +83,8 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
     int w2 = min(w - (1<<(fb_size_log2-bslog)), w>>1);
     int h2 = min(h - (1<<(fb_size_log2-bslog)), h>>1);
     int i = log2i(MAX_SB_SIZE) - fb_size_log2;
-    int sum1 = res[i][1], sum2 = res[i][2], sum3 = res[i][3];
-    int oldfiltered = res[i][0];
+    int64_t sum1 = res[i][1], sum2 = res[i][2], sum3 = res[i][3];
+    int64_t oldfiltered = res[i][0];
     res[i][0] = 0;
 
     filtered = clpf_rdo(y, x, rec, org, deblock_data, block_size, fb_size_log2, w1, h1, res);

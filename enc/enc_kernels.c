@@ -149,8 +149,8 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
       v128 q = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, q);
       v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_shuffle_8(q, s2));
-      v128 c = v128_add_8(c128, v128_shuffle_8(q, s1));
+      v128 b = v128_shuffle_8(x, s2);
+      v128 c = v128_shuffle_8(x, s1);
       v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
 					      v64_load_unaligned(rec + 1 + stride)));
       v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
@@ -190,8 +190,8 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
 					      v64_load_unaligned(rec - 2 + stride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
 					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_add_8(c128, v128_shuffle_8(q, s1));
-      v128 e = v128_add_8(c128, v128_shuffle_8(q, s2));
+      v128 d = v128_shuffle_8(x, s1);
+      v128 e = v128_shuffle_8(x, s2);
       v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
 
       v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
@@ -282,8 +282,8 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
       v128 q = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, q);
       v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_shuffle_8(q, s2));
-      v128 c = v128_add_8(c128, v128_shuffle_8(q, s1));
+      v128 b = v128_shuffle_8(x, s2);
+      v128 c = v128_shuffle_8(x, s1);
       v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
 					      v64_load_unaligned(rec + 1 + stride)));
       v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
@@ -341,8 +341,8 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
 					      v64_load_unaligned(rec - 2 + stride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
 					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_add_8(c128, v128_shuffle_8(q, s1));
-      v128 e = v128_add_8(c128, v128_shuffle_8(q, s2));
+      v128 d = v128_shuffle_8(x, s1);
+      v128 e = v128_shuffle_8(x, s2);
       v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
 
       a = v128_ssub_s8(a, x);

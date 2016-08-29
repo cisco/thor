@@ -491,7 +491,7 @@ SIMD_INLINE v64 v64_shl_n_byte(v64 a, const unsigned int c) {
 }
 
 SIMD_INLINE v64 v64_shr_n_byte(v64 a, const unsigned int c) {
-  return c ? vshr_n_u64(vreinterpret_u64_s64(a), c * 8) : a;
+  return c ? (v64)vshr_n_u64(vreinterpret_u64_s64(a), c * 8) : a;
 }
 
 SIMD_INLINE v64 v64_shl_n_8(v64 a, const unsigned int c) {

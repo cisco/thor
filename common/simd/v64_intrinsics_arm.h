@@ -90,7 +90,13 @@ SIMD_INLINE void u32_store_aligned(void *p, uint32_t a) {
 }
 
 SIMD_INLINE void u32_store_unaligned(void *p, uint32_t a) {
-  vst1_u8(p, vreinterpret_u8_u64(a));
+#if __CC_ARM
+  *(__packed uint32_t *)p) = a;
+#elif __GNUC__
+  *((__attribute((packed)) uint32_t *)p) = a;
+#else
+  vst1_lane_u32((uint32_t*)p, vreinterpret_u32_s64(a), 0);
+#endif
 }
 
 SIMD_INLINE v64 v64_load_aligned(const void *p) {

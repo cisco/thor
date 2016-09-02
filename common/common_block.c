@@ -265,8 +265,8 @@ void improve_uv_prediction(uint8_t *y, uint8_t *u, uint8_t *v, uint8_t *ry, int 
     if (ssyu * ssyu * 2 > ssyy * ssuu) {
       int64_t a64 = ((int64_t)ssyu << 16) / ssyy;
       int64_t b64 = (((int64_t)usum << 16) - a64 * ysum) >> lognc * 2;
-      int32_t a = (int32_t)clip(a64, -1 << 23, 1 << 23);
-      int32_t b = (int32_t)clip(b64 + (1 << 15), -1 << 31, (1U << 31) - 1);
+      int32_t a = (int32_t)clip(a64, -(1 << 23), 1 << 23);
+      int32_t b = (int32_t)clip(b64 + (1 << 15), -(1LL << 31), (1U << 31) - 1);
 
       // Map reconstructed luma to new predicted chroma
       for (int i = 0; i < nc; i++)
@@ -282,8 +282,8 @@ void improve_uv_prediction(uint8_t *y, uint8_t *u, uint8_t *v, uint8_t *ry, int 
     if (ssyv * ssyv * 2 > ssyy * ssvv) {
       int64_t a64 = ((int64_t)ssyv << 16) / ssyy;
       int64_t b64 = (((int64_t)vsum << 16) - a64 * ysum) >> lognc * 2;
-      int32_t a = (int32_t)clip(a64, -1 << 23, 1 << 23);
-      int32_t b = (int32_t)clip(b64 + (1 << 15), -1 << 31, (1U << 31) - 1);
+      int32_t a = (int32_t)clip(a64, -(1 << 23), 1 << 23);
+      int32_t b = (int32_t)clip(b64 + (1 << 15), -(1LL << 31), (1U << 31) - 1);
 
       // Map reconstructed luma to new predicted chroma
       for (int i = 0; i < nc; i++)

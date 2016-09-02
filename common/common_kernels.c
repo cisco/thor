@@ -490,13 +490,13 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
     int16_t *ax = thor_alloc((width+8)*height*2, 16);
 
     if (yoff == 1) {
-      c1 = v128_dup_16((  2 << 8) | (uint8_t)-10);
-      c2 = v128_dup_16(( 59 << 8) | (uint8_t) 17);
-      c3 = v128_dup_16(( -5 << 8) | (uint8_t)  1);
+      c1 = v128_dup_16((  2 << 8)  | (uint8_t)-10);
+      c2 = v128_dup_16(( 59 << 8)  | (uint8_t) 17);
+      c3 = v128_dup_16((-(5 << 8)) | (uint8_t)  1);
     } else {
-      c1 = v128_dup_16(( 1 << 8) | (uint8_t)-8);
-      c2 = v128_dup_16((39 << 8) | (uint8_t)39);
-      c3 = v128_dup_16((-8 << 8) | (uint8_t) 1);
+      c1 = v128_dup_16((  1 << 8)  | (uint8_t)-8);
+      c2 = v128_dup_16(( 39 << 8)  | (uint8_t)39);
+      c3 = v128_dup_16((-(8 << 8)) | (uint8_t) 1);
     }
 
     for (int y = 0; y < height; y++) {
@@ -651,13 +651,13 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
     int16_t *ax = thor_alloc((width+8)*height*2, 16);
 
     if (yoff == 1) {
-      c1 = v128_dup_16(( 1 << 8) | (uint8_t)-7);
-      c2 = v128_dup_16((55 << 8) | (uint8_t)19);
-      c3 = v128_dup_16((-5 << 8) | (uint8_t) 1);
+      c1 = v128_dup_16((  1 << 8)  | (uint8_t)-7);
+      c2 = v128_dup_16(( 55 << 8)  | (uint8_t)19);
+      c3 = v128_dup_16((-(5 << 8)) | (uint8_t) 1);
     } else {
-      c1 = v128_dup_16(( 1 << 8) | (uint8_t)-7);
-      c2 = v128_dup_16((38 << 8) | (uint8_t)38);
-      c3 = v128_dup_16((-7 << 8) | (uint8_t) 1);
+      c1 = v128_dup_16((  1 << 8)  | (uint8_t)-7);
+      c2 = v128_dup_16(( 38 << 8)  | (uint8_t)38);
+      c3 = v128_dup_16((-(7 << 8)) | (uint8_t) 1);
     }
 
     for (int y = 0; y < height; y++) {
@@ -1048,14 +1048,14 @@ static void inverse_transform4(const int16_t *coeff, int16_t *block) {
 static void inverse_transform8_4x4(const int16_t *coeff, int16_t *block) {
   v128 t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12;
   v128 round =  v128_dup_32(64);
-  v128 c0  = v128_dup_32( 83 << 16 |   64);
-  v128 c1  = v128_dup_32(-36 << 16 |   64);
-  v128 c2  = v128_dup_32(-83 << 16 |   64);
-  v128 c3  = v128_dup_32( 36 << 16 |   64);
-  v128 c4  = v128_dup_32( 18 << 16 | (-75 & 0xffff));
-  v128 c5  = v128_dup_32( 50 << 16 | (-18 & 0xffff));
-  v128 c6  = v128_dup_32(-89 << 16 |   50);
-  v128 c7  = v128_dup_32( 75 << 16 |   89);
+  v128 c0  = v128_dup_32(  83 << 16  |   64);
+  v128 c1  = v128_dup_32(-(36 << 16) |   64);
+  v128 c2  = v128_dup_32(-(83 << 16) |   64);
+  v128 c3  = v128_dup_32(  36 << 16  |   64);
+  v128 c4  = v128_dup_32(  18 << 16  | (-75 & 0xffff));
+  v128 c5  = v128_dup_32(  50 << 16  | (-18 & 0xffff));
+  v128 c6  = v128_dup_32(-(89 << 16) |   50);
+  v128 c7  = v128_dup_32(  75 << 16  |   89);
   t0 = v128_from_v64(v64_load_aligned(coeff +  8), v64_load_aligned(coeff +  0));
   t1 = v128_from_v64(v64_load_aligned(coeff + 24), v64_load_aligned(coeff + 16));
   t2 = v128_ziplo_16(t1, t0);
@@ -1177,17 +1177,17 @@ static void inverse_transform8(const int16_t *coeff, int16_t *block) {
   v128 t0, t1, t2, t3, t4 ,t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16;
   v128 round = v128_dup_32(64);
   v128 c0  = v128_dup_16(64);
-  v128 c1  = v128_dup_32(-64 << 16 |   64);
-  v128 c2  = v128_dup_32( 36 << 16 |   83);
-  v128 c3  = v128_dup_32( 83 << 16 | (-36 & 0xffff));
-  v128 c4  = v128_dup_32( 18 << 16 | (-75 & 0xffff));
-  v128 c5  = v128_dup_32( 50 << 16 | (-18 & 0xffff));
-  v128 c6  = v128_dup_32(-89 << 16 |   50);
-  v128 c7  = v128_dup_32( 75 << 16 |   89);
-  v128 c8  = v128_dup_32( 50 << 16 |   89);
-  v128 c9  = v128_dup_32( 89 << 16 | (-75 & 0xffff));
-  v128 c10 = v128_dup_32( 75 << 16 |   18);
-  v128 c11 = v128_dup_32( 18 << 16 |   50);
+  v128 c1  = v128_dup_32(-(64 << 16) |   64);
+  v128 c2  = v128_dup_32(  36 << 16  |   83);
+  v128 c3  = v128_dup_32(  83 << 16  | (-36 & 0xffff));
+  v128 c4  = v128_dup_32(  18 << 16  | (-75 & 0xffff));
+  v128 c5  = v128_dup_32(  50 << 16  | (-18 & 0xffff));
+  v128 c6  = v128_dup_32(-(89 << 16) |   50);
+  v128 c7  = v128_dup_32(  75 << 16  |   89);
+  v128 c8  = v128_dup_32(  50 << 16  |   89);
+  v128 c9  = v128_dup_32(  89 << 16  | (-75 & 0xffff));
+  v128 c10 = v128_dup_32(  75 << 16  |   18);
+  v128 c11 = v128_dup_32(  18 << 16  |   50);
 
   v128 load0 = v128_load_aligned(coeff +  0);
   v128 load1 = v128_load_aligned(coeff +  8);
@@ -1944,8 +1944,8 @@ static void transform8(const int16_t *src, int16_t *dst, int shift)
                                              v128_madd_s16(v128_dup_32(( 50 << 16) | (uint16_t)18), lo)), round), shift);
     v64_store_aligned(dst+1*8, v64_shuffle_8(v128_low_v64(v128_unziplo_16(t, t)), shuffle4));
 
-    t = v128_shr_s32(v128_add_32(v128_add_32(v128_madd_s16(v128_dup_32(( 75 << 16) | (uint16_t)-18), hi),
-                                             v128_madd_s16(v128_dup_32((-89 << 16) | (uint16_t)-50), lo)), round), shift);
+    t = v128_shr_s32(v128_add_32(v128_add_32(v128_madd_s16(v128_dup_32((  75 << 16)  | (uint16_t)-18), hi),
+                                             v128_madd_s16(v128_dup_32((-(89 << 16)) | (uint16_t)-50), lo)), round), shift);
     v64_store_aligned(dst+3*8, v64_shuffle_8(v128_low_v64(v128_unziplo_16(t, t)), shuffle4));
 
     t = v128_shr_s32(v128_add_32(v128_add_32(v128_madd_s16(v128_dup_32((50 << 16) | (uint16_t)-89), hi),

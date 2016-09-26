@@ -48,6 +48,7 @@ old
 *.log
 *.idb
 *.user
+*.db
 
 #Deps
 *.d

@@ -419,13 +419,11 @@ SIMD_INLINE c_v256 _c_v256_unzip_8(c_v256 a, c_v256 b, int mode) {
 }
 
 SIMD_INLINE c_v256 c_v256_unziplo_8(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_8(a, b, 1)
-                           : _c_v256_unzip_8(a, b, 0);
+  return big_endian() ? _c_v256_unzip_8(a, b, 1) : _c_v256_unzip_8(a, b, 0);
 }
 
 SIMD_INLINE c_v256 c_v256_unziphi_8(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_8(b, a, 0)
-                           : _c_v256_unzip_8(b, a, 1);
+  return big_endian() ? _c_v256_unzip_8(b, a, 0) : _c_v256_unzip_8(b, a, 1);
 }
 
 SIMD_INLINE c_v256 _c_v256_unzip_16(c_v256 a, c_v256 b, int mode) {
@@ -446,13 +444,11 @@ SIMD_INLINE c_v256 _c_v256_unzip_16(c_v256 a, c_v256 b, int mode) {
 }
 
 SIMD_INLINE c_v256 c_v256_unziplo_16(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_16(a, b, 1)
-                           : _c_v256_unzip_16(a, b, 0);
+  return big_endian() ? _c_v256_unzip_16(a, b, 1) : _c_v256_unzip_16(a, b, 0);
 }
 
 SIMD_INLINE c_v256 c_v256_unziphi_16(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_16(b, a, 0)
-                           : _c_v256_unzip_16(b, a, 1);
+  return big_endian() ? _c_v256_unzip_16(b, a, 0) : _c_v256_unzip_16(b, a, 1);
 }
 
 SIMD_INLINE c_v256 _c_v256_unzip_32(c_v256 a, c_v256 b, int mode) {
@@ -480,13 +476,11 @@ SIMD_INLINE c_v256 _c_v256_unzip_32(c_v256 a, c_v256 b, int mode) {
 }
 
 SIMD_INLINE c_v256 c_v256_unziplo_32(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_32(a, b, 1)
-                           : _c_v256_unzip_32(a, b, 0);
+  return big_endian() ? _c_v256_unzip_32(a, b, 1) : _c_v256_unzip_32(a, b, 0);
 }
 
 SIMD_INLINE c_v256 c_v256_unziphi_32(c_v256 a, c_v256 b) {
-  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_32(b, a, 0)
-                           : _c_v256_unzip_32(b, a, 1);
+  return big_endian() ? _c_v256_unzip_32(b, a, 0) : _c_v256_unzip_32(b, a, 1);
 }
 
 SIMD_INLINE c_v256 c_v256_unpack_u8_s16(c_v128 a) {
@@ -557,8 +551,7 @@ SIMD_INLINE c_v256 c_v256_shuffle_8(c_v256 a, c_v256 pattern) {
               c);
       abort();
     }
-    t.u8[c] = a.u8[CONFIG_BIG_ENDIAN ? 31 - (pattern.u8[c] & 31)
-                                     : pattern.u8[c] & 31];
+    t.u8[c] = a.u8[big_endian() ? 31 - (pattern.u8[c] & 31) : pattern.u8[c] & 31];
   }
   return t;
 }

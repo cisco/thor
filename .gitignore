@@ -49,6 +49,7 @@ old
 *.idb
 *.user
 *.db
+*.opendb
 
 #Deps
 *.d

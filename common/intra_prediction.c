@@ -34,33 +34,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "global.h"
 #include "common_block.h"
+#include "intra_prediction.h"
 
-
-static void filter_121(uint8_t* in, uint8_t* out, int len)
+static void filter_121(SAMPLE* in, SAMPLE* out, int len)
 {
   int j;
   /* Calculate filtered 1D arrays */
-  out[0] = (uint8_t)((in[0] + 2*in[0] + in[1] + 2)>>2);
+  out[0] = (SAMPLE)((in[0] + 2*in[0] + in[1] + 2)>>2);
   for (j=1;j<len-1;j++){
-    out[j] = (uint8_t)((in[j-1] + 2*in[j] + in[j+1] + 2)>>2);
+    out[j] = (SAMPLE)((in[j-1] + 2*in[j] + in[j+1] + 2)>>2);
   }
-  out[len-1] = (uint8_t)((in[len-2] + 2*in[len-1] + in[len-1] + 2)>>2);
+  out[len-1] = (SAMPLE)((in[len-2] + 2*in[len-1] + in[len-1] + 2)>>2);
 }
 
-static void filter_121_all(uint8_t* left_in, uint8_t* left_out, uint8_t* top_in, uint8_t* top_out, int len, uint8_t tl_in, uint8_t* tl_out)
+static void filter_121_all(SAMPLE* left_in, SAMPLE* left_out, SAMPLE* top_in, SAMPLE* top_out, int len, SAMPLE tl_in, SAMPLE* tl_out)
 {
   filter_121(left_in,left_out,len);
   filter_121(top_in,top_out,len);
   *tl_out = (2*tl_in+left_in[0]+top_in[0]+2)>>2;
 }
 
-void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* rec_frame, int fstride, uint8_t* rblock, int rbstride, int i, int j,
-    int ypos, int xpos, int size, int cb_upright_available, int cb_downleft_available, int tb_split)
+void TEMPLATE(make_top_and_left)(SAMPLE* left, SAMPLE* top, SAMPLE* top_left, SAMPLE* rec_frame, int fstride, SAMPLE* rblock, int rbstride, int i, int j,
+                                 int ypos, int xpos, int size, int cb_upright_available, int cb_downleft_available, int tb_split, int bitdepth)
 {
   // xpos, ypos are CB coords; j,i are coords within the CB
   // Assuming *raster* scan of TUs
   // Padding by a single extra pixel in case up-right or down-left are available
-  uint8_t val;
+  SAMPLE val;
   int len = 2*size;
   int toplen, leftlen;
   int downleft_available,upright_available;
@@ -74,24 +74,40 @@ void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* 
     toplen = upright_available ? (size+1) : size;
 
     if (ypos==0) {
-      memset(&top[0], 128, len*sizeof(uint8_t));
-      *top_left = 128;
+      if (sizeof(SAMPLE) == 1)
+        memset(&top[0], 128, len);
+      else
+        for (int i = 0; i < len; i++)
+          top[i] = 128 << (bitdepth-8);
+      *top_left = 128 << (bitdepth-8);
     } else {
-      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(uint8_t));
+      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(SAMPLE));
       val = top[toplen-1];
-      memset(&top[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&top[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          top[size+i] = val;
 
       *top_left = xpos > 0 ? rec_frame[-fstride+j-1] : top[0];
     }
 
     if (xpos==0) {
-      memset(&left[0], 128, len*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&left[0], 128, len);
+      else
+        for (int i = 0; i < len; i++)
+          left[i] = 128 << (bitdepth-8);
     } else {
       for (int k=0; k<leftlen; ++k){
         left[k] = rec_frame[k*fstride-1];
       }
       val = left[leftlen-1];
-      memset(&left[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&left[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          left[size+i] = val;
     }
 
     if (ypos==0)
@@ -106,35 +122,59 @@ void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* 
     toplen = upright_available ? (size+1) : size;
 
     if (ypos+i==0) {
-      memset(&top[0], 128, len*sizeof(uint8_t));
-      *top_left = 128;
+      if (sizeof(SAMPLE) == 1)
+        memset(&top[0], 128, len);
+      else
+        for (int i = 0; i < len; i++)
+          top[i] = 128 << (bitdepth-8);
+      *top_left = 128 << (bitdepth-8);
     } else if (i==0){
-      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(uint8_t));
+      memcpy(&top[0],&rec_frame[-fstride+j],toplen*sizeof(SAMPLE));
       val = top[toplen-1];
-      memset(&top[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&top[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          top[size+i] = val;
       *top_left = xpos > 0 ? rec_frame[-fstride+j-1] : top[0];
     } else {
-      memcpy(&top[0],&rblock[-rbstride],toplen*sizeof(uint8_t));
+      memcpy(&top[0],&rblock[-rbstride],toplen*sizeof(SAMPLE));
       val = top[toplen-1];
-      memset(&top[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&top[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          top[size+i] = val;
       *top_left = xpos > 0 ? (j>0 ? rblock[-rbstride-1] : rec_frame[(i-1)*fstride-1]) : top[0];
     }
 
     if (xpos+j==0) {
-      memset(&left[0], 128, len*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&left[0], 128, len);
+      else
+        for (int i = 0; i < len; i++)
+          left[i] = 128 << (bitdepth-8);
     } else if (j==0){
       for (int k=0; k<leftlen; ++k){
         left[k] = rec_frame[(i+k)*fstride-1];
       }
       val = left[leftlen-1];
-      memset(&left[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&left[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          left[size+i] = val;
 
     } else {
       for (int k=0; k<leftlen; ++k){
         left[k] = rblock[k*rbstride-1];
       }
       val = left[leftlen-1];
-      memset(&left[size],val,size*sizeof(uint8_t));
+      if (sizeof(SAMPLE) == 1)
+        memset(&left[size],val,size);
+      else
+        for (int i = 0; i < size; i++)
+          left[size+i] = val;
     }
 
     if (ypos+i==0)
@@ -142,8 +182,8 @@ void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* 
   }
 }
 
-void get_dc_pred(uint8_t* left, uint8_t* top, int size, uint8_t *pblock, int pstride){
-  int i,j,dc=128,sum;
+void TEMPLATE(get_dc_pred)(SAMPLE* left, SAMPLE* top, int size, SAMPLE *pblock, int pstride, int bitdepth){
+  unsigned int i,j,dc=128 << (bitdepth-8),sum;
 
   sum = 0;
   for (j=0;j<size;j++) sum += top[j];
@@ -158,7 +198,7 @@ void get_dc_pred(uint8_t* left, uint8_t* top, int size, uint8_t *pblock, int pst
 }
 
 
-void get_hor_pred(uint8_t* left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_hor_pred)(SAMPLE* left, int size, SAMPLE *pblock, int pstride) {
   int i,j;
 
   for (i=0;i<size;i++){
@@ -169,7 +209,7 @@ void get_hor_pred(uint8_t* left, int size, uint8_t *pblock, int pstride) {
 }
 
 
-void get_ver_pred(uint8_t* top, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_ver_pred)(SAMPLE* top, int size, SAMPLE *pblock, int pstride) {
   int i,j;
 
   for (i=0;i<size;i++){
@@ -179,7 +219,7 @@ void get_ver_pred(uint8_t* top, int size, uint8_t *pblock, int pstride) {
   }
 }
 
-void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_planar_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int size, SAMPLE *pblock, int pstride, int bitdepth) {
   int i,j;
 
   int16_t topF[MAX_TR_SIZE];
@@ -208,17 +248,17 @@ void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, ui
 
   for (i=0;i<size;i++){
     for (j=0;j<size;j++){
-      pblock[i*pstride+j] = clip255((leftF[i] + topF[j] - top_leftF + 4) / 8);
+      pblock[i*pstride+j] = saturate((leftF[i] + topF[j] - top_leftF + 4) / 8, bitdepth);
     }
   }
 }
 
-void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_upleft_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
-  uint8_t topF[MAX_TR_SIZE];
-  uint8_t leftF[MAX_TR_SIZE];
-  uint8_t top_leftF;
+  SAMPLE topF[MAX_TR_SIZE];
+  SAMPLE leftF[MAX_TR_SIZE];
+  SAMPLE top_leftF;
 
   filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
@@ -240,11 +280,11 @@ void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, ui
   }
 }
 
-void get_upright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_upright_pred)(SAMPLE *top, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
   //int upright_available;
-  uint8_t topF[2*MAX_TR_SIZE];
+  SAMPLE topF[2*MAX_TR_SIZE];
 
   filter_121(top,topF,2*size);
 
@@ -257,10 +297,10 @@ void get_upright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
   }
 }
 
-void get_upupright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_upupright_pred)(SAMPLE *top, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
-  uint8_t topF[2*MAX_TR_SIZE];
+  SAMPLE topF[2*MAX_TR_SIZE];
 
   filter_121(top,topF,2*size);
 
@@ -278,12 +318,12 @@ void get_upupright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride) {
   }
 }
 
-void get_upupleft_pred(uint8_t *left, uint8_t * top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_upupleft_pred)(SAMPLE *left, SAMPLE * top, SAMPLE top_left, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
-  uint8_t topF[MAX_TR_SIZE];
-  uint8_t leftF[MAX_TR_SIZE];
-  uint8_t top_leftF;
+  SAMPLE topF[MAX_TR_SIZE];
+  SAMPLE leftF[MAX_TR_SIZE];
+  SAMPLE top_leftF;
 
   filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
@@ -309,12 +349,12 @@ void get_upupleft_pred(uint8_t *left, uint8_t * top, uint8_t top_left, int size,
   }
 }
 
-void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_upleftleft_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
-  uint8_t topF[MAX_TR_SIZE];
-  uint8_t leftF[MAX_TR_SIZE];
-  uint8_t top_leftF;
+  SAMPLE topF[MAX_TR_SIZE];
+  SAMPLE leftF[MAX_TR_SIZE];
+  SAMPLE top_leftF;
 
   filter_121_all(left,leftF,top,topF,size,top_left,&top_leftF);
 
@@ -340,10 +380,10 @@ void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size
   }
 }
 
-void get_downleftleft_pred(uint8_t *left, int size, uint8_t *pblock, int pstride) {
+void TEMPLATE(get_downleftleft_pred)(SAMPLE *left, int size, SAMPLE *pblock, int pstride) {
   int i,j,diag;
 
-  uint8_t leftF[2*MAX_TR_SIZE];
+  SAMPLE leftF[2*MAX_TR_SIZE];
 
   filter_121(left,leftF,2*size);
 
@@ -360,29 +400,29 @@ void get_downleftleft_pred(uint8_t *left, int size, uint8_t *pblock, int pstride
   }
 }
 
-void get_intra_prediction(uint8_t* left, uint8_t* top, uint8_t top_left, int ypos,int xpos,
-			  int size, uint8_t *pblock, int pstride, intra_mode_t intra_mode)
+void TEMPLATE(get_intra_prediction)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int ypos,int xpos,
+                                    int size, SAMPLE *pblock, int pstride, intra_mode_t intra_mode, int bitdepth)
 {
   if (intra_mode == MODE_DC)
-    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride);
+    TEMPLATE(get_dc_pred)(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride, bitdepth);
   else if (intra_mode == MODE_HOR)
-    get_hor_pred(left, size, pblock, pstride);
+    TEMPLATE(get_hor_pred)(left, size, pblock, pstride);
   else if (intra_mode == MODE_VER)
-    get_ver_pred(top, size, pblock, pstride);
+    TEMPLATE(get_ver_pred)(top, size, pblock, pstride);
   else if (intra_mode == MODE_PLANAR)
-    get_planar_pred(left, top, top_left, size, pblock, pstride);
+    TEMPLATE(get_planar_pred)(left, top, top_left, size, pblock, pstride, bitdepth);
   else if (intra_mode == MODE_UPLEFT)
-    get_upleft_pred(left, top, top_left, size, pblock, pstride);
+    TEMPLATE(get_upleft_pred)(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_UPRIGHT)
-    get_upright_pred(top, size, pblock, pstride);
+    TEMPLATE(get_upright_pred)(top, size, pblock, pstride);
   else if (intra_mode == MODE_UPUPRIGHT)
-    get_upupright_pred(top, size, pblock, pstride);
+    TEMPLATE(get_upupright_pred)(top, size, pblock, pstride);
   else if (intra_mode == MODE_UPUPLEFT)
-    get_upupleft_pred(left, top, top_left, size, pblock, pstride);
+    TEMPLATE(get_upupleft_pred)(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_UPLEFTLEFT)
-    get_upleftleft_pred(left, top, top_left, size, pblock, pstride);
+    TEMPLATE(get_upleftleft_pred)(left, top, top_left, size, pblock, pstride);
   else if (intra_mode == MODE_DOWNLEFTLEFT)
-    get_downleftleft_pred(left, size, pblock, pstride);
+    TEMPLATE(get_downleftleft_pred)(left, size, pblock, pstride);
   else
-    get_dc_pred(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride);
+    TEMPLATE(get_dc_pred)(xpos!=0 ? left:top, ypos!=0 ? top:left, size, pblock, pstride, bitdepth);
 }

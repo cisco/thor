@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "mainenc.h"
 
-void encode_frame(encoder_info_t *encoder_info);
+void encode_frame_lbd(encoder_info_t *encoder_info);
+void encode_frame_hbd(encoder_info_t *encoder_info);
 
 #endif

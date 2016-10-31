@@ -348,6 +348,9 @@ enc_params *parse_config_params(int argc, char **argv)
   add_param_to_list(&list, "-max_clpf_strength",     "4", ARG_INTEGER,  &params->max_clpf_strength);
   add_param_to_list(&list, "-enable_cfl_intra",      "1", ARG_INTEGER,  &params->cfl_intra);
   add_param_to_list(&list, "-enable_cfl_inter",      "0", ARG_INTEGER,  &params->cfl_inter);
+  add_param_to_list(&list, "-bitdepth",              "8", ARG_INTEGER,  &params->bitdepth);  // Internal bitdepth (8, 10 or 12)
+  add_param_to_list(&list, "-frame_bitdepth",        "8", ARG_INTEGER,  &params->frame_bitdepth);  // Bitdepth of frame buffers (8 or 16)
+  add_param_to_list(&list, "-input_bitdepth",        "8", ARG_INTEGER,  &params->input_bitdepth);  // Bitdepth of input source (8, 10 or 12)
 
   /* Generate "argv" and "argc" for default parameters */
   default_argc = 1;
@@ -406,6 +409,11 @@ enc_params *parse_config_params(int argc, char **argv)
           case 'C':
             params->subsample = strtol(buf+pos, &end, 10);
             pos = (int)(end-buf);
+            if (buf[pos] == 'p') {
+              params->input_bitdepth = strtol(buf + ++pos, &end, 10);
+              if (params->input_bitdepth > 8)
+                params->frame_bitdepth = 16;
+            }
             while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'A':
@@ -522,5 +530,17 @@ void check_parameters(enc_params *params)
 
   if (params->subsample != 420 && params->subsample != 444) {
     fatalerror("Illegal value for subsample.  Only 420 and 444 supported.\n");
+  }
+
+  if (params->bitdepth != 8 && params->bitdepth != 10 && params->bitdepth != 12) {
+    fatalerror("Illegal value for bitdepth.  Only 8, 10 and 12 supported.\n");
+  }
+
+  if (params->input_bitdepth != 8 && params->input_bitdepth != 10 && params->input_bitdepth != 12) {
+    fatalerror("Illegal value for input_bitdepth.  Only 8, 10 and 12 supported.\n");
+  }
+
+  if (params->bitdepth > 8) {
+    params->frame_bitdepth = 16;
   }
 }

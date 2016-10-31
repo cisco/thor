@@ -31,6 +31,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include "assert.h"
 
+// Default to low bitdepth (8 bit)
+#ifndef SAMPLE
+#define SAMPLE uint8_t
+#define TEMPLATE(name) name ## _lbd
+#endif
+
 typedef struct
 {
     double y;
@@ -40,9 +46,9 @@ typedef struct
 
 typedef struct
 {   
-    uint8_t *y;
-    uint8_t *u;
-    uint8_t *v;
+    SAMPLE *y;
+    SAMPLE *u;
+    SAMPLE *v;
     int width;
     int height;
     int stride_y;
@@ -57,6 +63,8 @@ typedef struct
     int area_c;
     int sub;
     int frame_num;
+    int bitdepth;
+    int input_bitdepth;
 } yuv_frame_t;
 
 typedef enum {     // Order matters: log2(size)-2
@@ -218,4 +226,5 @@ typedef struct
   uint32_t size_and_ref_idx[NUM_FRAME_TYPES][NUM_BLOCK_MODES][MAX_REF_FRAMES];
   uint32_t bi_ref[NUM_FRAME_TYPES][MAX_REF_FRAMES*MAX_REF_FRAMES];
 } bit_count_t;
+
 #endif

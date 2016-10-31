@@ -34,18 +34,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "simd.h"
 #include <stdio.h>
 
-#define MAX_TR_DYNAMIC_RANGE  15
-#define QUANT_SHIFT  14
-#define QUANT_IQUANT_SHIFT 20
-
-const int16_t g1mat_hevc[4][4] = {
+static const int16_t g1mat_hevc[4][4] = {
   { 64, 64, 64, 64},
   { 83, 36,-36,-83},
   { 64,-64,-64, 64},
   { 36,-83, 83,-36}
 };
 
-const int16_t g2mat_hevc[8][8] = {
+static const int16_t g2mat_hevc[8][8] = {
   { 64, 64, 64, 64, 64, 64, 64, 64},
   { 89, 75, 50, 18,-18,-50,-75,-89},
   { 83, 36,-36,-83,-83,-36, 36, 83},
@@ -56,7 +52,7 @@ const int16_t g2mat_hevc[8][8] = {
   { 18,-50, 75,-89, 89,-75, 50,-18}
 };
 
-const int16_t g3mat_hevc[16][16] = {
+static const int16_t g3mat_hevc[16][16] = {
   { 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
   { 90, 87, 80, 70, 57, 43, 25,  9, -9,-25,-43,-57,-70,-80,-87,-90},
   { 89, 75, 50, 18,-18,-50,-75,-89,-89,-75,-50,-18, 18, 50, 75, 89},
@@ -110,7 +106,7 @@ const int16_t g4mat_hevc[32][32] = {
   {  4,-13, 22,-31, 38,-46, 54,-61, 67,-73, 78,-82, 85,-88, 90,-90, 90,-90, 88,-85, 82,-78, 73,-67, 61,-54, 46,-38, 31,-22, 13, -4}
 };
 
-const int16_t g5mat_hevc[64][64] = {
+static const int16_t g5mat_hevc[64][64] = {
 #if 1
     {64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64},
     {91, 90, 90, 89, 88, 87, 86, 84, 83, 81, 79, 76, 74, 71, 69, 66, 62, 59, 56, 52, 48, 45, 41, 37, 33, 28, 24, 20, 16, 11,  7,  2, -2, -7,-11,-16,-20,-24,-28,-33,-37,-41,-45,-48,-52,-56,-59,-62,-66,-69,-71,-74,-76,-79,-81,-83,-84,-86,-87,-88,-89,-90,-90,-91},
@@ -246,10 +242,10 @@ const int16_t g5mat_hevc[64][64] = {
 
 static const int16_t *transform_table[5] = { &g1mat_hevc[0][0], &g2mat_hevc[0][0], &g3mat_hevc[0][0], &g4mat_hevc[0][0], &g5mat_hevc[0][0]};
 
-void transform (const int16_t *block, int16_t *coeff, int size, int fast)
+void transform (const int16_t *block, int16_t *coeff, int size, int fast, int bitdepth)
 {
   if (use_simd)
-    transform_simd(block, coeff, size, fast);
+    transform_simd(block, coeff, size, fast, bitdepth);
   else {
     int16_t tmp[MAX_TR_SIZE][MAX_TR_SIZE];
     int16_t tmp2[32*32];
@@ -258,7 +254,7 @@ void transform (const int16_t *block, int16_t *coeff, int size, int fast)
     int tr_log2size = log2i(size);
     int qsize = min(size, MAX_QUANT_SIZE);
     int shift_1, shift_2, add_1, add_2;
-    int i, j, m, n, sum, size1, scale;
+    int16_t i, j, m, n, sum, size1, scale;
 
     size1 = size;
     scale = 1;
@@ -271,7 +267,8 @@ void transform (const int16_t *block, int16_t *coeff, int size, int fast)
           sum = 0;
           for (m = 0; m < scale; m++) {
             for (n = 0; n < scale; n++) {
-              sum += block[(i * scale + m) * size + j * scale + n];
+              // Saturate to match SIMD implementation
+              sum = min(max(sum + block[(i * scale + m) * size + j * scale + n], -16384), 16383);
             }
           }
           tmp2[i * size1 + j] = sum;
@@ -283,7 +280,7 @@ void transform (const int16_t *block, int16_t *coeff, int size, int fast)
     /* Set up core transform parameters */
     tr_log2size = log2i(size1);
     tr_matrix = transform_table[tr_log2size - 2];
-    shift_1 = log2i(size*scale); //averaging of scale*scale pixels in simplified transform implies increase of shift_1 by log2i(scale) bits
+    shift_1 = log2i(size) + log2i(scale) + bitdepth - 8; //averaging of scale*scale pixels in simplified transform implies increase of shift_1 by log2i(scale) bits
     add_1 = 1 << (shift_1 - 1);
     shift_2 = tr_log2size + 5;
     add_2 = 1 << (shift_2 - 1);
@@ -311,7 +308,7 @@ void transform (const int16_t *block, int16_t *coeff, int size, int fast)
   }
 }
 
-void transform_1d_odd_l4(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
+static void transform_1d_odd_l4(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
 {
   int i;
   int length = size>>4;
@@ -319,7 +316,7 @@ void transform_1d_odd_l4(const int16_t *coeff, const int16_t *tr_matrix, int siz
     o[i] = tr_matrix[8*size+i]*coeff[8*size+j];
   }
 }
-void transform_1d_even_l4(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
+static void transform_1d_even_l4(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
 {
   int i;
   int length = size>>4;
@@ -327,7 +324,7 @@ void transform_1d_even_l4(const int16_t *coeff, const int16_t *tr_matrix, int si
     out[i] = tr_matrix[0*size+i]*coeff[0*size+j];
   }
 }
-void transform_1d_odd_l3(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
+static void transform_1d_odd_l3(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
 {
   int i;
   int length = size>>3;
@@ -335,7 +332,7 @@ void transform_1d_odd_l3(const int16_t *coeff, const int16_t *tr_matrix, int siz
     o[i] = tr_matrix[4*size+i]*coeff[4*size+j] + tr_matrix[12*size+i]*coeff[12*size+j];
   }
 }
-void transform_1d_even_l3(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
+static void transform_1d_even_l3(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
 {
   int i;
   int length = size>>3;
@@ -349,7 +346,7 @@ void transform_1d_even_l3(const int16_t *coeff, const int16_t *tr_matrix, int si
     out[i] = e[length-1-i] - o[length-1-i];
   }
 }
-void transform_1d_odd_l2(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
+static void transform_1d_odd_l2(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
 {
   int i;
   int length = size>>2;
@@ -357,7 +354,7 @@ void transform_1d_odd_l2(const int16_t *coeff, const int16_t *tr_matrix, int siz
     o[i] = tr_matrix[2*size+i]*coeff[2*size+j] + tr_matrix[6*size+i]*coeff[6*size+j] + tr_matrix[10*size+i]*coeff[10*size+j] + tr_matrix[14*size+i]*coeff[14*size+j];          
   }
 }
-void transform_1d_even_l2(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
+static void transform_1d_even_l2(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
 {
   int i;
   int length = size>>2;
@@ -372,7 +369,7 @@ void transform_1d_even_l2(const int16_t *coeff, const int16_t *tr_matrix, int si
   }
 
 }
-void transform_1d_odd_l1(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
+static void transform_1d_odd_l1(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *o)
 {
   int i;
   int length = size>>1;
@@ -381,7 +378,7 @@ void transform_1d_odd_l1(const int16_t *coeff, const int16_t *tr_matrix, int siz
            tr_matrix[ 9*size+i]*coeff[ 9*size+j] + tr_matrix[11*size+i]*coeff[11*size+j] + tr_matrix[13*size+i]*coeff[13*size+j] + tr_matrix[15*size+i]*coeff[15*size+j];          
   }
 }
-void transform_1d_even_l1(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
+static void transform_1d_even_l1(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
 {
   int i;
   int length = size>>1;
@@ -395,7 +392,7 @@ void transform_1d_even_l1(const int16_t *coeff, const int16_t *tr_matrix, int si
     out[i] = e[length-1-i] - o[length-1-i];
   }
 }
-void transform_1d_even_l0(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
+static void transform_1d_even_l0(const int16_t *coeff, const int16_t *tr_matrix, int size, int j, int *out)
 {
   int i;
   int length = size>>0;
@@ -411,7 +408,7 @@ void transform_1d_even_l0(const int16_t *coeff, const int16_t *tr_matrix, int si
   }
 }
 
-void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
+static void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size, int bitdepth)
 {
   int i, j;
   int qsize = min(size, MAX_QUANT_SIZE);
@@ -421,7 +418,7 @@ void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
   const int16_t * tr_matrix = transform_table[tr];
   const int shift_1 = 7;
   const int add_1 = 1 << (shift_1 - 1);
-  const int shift_2 = 12;
+  const int shift_2 = 20 - bitdepth;
   const int add_2 = 1 << (shift_2 - 1);
 
   /* 1st dimension */
@@ -467,19 +464,19 @@ void inverse_transform_non_simd(const int16_t * coeff, int16_t *block, int size)
   }
 }
 
-void inverse_transform (const int16_t * coeff, int16_t *block, int size)
+void inverse_transform (const int16_t * coeff, int16_t *block, int size, int bitdepth)
 {
   if (size < 64)
-    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff, block, size);
+    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff, block, size, bitdepth);
   else {
     /* Larger transforms are implemented as a 32x32 kernel followed by scale*scale duplication */
     int i, j, m, n, tmp, scale;
-    int16_t *coeff2 = thor_alloc(2 * 32 * 32, 16);
-    int16_t *block2 = thor_alloc(2 * 32 * 32, 16);
+    int16_t *coeff2 = thor_alloc(2 * 32 * 32, 32);
+    int16_t *block2 = thor_alloc(2 * 32 * 32, 32);
     for (i = 0; i < 32; i++) {
       memcpy(coeff2 + i * 32, coeff + i * size, 32 * sizeof(int16_t));
     }
-    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff2, block2, 32);
+    (use_simd ? inverse_transform_simd : inverse_transform_non_simd)(coeff2, block2, 32, bitdepth);
 
     scale = size / 32;
     for (i = 0; i < 32; i++) {

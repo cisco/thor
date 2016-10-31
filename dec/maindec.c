@@ -90,6 +90,9 @@ unsigned int leading_zeros(unsigned int code)
   return count;
 }
 
+#undef TEMPLATE
+#define TEMPLATE(func) (decoder_info.bitdepth == 8 ? func ## _lbd : func ## _hbd)
+
 int main(int argc, char** argv)
 {
     FILE *infile,*outfile;
@@ -136,16 +139,16 @@ int main(int argc, char** argv)
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
     for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-      create_yuv_frame(&rec[r],width,height,decoder_info.subsample == 420,0,0);
+      TEMPLATE(create_yuv_frame)(&rec[r],width,height,decoder_info.subsample == 420,0,0,decoder_info.bitdepth,decoder_info.input_bitdepth);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
-      create_yuv_frame(&ref[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y);
+      TEMPLATE(create_yuv_frame)(&ref[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
       decoder_info.ref[r] = &ref[r];
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){
         decoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-        create_yuv_frame(decoder_info.interp_frames[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y);
+        TEMPLATE(create_yuv_frame)(decoder_info.interp_frames[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
       }
     }
 
@@ -153,8 +156,11 @@ int main(int argc, char** argv)
 
     if (y4m_output) {
       fprintf(outfile,
-              "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d\x0a",
+              "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d",
               width, height, 30, 1, 1, decoder_info.subsample);
+      if (decoder_info.input_bitdepth > 8)
+        fprintf(outfile, "p%d XYSCSS=%dp%d", decoder_info.input_bitdepth, decoder_info.subsample, decoder_info.input_bitdepth);
+      fprintf(outfile, "\x0a");
     }
 
     do
@@ -171,7 +177,7 @@ int main(int argc, char** argv)
         last_frame_output++;
         if (y4m_output)
           fprintf(outfile, "FRAME\x0a");
-        write_yuv_frame(&rec[op_rec_buffer_idx],outfile);
+        TEMPLATE(write_yuv_frame)(&rec[op_rec_buffer_idx],outfile);
         rec_available[op_rec_buffer_idx] = 0;
       }
       printf("decode_frame_num=%4d display_frame_num=%4d input_file_size=%12d bitcnt=%12d\n",
@@ -186,7 +192,7 @@ int main(int argc, char** argv)
       if (rec_available[op_rec_buffer_idx]) {
         if (y4m_output)
           fprintf(outfile, "FRAME\x0a");
-        write_yuv_frame(&rec[op_rec_buffer_idx],outfile);
+        TEMPLATE(write_yuv_frame)(&rec[op_rec_buffer_idx],outfile);
       } else
         break;
     }
@@ -329,14 +335,14 @@ int main(int argc, char** argv)
     printf("\n");
     printf("-----------------------------------------------------------------\n");
     for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-      close_yuv_frame(&rec[r]);
+      TEMPLATE(close_yuv_frame)(&rec[r]);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
-      close_yuv_frame(&ref[r]);
+      TEMPLATE(close_yuv_frame)(&ref[r]);
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){
-        close_yuv_frame(decoder_info.interp_frames[r]);
+        TEMPLATE(close_yuv_frame)(decoder_info.interp_frames[r]);
         free(decoder_info.interp_frames[r]);
       }
     }

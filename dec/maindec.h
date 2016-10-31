@@ -91,6 +91,8 @@ typedef struct
   int subsample;
   int cfl_inter;
   int cfl_intra;
+  int bitdepth;
+  int input_bitdepth;
   qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
 } decoder_info_t;
 

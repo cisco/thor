@@ -28,18 +28,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _INTER_PREDICTION_H_
 #include "types.h"
 
-void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos);
-void interpolate_frame0(int width, int height, yuv_frame_t *ref2, yuv_frame_t *ref0, yuv_frame_t *ref1, deblock_data_t *deblock_data, int phase, int gop_size);
-void get_inter_prediction_temp(int width, int height, yuv_frame_t *ref0, yuv_frame_t *ref1, block_pos_t *block_pos, deblock_data_t *deblock_data, int gop_size, int phase, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v);
-void scale_mv(mv_t *mv_in, mv_t *mv_out, int scale);
-void store_mv(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data);
-void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split);
-void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_pos_t *block_pos, int sub);
+void store_mv_lbd(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data);
+void store_mv_hbd(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data);
+int get_mv_skip_lbd(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
+int get_mv_skip_hbd(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
+int get_mv_skip_temp_lbd(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
+int get_mv_skip_temp_hbd(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
+mv_t get_mv_pred_lbd(int yposY,int xposY,int width,int height,int bwidth,int bheight,int sb_size,int ref_idx,deblock_data_t *deblock_data);
+mv_t get_mv_pred_hbd(int yposY,int xposY,int width,int height,int bwidth,int bheight,int sb_size,int ref_idx,deblock_data_t *deblock_data);
+int get_mv_merge_lbd(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates);
+int get_mv_merge_hbd(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates);
 
-mv_t get_mv_pred(int yposY,int xposY,int width,int height,int bwidth,int bheight,int sb_size,int ref_idx,deblock_data_t *deblock_data);
-int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
-int get_mv_skip_temp(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates);
-int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates);
-void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign);
+void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos, int bitdepth);
+void TEMPLATE(get_inter_prediction_temp)(int width, int height, yuv_frame_t *ref0, yuv_frame_t *ref1, block_pos_t *block_pos, deblock_data_t *deblock_data, int gop_size, int phase, SAMPLE *pblock_y, SAMPLE *pblock_u, SAMPLE *pblock_v);
+void TEMPLATE(get_inter_prediction_yuv)(yuv_frame_t *ref, SAMPLE *pblock_y, SAMPLE *pblock_u, SAMPLE *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split, int bitdepth);
+void TEMPLATE(average_blocks_all)(SAMPLE *rec_y, SAMPLE *rec_u, SAMPLE *rec_v, SAMPLE *pblock0_y, SAMPLE *pblock0_u, SAMPLE *pblock0_v, SAMPLE *pblock1_y, SAMPLE *pblock1_u, SAMPLE *pblock1_v, block_pos_t *block_pos, int sub);
+
+void TEMPLATE(clip_mv)(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign);
 
 #endif

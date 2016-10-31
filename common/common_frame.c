@@ -33,17 +33,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 #include "common_kernels.h"
 
-int beta_table[52] = {
+static const SAMPLE beta_table[52] = {
      0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
      16, 17, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, 58, 60, 62, 64
 };
 
-static const int tc_table[56] =
+static const SAMPLE tc_table[56] =
 {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,5,5,6,6,7,8,9,9,10,10,11,11,12,12,13,13,14,14
+  0,0,1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,20,22,24,26,28,30,32,36,40,44,48,52,56,60,64,68,72,80,88,96,104,112,128,144,152,160,168,176,184,192,200,208,216,224,232
 };
 
-void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp)
+void TEMPLATE(deblock_frame_y)(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth)
 {
   int i,j,k,l,d;
   int stride = rec->stride_y;
@@ -63,10 +63,10 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 #endif
 #endif
   int p2,p1,p0,q0,q1,q2;
-  uint8_t *recY = rec->y;
+  SAMPLE *recY = rec->y;
   uint8_t do_filter;
-  uint8_t beta = beta_table[qp];
-  uint8_t tc = tc_table[qp]; //TODO: increment with 4 for intra
+  SAMPLE beta = beta_table[qp] << (bitdepth-8);
+  SAMPLE tc = bitdepth > 12 ? tc_table[qp] << (bitdepth-12) : tc_table[qp] >> (12-bitdepth); //TODO: increment with 4 for intra
 
   int p_index,q_index;
   mv_t p_mv0,q_mv0;
@@ -180,10 +180,10 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 #endif
               delta = clip(delta, -tc, tc);
 
-              recY[(i + k)*stride + j - 2] = (uint8_t)clip255(p1 + delta / 2);
-              recY[(i + k)*stride + j - 1] = (uint8_t)clip255(p0 + delta);
-              recY[(i + k)*stride + j + 0] = (uint8_t)clip255(q0 - delta);
-              recY[(i + k)*stride + j + 1] = (uint8_t)clip255(q1 - delta / 2);
+              recY[(i + k)*stride + j - 2] = (SAMPLE)saturate(p1 + delta / 2, bitdepth);
+              recY[(i + k)*stride + j - 1] = (SAMPLE)saturate(p0 + delta, bitdepth);
+              recY[(i + k)*stride + j + 0] = (SAMPLE)saturate(q0 - delta, bitdepth);
+              recY[(i + k)*stride + j + 1] = (SAMPLE)saturate(q1 - delta / 2, bitdepth);
             }
 #else
             p2 = (int)recY[(i+k)*stride + j - 3];
@@ -199,10 +199,10 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 #endif
             delta = clip(delta,-tc,tc);
 
-            recY[(i+k)*stride + j - 2] = (uint8_t)clip255(p1 + delta/2);
-            recY[(i+k)*stride + j - 1] = (uint8_t)clip255(p0 + delta);
-            recY[(i+k)*stride + j + 0] = (uint8_t)clip255(q0 - delta);
-            recY[(i+k)*stride + j + 1] = (uint8_t)clip255(q1 - delta/2);
+            recY[(i+k)*stride + j - 2] = (SAMPLE)saturate(p1 + delta/2, bitdepth);
+            recY[(i+k)*stride + j - 1] = (SAMPLE)saturate(p0 + delta, bitdepth);
+            recY[(i+k)*stride + j + 0] = (SAMPLE)saturate(q0 - delta, bitdepth);
+            recY[(i+k)*stride + j + 1] = (SAMPLE)saturate(q1 - delta/2, bitdepth);
 #endif
           }
         }
@@ -317,10 +317,10 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 #endif
               delta = clip(delta, -tc, tc);
 
-              recY[(i - 2)*stride + j + l] = (uint8_t)clip255(p1 + delta / 2);
-              recY[(i - 1)*stride + j + l] = (uint8_t)clip255(p0 + delta);
-              recY[(i + 0)*stride + j + l] = (uint8_t)clip255(q0 - delta);
-              recY[(i + 1)*stride + j + l] = (uint8_t)clip255(q1 - delta / 2);
+              recY[(i - 2)*stride + j + l] = (SAMPLE)saturate(p1 + delta / 2, bitdepth);
+              recY[(i - 1)*stride + j + l] = (SAMPLE)saturate(p0 + delta, bitdepth);
+              recY[(i + 0)*stride + j + l] = (SAMPLE)saturate(q0 - delta, bitdepth);
+              recY[(i + 1)*stride + j + l] = (SAMPLE)saturate(q1 - delta / 2, bitdepth);
             }
 #else
             p2 = (int)recY[(i-3)*stride + j + l];
@@ -337,10 +337,10 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
 #endif
             delta = clip(delta,-tc,tc);
 
-            recY[(i-2)*stride + j + l] = (uint8_t)clip255(p1 + delta/2);
-            recY[(i-1)*stride + j + l] = (uint8_t)clip255(p0 + delta);
-            recY[(i+0)*stride + j + l] = (uint8_t)clip255(q0 - delta);
-            recY[(i+1)*stride + j + l] = (uint8_t)clip255(q1 - delta/2);
+            recY[(i-2)*stride + j + l] = (SAMPLE)saturate(p1 + delta/2, bitdepth);
+            recY[(i-1)*stride + j + l] = (SAMPLE)saturate(p0 + delta, bitdepth);
+            recY[(i+0)*stride + j + l] = (SAMPLE)saturate(q0 - delta, bitdepth);
+            recY[(i+1)*stride + j + l] = (SAMPLE)saturate(q1 - delta/2, bitdepth);
 #endif
           }
         }
@@ -350,14 +350,14 @@ void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width,
   }
 }
 
-void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp)
+void TEMPLATE(deblock_frame_uv)(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth)
 {
   int i,j,k,l;
   int stride = rec->stride_c;
   int p1,p0,q0,q1;
 
   uint8_t do_filter;
-  uint8_t tc = tc_table[qp];
+  SAMPLE tc = bitdepth > 12 ? tc_table[qp] << (bitdepth-12) : tc_table[qp] >> (12-bitdepth);
 
   int p_index,q_index;
   block_mode_t p_mode,q_mode;
@@ -367,7 +367,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
 
   for (int uv=0;uv<2;uv++){
 
-    uint8_t *recC = (uv ? rec->v : rec->u);
+    SAMPLE *recC = (uv ? rec->v : rec->u);
 
     /* Vertical filtering */
     for (i=0;i<height;i+=MIN_BLOCK_SIZE){
@@ -392,8 +392,8 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
             q1 = (int)recC[(i2+k)*stride + j2 + 1];
             delta = (4*(q0-p0) + (p1-q1) + 4)>>3;
             delta = clip(delta,-tc,tc);
-            recC[(i2+k)*stride + j2 - 1] = (uint8_t)clip255(p0 + delta);
-            recC[(i2+k)*stride + j2 + 0] = (uint8_t)clip255(q0 - delta);
+            recC[(i2+k)*stride + j2 - 1] = (SAMPLE)saturate(p0 + delta, bitdepth);
+            recC[(i2+k)*stride + j2 + 0] = (SAMPLE)saturate(q0 - delta, bitdepth);
           }
         }
       }
@@ -421,8 +421,8 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
             q1 = (int)recC[(i2+1)*stride + j2 + l];
             delta = (4*(q0-p0) + (p1-q1) + 4)>>3;
             delta = clip(delta,-tc,tc);
-            recC[(i2-1)*stride + j2 + l] = (uint8_t)clip255(p0 + delta);
-            recC[(i2+0)*stride + j2 + l] = (uint8_t)clip255(q0 - delta);
+            recC[(i2-1)*stride + j2 + l] = (SAMPLE)saturate(p0 + delta, bitdepth);
+            recC[(i2+0)*stride + j2 + l] = (SAMPLE)saturate(q0 - delta, bitdepth);
           }
         }
       }
@@ -431,7 +431,7 @@ void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width
 }
 
 
-void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver)
+void TEMPLATE(create_yuv_frame)(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver, int bitdepth, int input_bitdepth)
 {
   int align;
 
@@ -448,9 +448,9 @@ void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int p
   frame->offset_c = frame->pad_ver_c * frame->stride_c + frame->pad_hor_c;
   frame->area_y = ((height + 2*frame->pad_ver_y) * frame->stride_y + 16 + 15) & ~15;
   frame->area_c = (((height >> sub) + 2*frame->pad_ver_c) * frame->stride_c + 16 + 15) & ~15;
-  frame->y = (uint8_t *)malloc(frame->area_y*sizeof(uint8_t))+frame->offset_y;
-  frame->u = (uint8_t *)malloc(2*frame->area_c*sizeof(uint8_t))+frame->offset_c;
-  frame->v = frame->u + frame->area_c*sizeof(uint8_t);
+  frame->y = (SAMPLE *)malloc(frame->area_y*sizeof(SAMPLE))+frame->offset_y;
+  frame->u = (SAMPLE *)malloc(2*frame->area_c*sizeof(SAMPLE))+frame->offset_c;
+  frame->v = frame->u + frame->area_c;
 
   align = (16 - ((int)(uintptr_t)frame->y)) & 15;
   frame->offset_y += align;
@@ -460,93 +460,190 @@ void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int p
   frame->offset_c += align;
   frame->u += align;
   frame->v += align;
+  frame->bitdepth = bitdepth;
+  frame->input_bitdepth = input_bitdepth;
 }
 
-void close_yuv_frame(yuv_frame_t  *frame)
+void TEMPLATE(close_yuv_frame)(yuv_frame_t  *frame)
 {
   free(frame->y-frame->offset_y);
   free(frame->u-frame->offset_c);
 }
 
-void read_yuv_frame(yuv_frame_t *frame, FILE *infile)
+void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
 {
   int sub = frame->sub;
   int width = frame->width;
   int height = frame->height;
+  int frame_bitdepth = sizeof(SAMPLE) << 3;
+  int round = frame->bitdepth > frame->input_bitdepth-1 ? 1 << (frame->bitdepth-frame->input_bitdepth-1) : 0;
 
   for (int i=0; i<height; ++i) {
-    if (fread(&frame->y[i*frame->stride_y], sizeof(unsigned char), width, infile) != width)
-    {
+    if (fread(&frame->y[i*frame->stride_y], 1 + (frame->input_bitdepth > 8), width, infile) != width)
       fatalerror("Error reading Y from file");
-    }
-  }
-  for (int i=0; i<height>>sub; ++i) {
-    if (fread(&frame->u[i*frame->stride_c], sizeof(unsigned char), width>>sub, infile) != width>>sub)
-    {
-      fatalerror("Error reading U from file");
-    }
-  }
-  for (int i=0; i<height>>sub; ++i) {
-    if (fread(&frame->v[i*frame->stride_c], sizeof(unsigned char), width>>sub, infile) != width>>sub)
-    {
-      fatalerror("Error reading V from file");
+
+    if (frame->input_bitdepth != frame->bitdepth || (frame_bitdepth == 16 && frame->bitdepth == 8)) {
+      for (int j = width-1; j >= 0; j--) {
+        SAMPLE *y = frame->y + i*frame->stride_y;
+        y[j] = frame->input_bitdepth == 8 ?
+          ((uint8_t*)y)[j] << (frame->bitdepth-frame->input_bitdepth) :
+          (frame->bitdepth > frame->input_bitdepth ? y[j] << (frame->bitdepth-frame->input_bitdepth) :
+           (y[j] + round) >> (frame->input_bitdepth-frame->bitdepth));
+      }
     }
   }
 
+  for (int i=0; i<height>>sub; ++i) {
+    if (fread(&frame->u[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>sub, infile) != width>>sub)
+      fatalerror("Error reading U from file");
+
+    if (frame->input_bitdepth != frame->bitdepth || (frame_bitdepth == 16 && frame->bitdepth == 8)) {
+      for (int j = (width>>sub)-1; j >= 0; j--) {
+        SAMPLE *u = frame->u + i*frame->stride_c;
+        u[j] = frame->input_bitdepth == 8 ?
+          ((uint8_t*)u)[j] << (frame->bitdepth-frame->input_bitdepth) :
+          (frame->bitdepth > frame->input_bitdepth ? u[j] << (frame->bitdepth-frame->input_bitdepth) :
+           (u[j] + round) >> (frame->input_bitdepth-frame->bitdepth));
+      }
+    }
+  }
+
+  for (int i=0; i<height>>sub; ++i) {
+    if (fread(&frame->v[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>sub, infile) != width>>sub)
+      fatalerror("Error reading V from file");
+
+    if (frame->input_bitdepth != frame->bitdepth || (frame_bitdepth == 16 && frame->bitdepth == 8)) {
+      for (int j = (width>>sub)-1; j >= 0; j--) {
+        SAMPLE *v = frame->v + i*frame->stride_c;
+        v[j] = frame->input_bitdepth == 8 ?
+          ((uint8_t*)v)[j] << (frame->bitdepth-frame->input_bitdepth) :
+          (frame->bitdepth > frame->input_bitdepth ? v[j] << (frame->bitdepth-frame->input_bitdepth) :
+           (v[j] + round) >> (frame->input_bitdepth-frame->bitdepth));
+      }
+    }
+  }
 }
 
-void write_yuv_frame(yuv_frame_t *frame, FILE *outfile)
+void TEMPLATE(write_yuv_frame)(yuv_frame_t *frame, FILE *outfile)
 {
   int sub = frame->sub;
   int width = frame->width;
   int height = frame->height;
+  int round = frame->bitdepth > frame->input_bitdepth ? 1 << (frame->bitdepth - frame->input_bitdepth - 1) : 0;
+  int frame_bitdepth = sizeof(SAMPLE) << 3;
+  uint8_t *buf8 = thor_alloc(width, 32);
+  uint8_t *buf16 = thor_alloc(width * 2, 32);
 
   for (int i=0; i<height; ++i) {
-    if (fwrite(&frame->y[i*frame->stride_y], sizeof(unsigned char), width, outfile) != width)
-    {
-      fatalerror("Error reading Y from file");
+    if (frame->input_bitdepth == 8) {
+      if (frame_bitdepth > 8) {
+        for (int j = 0; j < width; j++)
+          buf8[j] = saturate((frame->y[i*frame->stride_y + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
+        if (fwrite(buf8, 1, width, outfile) != width)
+          fatalerror("Error writing Y to file");
+      } else
+        if (fwrite(&frame->y[i*frame->stride_y], 1, width, outfile) != width)
+          fatalerror("Error writing Y to file");
+    } else {
+      if (frame->input_bitdepth == frame->bitdepth) {
+        if (fwrite(&frame->y[i*frame->stride_y], 2, width, outfile) != width)
+          fatalerror("Error writing Y to file");
+      } else {
+        for (int j = 0; j < width; j++)
+          buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->y[i*frame->stride_y + j] << (frame->input_bitdepth - frame->bitdepth) :
+            saturate((frame->y[i*frame->stride_y + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
+        if (fwrite(buf16, 2, width, outfile) != width)
+          fatalerror("Error writing Y to file");
+      }
     }
   }
   for (int i=0; i<height>>sub; ++i) {
-    if (fwrite(&frame->u[i*frame->stride_c], sizeof(unsigned char), width>>sub, outfile) != width>>sub)
-    {
-      fatalerror("Error reading U from file");
+    if (frame->input_bitdepth == 8) {
+      if (frame_bitdepth > 8) {
+        for (int j = 0; j < width>>sub; j++)
+          buf8[j] = saturate((frame->u[i*frame->stride_c + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
+        if (fwrite(buf8, 1, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing U to file");
+      } else
+        if (fwrite(&frame->u[i*frame->stride_c], 1, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing U to file");
+    } else {
+      if (frame->input_bitdepth == frame->bitdepth) {
+        if (fwrite(&frame->u[i*frame->stride_c], 2, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing U to file");
+      } else {
+        for (int j = 0; j < width>>sub; j++)
+          buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->u[i*frame->stride_c + j] << (frame->input_bitdepth - frame->bitdepth) :
+            saturate((frame->u[i*frame->stride_c + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
+        if (fwrite(buf16, 2, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing U to file");
+      }
     }
   }
   for (int i=0; i<height>>sub; ++i) {
-    if (fwrite(&frame->v[i*frame->stride_c], sizeof(unsigned char), width>>sub, outfile) != width>>sub)
-    {
-      fatalerror("Error reading V from file");
+    if (frame->input_bitdepth == 8) {
+      if (frame_bitdepth > 8) {
+        for (int j = 0; j < width>>sub; j++)
+          buf8[j] = saturate((frame->v[i*frame->stride_c + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
+        if (fwrite(buf8, 1, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing V to file");
+      } else
+        if (fwrite(&frame->v[i*frame->stride_c], 1, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing V to file");
+    } else {
+      if (frame->input_bitdepth == frame->bitdepth) {
+        if (fwrite(&frame->v[i*frame->stride_c], 2, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing V to file");
+      } else {
+        for (int j = 0; j < width>>sub; j++)
+          buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->v[i*frame->stride_c + j] << (frame->input_bitdepth - frame->bitdepth) :
+            saturate((frame->v[i*frame->stride_c + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
+        if (fwrite(buf16, 2, width>>sub, outfile) != width>>sub)
+          fatalerror("Error writing V to file");
+      }
     }
   }
+
+  thor_free(buf8);
+  thor_free(buf16);
 }
 
 
-void pad_yuv_frame(yuv_frame_t * f)
+void TEMPLATE(pad_yuv_frame)(yuv_frame_t * f)
 {
   int sy = f->stride_y;
   int sc = f->stride_c;
   int w = f->width;
   int h = f->height;
   int i;
-  uint8_t val;
+  SAMPLE val;
+  int frame_bitdepth = sizeof(SAMPLE) << 3;
+
   /* Y */
   /* Left and right */
   for (i=0;i<h;i++)
   {
     val=f->y[i*sy];
-    memset(&f->y[i*sy-f->pad_hor_y],val,f->pad_hor_y*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->y[i*sy-f->pad_hor_y],val,f->pad_hor_y);
+    else
+      for (int j = 0; j < f->pad_hor_y; j++)
+        f->y[i*sy-f->pad_hor_y+j] = val;
     val=f->y[i*sy+w-1];
-    memset(&f->y[i*sy+w],val,f->pad_hor_y*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->y[i*sy+w],val,f->pad_hor_y);
+    else
+      for (int j = 0; j < f->pad_hor_y; j++)
+        f->y[i*sy+w+j] = val;
   }
   /* Top and bottom */
   for (i=-f->pad_ver_y;i<0;i++)
   {
-    memcpy(&f->y[i*sy-f->pad_hor_y], &f->y[-f->pad_hor_y], w+2*f->pad_hor_y);
+    memcpy(&f->y[i*sy-f->pad_hor_y], &f->y[-f->pad_hor_y], (w+2*f->pad_hor_y)*frame_bitdepth / 8);
   }
   for (i=h;i<h+f->pad_ver_y;i++)
   {
-    memcpy(&f->y[i*sy-f->pad_hor_y], &f->y[(h-1)*sy-f->pad_hor_y], w+2*f->pad_hor_y);
+    memcpy(&f->y[i*sy-f->pad_hor_y], &f->y[(h-1)*sy-f->pad_hor_y], (w+2*f->pad_hor_y)*frame_bitdepth / 8);
   }
 
   /* UV */
@@ -557,51 +654,68 @@ void pad_yuv_frame(yuv_frame_t * f)
   for (i=0;i<h;i++)
   {
     val=f->u[i*sc];
-    memset(&f->u[i*sc-f->pad_hor_c],val,f->pad_hor_c*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->u[i*sc-f->pad_hor_c],val,f->pad_hor_c);
+    else
+      for (int j = 0; j < f->pad_hor_c; j++)
+        f->u[i*sc-f->pad_hor_c+j] = val;
     val=f->u[i*sc+w-1];
-    memset(&f->u[i*sc+w],val,f->pad_hor_c*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->u[i*sc+w],val,f->pad_hor_c);
+    else
+      for (int j = 0; j < f->pad_hor_c; j++)
+        f->u[i*sc+w+j] = val;
 
     val=f->v[i*sc];
-    memset(&f->v[i*sc-f->pad_hor_c],val,f->pad_hor_c*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->v[i*sc-f->pad_hor_c],val,f->pad_hor_c);
+    else
+      for (int j = 0; j < f->pad_hor_c; j++)
+        f->v[i*sc-f->pad_hor_c+j] = val;
+
     val=f->v[i*sc+w-1];
-    memset(&f->v[i*sc+w],val,f->pad_hor_c*sizeof(uint8_t));
+    if (frame_bitdepth == 8)
+      memset(&f->v[i*sc+w],val,f->pad_hor_c);
+    else
+      for (int j = 0; j < f->pad_hor_c; j++)
+        f->v[i*sc+w+j] = val;
   }
 
   /* Top and bottom */
   for (i=-f->pad_ver_c;i<0;i++)
   {
-    memcpy(&f->u[i*sc-f->pad_hor_c], &f->u[-f->pad_hor_c], w+2*f->pad_hor_c);
-    memcpy(&f->v[i*sc-f->pad_hor_c], &f->v[-f->pad_hor_c], w+2*f->pad_hor_c);
+    memcpy(&f->u[i*sc-f->pad_hor_c], &f->u[-f->pad_hor_c], (w+2*f->pad_hor_c)*frame_bitdepth / 8);
+    memcpy(&f->v[i*sc-f->pad_hor_c], &f->v[-f->pad_hor_c], (w+2*f->pad_hor_c)*frame_bitdepth / 8);
   }
   for (i=h;i<h+f->pad_ver_c;i++)
   {
-    memcpy(&f->u[i*sc-f->pad_hor_c], &f->u[(h-1)*sc-f->pad_hor_c], w+2*f->pad_hor_c);
-    memcpy(&f->v[i*sc-f->pad_hor_c], &f->v[(h-1)*sc-f->pad_hor_c], w+2*f->pad_hor_c);
+    memcpy(&f->u[i*sc-f->pad_hor_c], &f->u[(h-1)*sc-f->pad_hor_c], (w+2*f->pad_hor_c)*frame_bitdepth / 8);
+    memcpy(&f->v[i*sc-f->pad_hor_c], &f->v[(h-1)*sc-f->pad_hor_c], (w+2*f->pad_hor_c)*frame_bitdepth / 8);
   }
 }
 
-void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec)
+void TEMPLATE(create_reference_frame)(yuv_frame_t  *ref,yuv_frame_t  *rec)
 {
   ref->frame_num = rec->frame_num;
   int height = rec->height;
   int width = rec->width;  
   int i;
-  uint8_t *ref_y = ref->y;
-  uint8_t *ref_u = ref->u;
-  uint8_t *ref_v = ref->v;
+  SAMPLE *ref_y = ref->y;
+  SAMPLE *ref_u = ref->u;
+  SAMPLE *ref_v = ref->v;
   for (i=0;i<height;i++){
-    memcpy(&ref_y[i*ref->stride_y],&rec->y[i*rec->stride_y],width*sizeof(uint8_t)); 
+    memcpy(&ref_y[i*ref->stride_y],&rec->y[i*rec->stride_y],width*sizeof(SAMPLE));
   }
   for (i=0;i<height>>ref->sub;i++){
-    memcpy(&ref_u[i*ref->stride_c],&rec->u[i*rec->stride_c],(width>>ref->sub)*sizeof(uint8_t));
-    memcpy(&ref_v[i*ref->stride_c],&rec->v[i*rec->stride_c],(width>>ref->sub)*sizeof(uint8_t));
+    memcpy(&ref_u[i*ref->stride_c],&rec->u[i*rec->stride_c],(width>>ref->sub)*sizeof(SAMPLE));
+    memcpy(&ref_v[i*ref->stride_c],&rec->v[i*rec->stride_c],(width>>ref->sub)*sizeof(SAMPLE));
   }
 
-  pad_yuv_frame(ref);
+  TEMPLATE(pad_yuv_frame)(ref);
 }
 
-void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,
-                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int)) {
+void TEMPLATE(clpf_frame)(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth,
+                          int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int)) {
 
   /* Constrained low-pass filter (CLPF) */
   int width = rec->width;
@@ -613,6 +727,8 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
 
   int num_sb_hor = (width+(1<<fb_size_log2)-bs)>>fb_size_log2;
   int num_sb_ver = (height+(1<<fb_size_log2)-bs)>>fb_size_log2;
+
+  strength <<= bitdepth - 8;
 
   for (int k = 0; k < num_sb_ver; k++) {
     for (int l = 0; l < num_sb_hor; l++) {
@@ -631,7 +747,7 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
       int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
       h += !h << fb_size_log2;
       w += !w << fb_size_log2;
-      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength, fb_size_log2))) {
+      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength, fb_size_log2, bitdepth-8))) {
         for (int m = 0; m < h/bs; m++) {
           for (int n = 0; n < w/bs; n++) {
             xpos = (l<<fb_size_log2) + n*bs;
@@ -640,27 +756,36 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
             int filter = deblock_data[index].mode != MODE_SKIP;
 
             if (filter) {
-              (use_simd ? clpf_block_simd : clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
-              (use_simd ? clpf_block_simd : clpf_block)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-              (use_simd ? clpf_block_simd : clpf_block)(rec->v, dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+              if (use_simd && sizeof(SAMPLE) == 1) {
+                clpf_block_simd((uint8_t *)rec->y, (uint8_t *)dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
+                clpf_block_simd((uint8_t *)rec->u, (uint8_t *)dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+                clpf_block_simd((uint8_t *)rec->v, (uint8_t *)dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+              } else {
+                TEMPLATE(clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
+                TEMPLATE(clpf_block)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+                TEMPLATE(clpf_block)(rec->v, dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+              }
             } else { // Copy
               for (int c = 0; c < bs; c++)
-                *(uint64_t*)(dst->y + (ypos + c)*stride_y + xpos) =
-                  *(uint64_t*)(rec->y + (ypos + c)*stride_y + xpos);
+                for (int d = 0; d < bs; d += 8 / sizeof(SAMPLE))
+                  *(uint64_t*)(dst->y + (ypos + c)*stride_y + xpos + d) =
+                    *(uint64_t*)(rec->y + (ypos + c)*stride_y + xpos + d);
               if (rec->sub) {
-                for (int c = 0; c < bs >> rec->sub; c++) {
-                  *(uint32_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1)) =
-                    *(uint32_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + (xpos >> 1));
-                  *(uint32_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1)) =
-                    *(uint32_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1));
-                }
+                for (int c = 0; c < (bs >> rec->sub); c++)
+                  for (int d = 0; d < bs; d += 4 / sizeof(SAMPLE)) {
+                    *(uint32_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d) =
+                      *(uint32_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + (xpos >> 1) + d);
+                    *(uint32_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d) =
+                      *(uint32_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d);
+                  }
               } else {
-                for (int c = 0; c < bs >> rec->sub; c++) {
-                  *(uint64_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + xpos) =
-                    *(uint64_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + xpos);
-                  *(uint64_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + xpos) =
-                    *(uint64_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + xpos);
-                }
+                for (int c = 0; c < (bs >> rec->sub); c++)
+                  for (int d = 0; d < bs; d += 8 / sizeof(SAMPLE)) {
+                    *(uint64_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + xpos + d) =
+                      *(uint64_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + xpos + d);
+                    *(uint64_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + xpos + d) =
+                      *(uint64_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + xpos + d);
+                  }
               }
             }
           }
@@ -668,12 +793,12 @@ void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const debl
       } else { // Copy
         for (int m = 0; m < h; m++)
           memcpy(dst->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2),
-                 rec->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2), w);
+                 rec->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2), w*sizeof(SAMPLE));
         for (int m = 0; m < h >> dst->sub; m++) {
           memcpy(dst->u + (((k<<fb_size_log2) >> dst->sub)+m)*stride_c + ((l<<fb_size_log2) >> dst->sub),
-                 rec->u + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), w >> rec->sub);
+                 rec->u + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), (w >> rec->sub)*sizeof(SAMPLE));
           memcpy(dst->v + (((k<<fb_size_log2) >> dst->sub)+m)*stride_c + ((l<<fb_size_log2) >> dst->sub),
-                 rec->v + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), w >> rec->sub);
+                 rec->v + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), (w >> rec->sub)*sizeof(SAMPLE));
         }
       }
     }

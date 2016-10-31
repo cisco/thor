@@ -99,20 +99,19 @@ typedef struct
   int max_clpf_strength;
   int cfl_intra;
   int cfl_inter;
+  int bitdepth;
+  int frame_bitdepth;
+  int input_bitdepth;
 } enc_params;
 
-typedef struct
-{
-  uint8_t y[MAX_SB_SIZE*MAX_SB_SIZE];
-  uint8_t u[MAX_SB_SIZE*MAX_SB_SIZE];
-  uint8_t v[MAX_SB_SIZE*MAX_SB_SIZE];
-} yuv_block_t;
+struct yuv_block;
+typedef struct yuv_block *pyuv_block;
 
 typedef struct
 {
   block_pos_t block_pos;
-  yuv_block_t *rec_block;
-  yuv_block_t *org_block;
+  pyuv_block rec_block;
+  pyuv_block org_block;
   block_param_t block_param;
   inter_pred_t skip_candidates[MAX_NUM_SKIP];
   inter_pred_t merge_candidates[MAX_NUM_MERGE];
@@ -126,7 +125,7 @@ typedef struct
   int delta_qp;
   block_context_t *block_context;
   int final_encode;
-  yuv_block_t *rec_block_best;
+  pyuv_block rec_block_best;
   double lambda;
   int qp;
   int sub;

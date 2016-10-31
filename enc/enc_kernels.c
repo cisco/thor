@@ -933,3 +933,28 @@ unsigned int sad_calc_fastquarter_simd(const uint8_t *po, const uint8_t *r, int 
   *y = besty;
   return sad_top;
 }
+
+int calc_cbp_simd(int16_t *block, int size, int threshold) {
+  int cbp = 0;
+  if (size ==8 ) {
+    v128 thr = v128_dup_16(threshold);
+    v128 sum = v128_add_16(v128_load_aligned(block+0*size),
+                           v128_load_aligned(block+1*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+2*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+3*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+4*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+5*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+6*size));
+    sum = v128_add_16(sum, v128_load_aligned(block+7*size));
+    cbp = !!v128_hadd_u8(v128_cmpgt_s16(sum, thr));
+  } else {
+    v64 sum = v64_add_16(v64_load_aligned(block+0*size),
+                         v64_load_aligned(block+1*size));
+    sum = v64_add_16(sum, v64_load_aligned(block+2*size));
+    sum = v64_add_16(sum, v64_load_aligned(block+3*size));
+    sum = v64_add_32(v64_shr_n_s32(sum, 16),
+                     v64_shr_n_s32(v64_shl_n_32(sum, 16), 16));
+    cbp = v64_high_s32(sum) > threshold || v64_low_s32(sum) > threshold;
+  }
+  return cbp;
+}

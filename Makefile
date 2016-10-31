@@ -16,18 +16,24 @@ ifeq ($(ARCH),sse4)
         CFLAGS += -msse4
 endif
 
-
 COMMON_SOURCES = \
 	common/common_block.c \
 	common/common_frame.c \
+	common/common_tables.c \
 	common/transform.c \
 	common/intra_prediction.c \
 	common/inter_prediction.c \
 	common/common_kernels.c \
 	common/snr.c \
+	common/snr_hbd.c \
 	common/simd.c \
         common/temporal_interp.c \
-        common/wt_matrix.c
+        common/wt_matrix.c \
+        common/common_frame_hbd.c \
+        common/common_block_hbd.c \
+        common/inter_prediction_hbd.c \
+        common/intra_prediction_hbd.c \
+        common/temporal_interp_hbd.c
 
 
 ENCODER_SOURCES = \
@@ -40,7 +46,10 @@ ENCODER_SOURCES = \
 	enc/write_bits.c \
 	enc/enc_kernels.c \
 	enc/rc.c \
-	$(COMMON_SOURCES)
+        enc/encode_block_hbd.c \
+        enc/encode_frame_hbd.c \
+        enc/encode_tables.c \
+        $(COMMON_SOURCES)
 
 DECODER_SOURCES = \
 	dec/decode_block.c \
@@ -49,6 +58,7 @@ DECODER_SOURCES = \
 	dec/maindec.c \
 	dec/read_bits.c \
 	dec/decode_frame.c \
+        dec/decode_block_hbd.c \
 	$(COMMON_SOURCES)
 
 ENCODER_OBJECTS = $(ENCODER_SOURCES:.c=.o)

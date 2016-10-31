@@ -27,14 +27,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined(_COMMON_FRAME_H_)
 #define _COMMON_FRAME_H_
 
-void deblock_frame_y(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp);
-void deblock_frame_uv(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp);
-void create_yuv_frame(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver);
-void close_yuv_frame(yuv_frame_t  *frame);
-void read_yuv_frame(yuv_frame_t  *frame, FILE *infile);
-void write_yuv_frame(yuv_frame_t  *frame, FILE *outfile);
-void pad_yuv_frame(yuv_frame_t* f);
-void create_reference_frame(yuv_frame_t  *ref,yuv_frame_t  *rec);
-void clpf_frame(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2,
-                int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int));
+void create_yuv_frame_lbd(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver, int bitdepth, int input_bitdepth);
+void create_yuv_frame_hbd(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver, int bitdepth, int input_bitdepth);
+void close_yuv_frame_lbd(yuv_frame_t  *frame);
+void close_yuv_frame_hbd(yuv_frame_t  *frame);
+void read_yuv_frame_lbd(yuv_frame_t  *frame, FILE *infile);
+void read_yuv_frame_hbd(yuv_frame_t  *frame, FILE *infile);
+void write_yuv_frame_lbd(yuv_frame_t  *frame, FILE *outfile);
+void write_yuv_frame_hbd(yuv_frame_t  *frame, FILE *outfile);
+void pad_yuv_frame_lbd(yuv_frame_t* f);
+void pad_yuv_frame_hbd(yuv_frame_t* f);
+void deblock_frame_y_lbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth);
+void deblock_frame_y_hbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth);
+void deblock_frame_uv_lbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth);
+void deblock_frame_uv_hbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth);
+void create_reference_frame_lbd(yuv_frame_t  *ref,yuv_frame_t  *rec);
+void create_reference_frame_hbd(yuv_frame_t  *ref,yuv_frame_t  *rec);
+void clpf_frame_lbd(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth,
+                    int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int));
+void clpf_frame_hbd(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth,
+                    int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int));
 #endif

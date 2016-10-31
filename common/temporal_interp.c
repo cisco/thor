@@ -1,11 +1,10 @@
 #include <math.h>
 #include <assert.h>
 #include <string.h>
-#include "simd.h"
 #include "global.h"
+#include "simd.h"
 #include "temporal_interp.h"
 #include "common_frame.h"
-#include "simd.h"
 #include "common_kernels.h"
 
 #define BLOCK_STEP 16
@@ -15,7 +14,6 @@
 
 #define COST_FILTER_DIV 10
 
-#define USE_CHROMA 0 // 444 not supported!
 #define MAX_LEVELS 4
 
 #define SAD_COSTS
@@ -84,7 +82,7 @@ static mv_t scale_mv(mv_t mv, int numer, int denom)
   return mv_out;
 }
 
-mv_data_t* alloc_mv_data(int w, int h, int bs, int bbs, int ratio, int k, int interpolate)
+static mv_data_t* alloc_mv_data(int w, int h, int bs, int bbs, int ratio, int k, int interpolate)
 {
   mv_data_t *data;
   data=(mv_data_t*) malloc(sizeof(mv_data_t));
@@ -132,7 +130,7 @@ mv_data_t* alloc_mv_data(int w, int h, int bs, int bbs, int ratio, int k, int in
 
 }
 
-void free_mv_data(mv_data_t* mv_data)
+static void free_mv_data(mv_data_t* mv_data)
 {
   free(mv_data->mv[0]);
   free(mv_data->mv[1]);
@@ -175,67 +173,7 @@ static void scale_frame_down2x2(yuv_frame_t* sin, yuv_frame_t* sout)
     }
 
   }
-  pad_yuv_frame(sout);
-}
-
-void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout)
-{
-  int wo=sout->width;
-  int ho=sout->height;
-  int so=sout->stride_y;
-  int si=sin->stride_y;
-  int i, j;
-  v128 ones = v128_dup_8(1);
-  v128 z = v128_dup_8(0);
-  for (i=0; i<ho; ++i) {
-
-    for (j=0; j<=wo-8; j+=8) {
-      v128 a = v128_load_aligned(&sin->y[(2*i+0)*si+2*j]);
-      v128 b = v128_load_aligned(&sin->y[(2*i+1)*si+2*j]);
-      v128 c = v128_avg_u8(a,b);
-      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
-      v64_store_aligned(&sout->y[i*so+j], v128_low_v64(v128_pack_s16_u8(z,d)));
-    }
-    for (; j<wo; ++j) {
-      sout->y[i*so+j]=( ((sin->y[(2*i+0)*si+(2*j+0)] + sin->y[(2*i+1)*si+(2*j+0)]+1)>>1)+
-                      + ((sin->y[(2*i+0)*si+(2*j+1)] + sin->y[(2*i+1)*si+(2*j+1)]+1)>>1) )>>1;
-    }
-
-  }
-#if USE_CHROMA
-  int soc=sout->stride_c;
-  int sic=sin->stride_c;
-  ho /= 2;
-  wo /= 2;
-  for (int i=0; i<ho; ++i) {
-
-    for (j=0; j<=wo-8; j+=8) {
-      v128 a = v128_load_aligned(&sin->u[(2*i+0)*sic+2*j]);
-      v128 b = v128_load_aligned(&sin->u[(2*i+1)*sic+2*j]);
-      v128 c = v128_avg_u8(a,b);
-      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
-      v64_store_aligned(&sout->u[i*soc+j], v128_low_v64(v128_pack_s16_u8(z,d)));
-    }
-    for (; j<wo; ++j) {
-      sout->u[i*soc+j]=( ((sin->u[(2*i+0)*sic+(2*j+0)] + sin->u[(2*i+1)*sic+(2*j+0)]+1)>>1)+
-                       + ((sin->u[(2*i+0)*sic+(2*j+1)] + sin->u[(2*i+1)*sic+(2*j+1)]+1)>>1) )>>1;
-    }
-
-    for (j=0; j<=wo-8; j+=8) {
-      v128 a = v128_load_aligned(&sin->v[(2*i+0)*sic+2*j]);
-      v128 b = v128_load_aligned(&sin->v[(2*i+1)*sic+2*j]);
-      v128 c = v128_avg_u8(a,b);
-      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
-      v64_store_aligned(&sout->v[i*soc+j], v128_low_v64(v128_pack_s16_u8(z,d)));
-    }
-    for (; j<wo; ++j) {
-      sout->v[i*soc+j]=( ((sin->v[(2*i+0)*sic+(2*j+0)] + sin->v[(2*i+1)*sic+(2*j+0)]+1)>>1)+
-                       + ((sin->v[(2*i+0)*sic+(2*j+1)] + sin->v[(2*i+1)*sic+(2*j+1)]+1)>>1) )>>1;
-    }
-
-  }
-#endif
-  pad_yuv_frame(sout);
+  TEMPLATE(pad_yuv_frame)(sout);
 }
 
 static void upscale_mv_data_2x2(mv_data_t* mv_data_in, mv_data_t* mv_data_out)
@@ -378,7 +316,7 @@ static int get_mv_cost(mv_t mv, mv_data_t* mv_data, int idx, int xp, int yp, int
   return (diff*lambda) >> (LAMBDA_SHIFT+ACC_BITS);
 }
 
-void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1, int s1, uint8_t * pic, int sp, mv_t mv0, mv_t mv1, int wP, int hP, int pad, int size, int wt[2]){
+static void mot_comp_avg(int xstart, int ystart, SAMPLE* ref0, int s0, SAMPLE * ref1, int s1, SAMPLE * pic, int sp, mv_t mv0, mv_t mv1, int wP, int hP, int pad, int size, int wt[2]){
 
   int xs[2];
   int ys[2];
@@ -388,15 +326,15 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
   ys[0]=ystart+((mv0.y+ACC_ROUND)>>ACC_BITS);
   ys[1]=ystart+((mv1.y+ACC_ROUND)>>ACC_BITS);
 
-  uint8_t* p=&pic[ystart*sp+xstart];
+  SAMPLE* p=&pic[ystart*sp+xstart];
 
   if (xs[0]>=-pad && xs[0]+size <= wP && ys[0]>=-pad && ys[0]+size<=hP
       && xs[1]>=-pad && xs[1]+size <= wP && ys[1]>=-pad && ys[1]+size<=hP) {
 
-    uint8_t* r0=&ref0[ys[0]*s0+xs[0]];
-    uint8_t* r1=&ref1[ys[1]*s1+xs[1]];
-    if (use_simd && size>=4) {
-      block_avg_simd(p,r0,r1,sp,s0,s1,size,size);
+    SAMPLE* r0=&ref0[ys[0]*s0+xs[0]];
+    SAMPLE* r1=&ref1[ys[1]*s1+xs[1]];
+    if (use_simd && sizeof(SAMPLE) == 1 && size>=4) {
+      block_avg_simd((uint8_t *)p,(uint8_t *)r0,(uint8_t *)r1,sp,s0,s1,size,size);
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
@@ -406,20 +344,20 @@ void mot_comp_avg(int xstart, int ystart, uint8_t* ref0, int s0, uint8_t * ref1,
     }
 
   } else if (xs[1]>=-pad && xs[1]+size <= wP && ys[1]>=-pad && ys[1]+size<=hP){
-    uint8_t* r1=&ref1[ys[1]*s1+xs[1]];
+    SAMPLE* r1=&ref1[ys[1]*s1+xs[1]];
     for (int i=0; i<size; ++i) {
-      memcpy(&p[i*sp], &r1[i*s1], size*sizeof(uint8_t));
+      memcpy(&p[i*sp], &r1[i*s1], size*sizeof(SAMPLE));
     }
   } else if (xs[0]>=-pad && xs[0]+size <= wP && ys[0]>=-pad && ys[0]+size<=hP){
-    uint8_t* r0=&ref0[ys[0]*s0+xs[0]];
+    SAMPLE* r0=&ref0[ys[0]*s0+xs[0]];
     for (int i=0; i<size; ++i) {
-      memcpy(&p[i*sp], &r0[i*s1], size*sizeof(uint8_t));
+      memcpy(&p[i*sp], &r0[i*s1], size*sizeof(SAMPLE));
     }
 
   } else {
     // Clipped version
-    uint8_t* r0=ref0;
-    uint8_t* r1=ref1;
+    SAMPLE* r0=ref0;
+    SAMPLE* r1=ref1;
     for (int i=0; i<size; ++i) {
       for (int j=0; j<size; ++j) {
         int xpos0=min(wP-1, max(-pad, j+xs[0]));
@@ -452,17 +390,17 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
 
   int s0=pic[0]->stride_y;
   int s1=pic[1]->stride_y;
-#if USE_CHROMA
+#if TEMP_INTERP_USE_CHROMA
   int sc0=pic[0]->stride_c;
   int sc1=pic[1]->stride_c;
 #endif
   if (xs[0]>=-pady && xs[0]+size <= widthP && ys[0]>=-pady && ys[0]+size<=heightP
       && xs[1]>=-pady && xs[1]+size <= widthP && ys[1]>=-pady && ys[1]+size<=heightP) {
 
-    uint8_t* p0=&pic[0]->y[ys[0]*s0+xs[0]];
-    uint8_t* p1=&pic[1]->y[ys[1]*s1+xs[1]];
-    if (use_simd && size >= 4) {
-      bcost += sad_calc_simd_unaligned(p0, p1, s0, s1, size, size);
+    SAMPLE* p0=&pic[0]->y[ys[0]*s0+xs[0]];
+    SAMPLE* p1=&pic[1]->y[ys[1]*s1+xs[1]];
+    if (use_simd && sizeof(SAMPLE) == 1 && size >= 4) {
+      bcost += sad_calc_simd_unaligned((uint8_t *)p0, (uint8_t *)p1, s0, s1, size, size);
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
@@ -470,14 +408,14 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
         }
       }
     }
-#if USE_CHROMA
+#if TEMP_INTERP_USE_CHROMA
     if (bcost < best_cost) {
       uint32_t ccost=0;
       int cpos0=(ys[0]/2)*sc0+(xs[0]/2);
       int cpos1=(ys[1]/2)*sc1+(xs[1]/2);
-      if (use_simd && size >= 8) {
-        ccost += sad_calc_simd_unaligned(&pic[0]->u[cpos0], &pic[1]->u[cpos1], sc0, sc1, size/2, size/2);
-        ccost += sad_calc_simd_unaligned(&pic[0]->v[cpos0], &pic[1]->v[cpos1], sc0, sc1, size/2, size/2);
+      if (use_simd && sizeof(SAMPLE) == 1 && size >= 8) {
+        ccost += sad_calc_simd_unaligned((uint8_t *)&pic[0]->u[cpos0], (uint8_t *)&pic[1]->u[cpos1], sc0, sc1, size/2, size/2);
+        ccost += sad_calc_simd_unaligned((uint8_t *)&pic[0]->v[cpos0], (uint8_t *)&pic[1]->v[cpos1], sc0, sc1, size/2, size/2);
       } else {
         p0=&pic[0]->u[cpos0];
         p1=&pic[1]->u[cpos1];
@@ -500,8 +438,8 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
 
   } else {
     // Clipped version, luma only
-    uint8_t* p0=pic[0]->y;
-    uint8_t* p1=pic[1]->y;
+    SAMPLE* p0=pic[0]->y;
+    SAMPLE* p1=pic[1]->y;
     for (int i=0; i<size; ++i) {
       for (int j=0; j<size; ++j) {
         int xpos0=min(widthP-1, max(-pady, j+xs[0]));
@@ -551,10 +489,10 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
       if (xs[0]>=-padx && xs[0]+8 <= wP && ys[0]>=-pady && ys[0]+8<=hP
           && xs[1]>=-padx && xs[1]+8 <= wP && ys[1]>=-pady && ys[1]+8<=hP) {
         int sum=0;
-        uint8_t* r0=&picdata[0]->y[ys[0]*s0+xs[0]];
-        uint8_t* r1=&picdata[1]->y[ys[1]*s1+xs[1]];
-        if (use_simd) {
-          sum = sad_calc_simd_unaligned(r0, r1, s0, s1, 8, 8);
+        SAMPLE* r0=&picdata[0]->y[ys[0]*s0+xs[0]];
+        SAMPLE* r1=&picdata[1]->y[ys[1]*s1+xs[1]];
+        if (use_simd && sizeof(SAMPLE) == 1) {
+          sum = sad_calc_simd_unaligned((uint8_t *)r0, (uint8_t *)r1, s0, s1, 8, 8);
         } else {
           for (int i=0; i<8; i++) {
             for (int j=0; j<8; j++) {
@@ -573,7 +511,7 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
       }
     }
   }
-#if USE_CHROMA
+#if TEMP_INTERP_USE_CHROMA
   if (skip) {
     int thrC=thr/4;
     int s0C=picdata[0]->stride_c;
@@ -594,13 +532,13 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
         ys[1]=p+((mv1.y+ACC_ROUND)>>ACC_BITS);
         int sumU=0;
         int sumV=0;
-        uint8_t* r0U=&picdata[0]->u[ys[0]*s0C+xs[0]];
-        uint8_t* r1U=&picdata[1]->u[ys[1]*s1C+xs[1]];
-        uint8_t* r0V=&picdata[0]->v[ys[0]*s0C+xs[0]];
-        uint8_t* r1V=&picdata[1]->v[ys[1]*s1C+xs[1]];
-        if (use_simd) {
-          sumU = sad_calc_simd_unaligned(r0U, r1U, s0C, s1C, 8, 8);
-          sumV = sad_calc_simd_unaligned(r0V, r1V, s0C, s1C, 8, 8);
+        SAMPLE* r0U=&picdata[0]->u[ys[0]*s0C+xs[0]];
+        SAMPLE* r1U=&picdata[1]->u[ys[1]*s1C+xs[1]];
+        SAMPLE* r0V=&picdata[0]->v[ys[0]*s0C+xs[0]];
+        SAMPLE* r1V=&picdata[1]->v[ys[1]*s1C+xs[1]];
+        if (use_simd && sizeof(SAMPLE) == 1) {
+          sumU = sad_calc_simd_unaligned((uint8_t *)r0U, (uint8_t *)r1U, s0C, s1C, 8, 8);
+          sumV = sad_calc_simd_unaligned((uint8_t *)r0V, (uint8_t *)r1V, s0C, s1C, 8, 8);
         } else {
           for (int i=0; i<8; i++) {
             for (int j=0; j<8; j++) {
@@ -778,8 +716,8 @@ static mv_t mv_absdist_filter(mv_t* mlist, int num)
 //static void filter_mvs(mv_data_t* mv_data, int step)
 //{
 //  mv_t vlist[5];
-//  mv_t *mv_cpy = (mv_t*) thor_alloc(mv_data->bw*mv_data->bh*sizeof(mv_t),16);
-//  mv_t *scaled_mv_cpy = (mv_t*) thor_alloc(mv_data->bw*mv_data->bh*sizeof(mv_t),16);
+//  mv_t *mv_cpy = (mv_t*) thor_alloc(mv_data->bw*mv_data->bh*sizeof(mv_t),32);
+//  mv_t *scaled_mv_cpy = (mv_t*) thor_alloc(mv_data->bw*mv_data->bh*sizeof(mv_t),32);
 //  int bw=mv_data->bw;
 //  int bh=mv_data->bh;
 //  for (int i=0; i<bh; i+=step) {
@@ -889,8 +827,8 @@ static void motion_estimate_bi(mv_data_t* mv_data, mv_data_t** guide_mv_data, in
     }
   }
 
-  mv_t * mv0 = (mv_t*) thor_alloc(bw*bh*sizeof(mv_t), 16);
-  mv_t * mv1 = (mv_t*) thor_alloc(bw*bh*sizeof(mv_t), 16);
+  mv_t * mv0 = (mv_t*) thor_alloc(bw*bh*sizeof(mv_t), 32);
+  mv_t * mv1 = (mv_t*) thor_alloc(bw*bh*sizeof(mv_t), 32);
 
   for (int i=0; i<bh; i++) {
     for (int j=0; j<bw; j++) {
@@ -911,8 +849,8 @@ static void motion_estimate_bi(mv_data_t* mv_data, mv_data_t** guide_mv_data, in
   thor_free(mv1);
 }
 
-static void interpolate_comp(mv_data_t* mv_data, uint8_t* p0, int s0, uint8_t* p1, int s1,
-    uint8_t* out, int so, int wP, int hP, int pad, int chroma)
+static void interpolate_comp(mv_data_t* mv_data, SAMPLE* p0, int s0, SAMPLE* p1, int s1,
+    SAMPLE* out, int so, int wP, int hP, int pad, int chroma)
 {
   const int bw=mv_data->bw;
   const int bh=mv_data->bh;
@@ -963,7 +901,7 @@ static void interpolate_frame(mv_data_t* mv_data, yuv_frame_t* indata0, yuv_fram
 
 }
 
-void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* ref1, int ratio, int pos)
+void TEMPLATE(interpolate_frames)(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* ref1, int ratio, int pos)
 {
   int widthin = ref0->width;
   int heightin = ref0->height;
@@ -980,7 +918,7 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   int interpolate = 1;
   for (int j=1; j<max_levels; j++) {
     out_down[j]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(out_down[j],widthin>>j,heightin>>j, 1, 32, 32);
+    TEMPLATE(create_yuv_frame)(out_down[j],widthin>>j,heightin>>j, 1, 32, 32, ref0->bitdepth, ref0->input_bitdepth);
   }
   out_down[0]=new_frame;
 
@@ -995,21 +933,23 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   for (int i=1; i<max_levels; ++i) {
     in_down[i][0]=malloc(sizeof(yuv_frame_t));
     in_down[i][1]=malloc(sizeof(yuv_frame_t));
-    create_yuv_frame(in_down[i][0],widthin>>i, heightin>>i, 1, 32, 32);
-    create_yuv_frame(in_down[i][1],widthin>>i, heightin>>i, 1, 32, 32);
+    TEMPLATE(create_yuv_frame)(in_down[i][0],widthin>>i, heightin>>i, 1, 32, 32, ref0->bitdepth, ref0->input_bitdepth);
+    TEMPLATE(create_yuv_frame)(in_down[i][1],widthin>>i, heightin>>i, 1, 32, 32, ref0->bitdepth, ref0->input_bitdepth);
   }
   // Level 0 is just the original pictures
   in_down[0][0]=ref0;
   in_down[0][1]=ref1;
 
   for (int l=0; l<max_levels-1; ++l) {
-    if (use_simd) {
+    if (use_simd && sizeof(SAMPLE) == 1) {
       scale_frame_down2x2_simd(in_down[l][0], in_down[l+1][0]);
       scale_frame_down2x2_simd(in_down[l][1], in_down[l+1][1]);
     } else {
       scale_frame_down2x2(in_down[l][0], in_down[l+1][0]);
       scale_frame_down2x2(in_down[l][1], in_down[l+1][1]);
     }
+    TEMPLATE(pad_yuv_frame)(in_down[l+1][0]);
+    TEMPLATE(pad_yuv_frame)(in_down[l+1][1]);
   }
 
 
@@ -1027,7 +967,7 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
   }
 
   for (int j=1; j<max_levels; j++) {
-    close_yuv_frame(out_down[j]);
+    TEMPLATE(close_yuv_frame)(out_down[j]);
     free(out_down[j]);
   }
 
@@ -1038,8 +978,8 @@ void interpolate_frames(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv_frame_t* 
 
   /* Higher levels are down-sampled*/
   for (int i=1; i<max_levels; ++i) {
-    close_yuv_frame(in_down[i][0]);
-    close_yuv_frame(in_down[i][1]);
+    TEMPLATE(close_yuv_frame)(in_down[i][0]);
+    TEMPLATE(close_yuv_frame)(in_down[i][1]);
     free(in_down[i][0]);
     free(in_down[i][1]);
   }

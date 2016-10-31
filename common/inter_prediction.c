@@ -38,7 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 #include "simd.h"
 #include "common_kernels.h"
-
+#include "inter_prediction.h"
 
 #define NTAPY 6
 #define OFFY (NTAPY/2)
@@ -69,7 +69,7 @@ static const int8_t filter_coeffsC[8][4] = {
     {-2, 10, 58, -2}
 };
 
-void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign) {
+void TEMPLATE(clip_mv)(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign) {
 
   int max_mv_ext = PADDING_Y - 16; //max MV extension outside frame boundaries in integer pixel resolution
   int mvy, mvx;
@@ -83,7 +83,7 @@ void clip_mv(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwi
   mv_cand->x = sign ? -mvx : mvx;
 }
 
-static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int pic_width2, int pic_height2, int xpos, int ypos)
+static void get_inter_prediction_chroma(SAMPLE *pblock, SAMPLE *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int pic_width2, int pic_height2, int xpos, int ypos, int bitdepth)
 {
   int i,j;
 
@@ -99,19 +99,19 @@ static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width
   ver_int = max(ver_int,-xpos-height);
   hor_int = min(hor_int,pic_width2-xpos);
   hor_int = max(hor_int,-xpos-width);
-  int16_t tmp[MAX_SB_SIZE / 2 + 16][MAX_SB_SIZE / 2 + 16];
+  int32_t tmp[MAX_SB_SIZE / 2 + 16][MAX_SB_SIZE / 2 + 16];
 
   if (ver_frac==0 && hor_frac==0){
     j_off = 0 + hor_int;
     for(i=0;i<height;i++){
       i_off = i + ver_int;
-      memcpy(pblock + i*pstride,ref + i_off*stride + j_off, width*sizeof(uint8_t));
+      memcpy(pblock + i*pstride,ref + i_off*stride + j_off, width*sizeof(SAMPLE));
     }
     return;
   }
 
-  if (use_simd && width > 2)
-    get_inter_prediction_chroma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride);
+  if (use_simd && sizeof(SAMPLE) == 1 && width > 2)
+    get_inter_prediction_chroma_simd(width, height, hor_frac, ver_frac, (uint8_t *)pblock, pstride, (uint8_t *)ref + ver_int*stride + hor_int, stride);
   else {
     /* Horizontal filtering */
     for(i=-1;i<height+2;i++){
@@ -129,13 +129,13 @@ static void get_inter_prediction_chroma(uint8_t *pblock, uint8_t *ref, int width
       for (j=0;j<width;j++){
         int sum = 0;
         for (m=0;m<4;m++) sum += filter_coeffsC[ver_frac][m] * tmp[i+m][j];
-        pblock[i*pstride+j] = clip255((sum + 2048)>>12);
+        pblock[i*pstride+j] = saturate((sum + 2048)>>12,bitdepth);
       }
     }
   }
 }
 
-void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos) 
+void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width, int height, int stride, int pstride, mv_t *mv, int sign, int bipred, int pic_width, int pic_height, int xpos, int ypos, int bitdepth)
 {
   int i,j;
   int m,i_off,j_off;
@@ -156,13 +156,13 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
     j_off = 0 + hor_int;
     for(i=0;i<height;i++){
       i_off = i + ver_int;
-      memcpy(pblock + i*pstride,ref + i_off*stride+j_off, width*sizeof(uint8_t));
+      memcpy(pblock + i*pstride,ref + i_off*stride+j_off, width*sizeof(SAMPLE));
     }
     return;
   }
 
-  if (use_simd)
-    get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred);
+  if (use_simd && sizeof(SAMPLE) == 1)
+    get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, (uint8_t *)pblock, pstride, (uint8_t *)ref + ver_int*stride + hor_int, stride, bipred);
   /* Special lowpass filter at center position */
   else if (ver_frac == 2 && hor_frac == 2 && bipred < 2) {
     for(i=0;i<height;i++){
@@ -174,7 +174,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
         sum += 1*ref[(i_off+0)*stride+j_off-1]+2*ref[(i_off+0)*stride+j_off+0]+2*ref[(i_off+0)*stride+j_off+1]+1*ref[(i_off+0)*stride+j_off+2];
         sum += 1*ref[(i_off+1)*stride+j_off-1]+2*ref[(i_off+1)*stride+j_off+0]+2*ref[(i_off+1)*stride+j_off+1]+1*ref[(i_off+1)*stride+j_off+2];
         sum += 0*ref[(i_off+2)*stride+j_off-1]+1*ref[(i_off+2)*stride+j_off+0]+1*ref[(i_off+2)*stride+j_off+1]+0*ref[(i_off+2)*stride+j_off+2];
-        pblock[i*pstride+j] = clip255((sum + 8)>>4);
+        pblock[i*pstride+j] = saturate((sum + 8)>>4, bitdepth);
       }
     }
   } else {
@@ -195,7 +195,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
       for (j=0;j<height;j++){
         int sum = 0;
         for (m=0;m<NTAPY;m++) sum += filterH[m] * tmp[j][i+m];
-        pblock[j*pstride+i] = clip255((sum + 2048)>>12);
+        pblock[j*pstride+i] = saturate((sum + 2048)>>12, bitdepth);
       }
     }
   }
@@ -203,7 +203,7 @@ void get_inter_prediction_luma(uint8_t *pblock, uint8_t *ref, int width, int hei
 
 
 
-void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split) {
+void TEMPLATE(get_inter_prediction_yuv)(yuv_frame_t *ref, SAMPLE *pblock_y, SAMPLE *pblock_u, SAMPLE *pblock_v, block_pos_t *block_pos, mv_t *mv_arr, int sign, int width, int height, int enable_bipred, int split, int bitdepth) {
   mv_t mv;
   int div = split + 1;
 
@@ -220,9 +220,9 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
 
   int ref_posY = yposY*ref->stride_y + xposY;
   int ref_posC = yposC*ref->stride_c + xposC;
-  uint8_t *ref_y = ref->y + ref_posY;
-  uint8_t *ref_u = ref->u + ref_posC;
-  uint8_t *ref_v = ref->v + ref_posC;
+  SAMPLE *ref_y = ref->y + ref_posY;
+  SAMPLE *ref_u = ref->u + ref_posC;
+  SAMPLE *ref_v = ref->v + ref_posC;
   for (index = 0; index<div*div; index++) {
     int idx = (index >> 0) & 1;
     int idy = (index >> 1) & 1;
@@ -231,20 +231,20 @@ void get_inter_prediction_yuv(yuv_frame_t *ref, uint8_t *pblock_y, uint8_t *pblo
     int offsetrY = idy*bheight*rstride_y + idx*bwidth;
     int offsetrC = (idy*bheight*rstride_c >> ref->sub) + (idx*bwidth >> ref->sub);
     mv = mv_arr[index];
-    clip_mv(&mv, yposY, xposY, width, height, bwidth, bheight, sign);
-    get_inter_prediction_luma(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY); //get_inter_prediction_yuv()
+    TEMPLATE(clip_mv)(&mv, yposY, xposY, width, height, bwidth, bheight, sign);
+    TEMPLATE(get_inter_prediction_luma)(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY, bitdepth); //get_inter_prediction_yuv()
     if (ref->sub) {
-      get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC);
-      get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC);
+      get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, bitdepth);
+      get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, bitdepth);
     } else {
       // Use luma prediction for chroma in 4:4:4
-      get_inter_prediction_luma(pblock_u + offsetpC, ref_u + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC);
-      get_inter_prediction_luma(pblock_v + offsetpC, ref_v + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC);
+      TEMPLATE(get_inter_prediction_luma)(pblock_u + offsetpC, ref_u + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC, bitdepth);
+      TEMPLATE(get_inter_prediction_luma)(pblock_v + offsetpC, ref_v + offsetrC, bwidth, bheight, rstride_c, pstride, &mv, sign, 0, width, height, xposC, yposC, bitdepth);
     }
   }
 }
 
-void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t *pblock0_y, uint8_t *pblock0_u, uint8_t *pblock0_v, uint8_t *pblock1_y, uint8_t *pblock1_u, uint8_t *pblock1_v, block_pos_t *block_pos, int sub) {
+void TEMPLATE(average_blocks_all)(SAMPLE *rec_y, SAMPLE *rec_u, SAMPLE *rec_v, SAMPLE *pblock0_y, SAMPLE *pblock0_u, SAMPLE *pblock0_v, SAMPLE *pblock1_y, SAMPLE *pblock1_u, SAMPLE *pblock1_v, block_pos_t *block_pos, int sub) {
   int bwidth = block_pos->bwidth;
   int bheight = block_pos->bheight;
   int size = block_pos->size;
@@ -254,18 +254,18 @@ void average_blocks_all(uint8_t *rec_y, uint8_t *rec_u, uint8_t *rec_v, uint8_t 
 
   for (i = 0; i < bheight; i++) {
     for (j = 0; j < bwidth; j++) {
-      rec_y[i*sizeY + j] = (uint8_t)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
+      rec_y[i*sizeY + j] = (SAMPLE)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
     }
   }
   for (i = 0; i < bheight >> sub; i++) {
     for (j = 0; j < bwidth >> sub; j++) {
-      rec_u[i*sizeC + j] = (uint8_t)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
-      rec_v[i*sizeC + j] = (uint8_t)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
+      rec_u[i*sizeC + j] = (SAMPLE)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
+      rec_v[i*sizeC + j] = (SAMPLE)(((int)pblock0_v[i*sizeC + j] + (int)pblock1_v[i*sizeC + j]) >> 1);
     }
   }
 }
 
-void scale_mv(mv_t *mv_in, mv_t *mv_out, double scale, double offset) {
+void TEMPLATE(scale_mv)(mv_t *mv_in, mv_t *mv_out, double scale, double offset) {
   double scalef = 1.0 / scale;
   int absx = abs(mv_in->x);
   int absy = abs(mv_in->y);
@@ -274,7 +274,7 @@ void scale_mv(mv_t *mv_in, mv_t *mv_out, double scale, double offset) {
   mv_out->x = signx * (int)floor(scalef * absx + offset);
   mv_out->y = signy * (int)floor(scalef * absy + offset);
 }
-void store_mv(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data) {
+void TEMPLATE(store_mv)(int width, int height, int b_level, int frame_type, int frame_num, int gop_size, deblock_data_t *deblock_data) {
   int i, j, block_index, block_posy, block_posx;
   int block_stride = width / MIN_PB_SIZE;
   int ref_idx0, bipred_flag;
@@ -300,14 +300,14 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
 
         if (frame_type == P_FRAME) {
           mvin = inter_pred->mv0;
-          scale_mv(&mvin, &mvout, (3.0 / 1.0)*scale_array2[ref_idx0], offset);
+          TEMPLATE(scale_mv)(&mvin, &mvout, (3.0 / 1.0)*scale_array2[ref_idx0], offset);
           deblock_data[block_index].inter_pred_arr[1].mv0 = mvout;
           deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
         }
         else if (frame_type == B_FRAME && phase == 1 && deblock_data[block_index].mode != MODE_INTRA) {
           if (bipred_flag || ref_idx0 == 1) {
             mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
-            scale_mv(&mvin, &mvout, 2.0, offset);
+            TEMPLATE(scale_mv)(&mvin, &mvout, 2.0, offset);
             deblock_data[block_index].inter_pred_arr[2].mv0 = mvout;
           }
         }
@@ -329,7 +329,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
         mvin = inter_pred->mv0;
         for (lev = 0; lev < num_lev; lev++) {
           scale = (1 << lev);
-          scale_mv(&mvin, &mvout, (double)scale*scale_array[ref_idx0], offset);
+          TEMPLATE(scale_mv)(&mvin, &mvout, (double)scale*scale_array[ref_idx0], offset);
           inc = gop_size >> lev;
           delta = (inc >> 1);
           for (p = delta; p < gop_size; p += inc) {
@@ -342,7 +342,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
           mvin = inter_pred->mv0;
           for (lev = b_level + 1; lev < num_lev; lev++) {
             scale = (1 << (lev - b_level));
-            scale_mv(&mvin, &mvout, (double)scale, offset);
+            TEMPLATE(scale_mv)(&mvin, &mvout, (double)scale, offset);
             inc = gop_size >> lev;
             delta = (scale - 1)*(inc >> 1);
             for (p = phase - delta; p < phase; p += inc) {
@@ -354,7 +354,7 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
           mvin = bipred_flag ? inter_pred->mv1 : inter_pred->mv0;
           for (lev = b_level + 1; lev < num_lev; lev++) {
             scale = (1 << (lev - b_level));
-            scale_mv(&mvin, &mvout, (double)scale, offset);
+            TEMPLATE(scale_mv)(&mvin, &mvout, (double)scale, offset);
             inc = gop_size >> lev;
             delta = (scale - 1)*(inc >> 1);
             for (p = phase + delta; p > phase; p -= inc) {
@@ -367,21 +367,21 @@ void store_mv(int width, int height, int b_level, int frame_type, int frame_num,
   }
 }
 
-void get_inter_prediction_temp(int width, int height, yuv_frame_t *ref0, yuv_frame_t *ref1, block_pos_t *block_pos, deblock_data_t *deblock_data, int gop_size, int phase, uint8_t *pblock_y, uint8_t *pblock_u, uint8_t *pblock_v) {
+void TEMPLATE(get_inter_prediction_temp)(int width, int height, yuv_frame_t *ref0, yuv_frame_t *ref1, block_pos_t *block_pos, deblock_data_t *deblock_data, int gop_size, int phase, SAMPLE *pblock_y, SAMPLE *pblock_u, SAMPLE *pblock_v) {
   int i, m, n;
   block_pos_t tmp_block_pos;
   int ypos0, xpos0;
   int block_stride, block_posy, block_posx, block_index;
   mv_t mv_arr[4];
-  uint8_t pblock0_y[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock0_u[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock0_v[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock1_y[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock1_u[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock1_v[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock2_y[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock2_u[MIN_PB_SIZE*MIN_PB_SIZE];
-  uint8_t pblock2_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock0_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock0_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock0_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock1_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock1_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock1_v[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock2_y[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock2_u[MIN_PB_SIZE*MIN_PB_SIZE];
+  SAMPLE pblock2_v[MIN_PB_SIZE*MIN_PB_SIZE];
   int sign;// , r0, r1;
   int yposY = block_pos->ypos;
   int xposY = block_pos->xpos;
@@ -405,28 +405,28 @@ void get_inter_prediction_temp(int width, int height, yuv_frame_t *ref0, yuv_fra
       mv_arr[0] = deblock_data[block_index].inter_pred_arr[phase].mv0;
 
       sign = 0;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0);
+      TEMPLATE(get_inter_prediction_yuv)(ref0, pblock0_y, pblock0_u, pblock0_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0, ref0->bitdepth);
 
       sign = 1;
       if (gop_size == 3 && phase == 1) { //Support for 2B
         mv_arr[0].x = 2 * mv_arr[0].x;
         mv_arr[0].y = 2 * mv_arr[0].y;
       }
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0);
+      TEMPLATE(get_inter_prediction_yuv)(ref1, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, mv_arr, sign, width, height, 2, 0, ref1->bitdepth);
 
-      average_blocks_all(pblock2_y, pblock2_u, pblock2_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, ref0->sub);
+      TEMPLATE(average_blocks_all)(pblock2_y, pblock2_u, pblock2_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &tmp_block_pos, ref0->sub);
       for (i = 0; i < MIN_PB_SIZE; i++) {
-        memcpy(pblock_y + (m + i)*size + n, pblock2_y + i*MIN_PB_SIZE, MIN_PB_SIZE*sizeof(uint8_t));
+        memcpy(pblock_y + (m + i)*size + n, pblock2_y + i*MIN_PB_SIZE, MIN_PB_SIZE*sizeof(SAMPLE));
       }
       for (i = 0; i < MIN_PB_SIZE / 2; i++) {
-        memcpy(pblock_u + (m / 2 + i)*size / 2 + n / 2, pblock2_u + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(uint8_t) / 2);
-        memcpy(pblock_v + (m / 2 + i)*size / 2 + n / 2, pblock2_v + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(uint8_t) / 2);
+        memcpy(pblock_u + (m / 2 + i)*size / 2 + n / 2, pblock2_u + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(SAMPLE) / 2);
+        memcpy(pblock_v + (m / 2 + i)*size / 2 + n / 2, pblock2_v + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(SAMPLE) / 2);
       }
     }
   }
 }
 
-mv_t get_mv_pred(int ypos,int xpos,int width,int height,int bwidth, int bheight, int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
+mv_t TEMPLATE(get_mv_pred)(int ypos,int xpos,int width,int height,int bwidth, int bheight, int sb_size,int ref_idx,deblock_data_t *deblock_data) //TODO: Remove ref_idx as argument if not needed
 {
   mv_t mvp, mva, mvb, mvc;
   inter_pred_t zero_pred, inter_predA, inter_predB, inter_predC;
@@ -541,7 +541,7 @@ mv_t get_mv_pred(int ypos,int xpos,int width,int height,int bwidth, int bheight,
   return mvp;
 }
 
-int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
+int TEMPLATE(get_mv_merge)(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *merge_candidates)
 {
   int num_merge_vec = 0;
   int i, idx, duplicate;
@@ -695,7 +695,7 @@ int get_mv_merge(int yposY, int xposY, int width, int height, int bwidth, int bh
   return num_merge_vec;
 }
 
-int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
+int TEMPLATE(get_mv_skip)(int yposY, int xposY, int width, int height, int bwidth, int bheight, int sb_size, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
 {
   int num_skip_vec=0;
   int i,idx,duplicate;
@@ -849,7 +849,7 @@ int get_mv_skip(int yposY, int xposY, int width, int height, int bwidth, int bhe
   return num_skip_vec;
 }
 
-int get_mv_skip_temp(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
+int TEMPLATE(get_mv_skip_temp)(int width, int phase, int gop_size, block_pos_t *block_pos, deblock_data_t *deblock_data, inter_pred_t *skip_candidates)
 {
   int m, n;
   int num_skip_vec;

@@ -43,6 +43,9 @@ extern int zigzag256[256];
 
 int YPOS, XPOS;
 
+#undef TEMPLATE
+#define TEMPLATE(func) (decoder_info->bitdepth == 8 ? func ## _lbd : func ## _hbd)
+
 void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   decoder_info->width = get_flc(16, stream);
   decoder_info->height = get_flc(16, stream);
@@ -64,6 +67,12 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   decoder_info->num_reorder_pics = get_flc(4, stream);
   decoder_info->cfl_intra = get_flc(1, stream);
   decoder_info->cfl_inter = get_flc(1, stream);
+  decoder_info->bitdepth = get_flc(1, stream) ? 10 : 8;
+  if (decoder_info->bitdepth == 10)
+    decoder_info->bitdepth += 2 * get_flc(1, stream);
+  decoder_info->input_bitdepth = get_flc(1, stream) ? 10 : 8;
+  if (decoder_info->input_bitdepth == 10)
+    decoder_info->input_bitdepth += 2 * get_flc(1, stream);
 }
 
 void read_frame_header(frame_info_t *frame_info, stream_t *stream) {
@@ -264,9 +273,9 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
     inter_pred_t skip_candidates[MAX_NUM_SKIP];
-    num_skip_vec = get_mv_skip(ypos, xpos, width, height, size, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, skip_candidates);
+    num_skip_vec = TEMPLATE(get_mv_skip)(ypos, xpos, width, height, size, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, skip_candidates);
     if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref == 2) {
-      num_skip_vec = get_mv_skip_temp(decoder_info->width, decoder_info->frame_info.phase, decoder_info->num_reorder_pics + 1, &block_info->block_pos, decoder_info->deblock_data, skip_candidates);
+      num_skip_vec = TEMPLATE(get_mv_skip_temp)(decoder_info->width, decoder_info->frame_info.phase, decoder_info->num_reorder_pics + 1, &block_info->block_pos, decoder_info->deblock_data, skip_candidates);
     }
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = skip_candidates[idx].mv0;
@@ -309,7 +318,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     mv_t mv_skip[MAX_NUM_SKIP];
     int num_skip_vec,skip_idx;
     inter_pred_t merge_candidates[MAX_NUM_SKIP];
-    num_skip_vec = get_mv_merge(ypos, xpos, width, height, size, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, merge_candidates);
+    num_skip_vec = TEMPLATE(get_mv_merge)(ypos, xpos, width, height, size, size, 1 << decoder_info->log2_sb_size, decoder_info->deblock_data, merge_candidates);
     for (int idx = 0; idx < num_skip_vec; idx++) {
       mv_skip[idx] = merge_candidates[idx].mv0;
     }
@@ -367,7 +376,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
     //if (mode==MODE_INTER)
     decoder_info->bit_count.size_and_ref_idx[stat_frame_type][log2i(size)-3][ref_idx] += 1;
 
-    mvp = get_mv_pred(ypos,xpos,width,height,size,size,1<<decoder_info->log2_sb_size,ref_idx,decoder_info->deblock_data);
+    mvp = TEMPLATE(get_mv_pred)(ypos,xpos,width,height,size,size,1<<decoder_info->log2_sb_size,ref_idx,decoder_info->deblock_data);
 
     /* Deode motion vectors for each prediction block */
     mv_t mvp2 = mvp;
@@ -406,7 +415,7 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   }
   else if (mode==MODE_BIPRED){
     int ref_idx = 0;
-    mvp = get_mv_pred(ypos,xpos,width,height,size,size,1 << decoder_info->log2_sb_size, ref_idx,decoder_info->deblock_data);
+    mvp = TEMPLATE(get_mv_pred)(ypos,xpos,width,height,size,size,1 << decoder_info->log2_sb_size, ref_idx,decoder_info->deblock_data);
 
     /* Deode motion vectors */
     mv_t mvp2 = mvp;

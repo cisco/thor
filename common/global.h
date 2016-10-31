@@ -51,9 +51,6 @@ static inline void fatalerror(char error_text[])
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#define clip255(n) min(255, max(0, (n)))
-#define clip(n, low, high) min ((high), max ((n), (low)))
-
 #define MAX_SB_SIZE 128          //Maximum block size
 #define MIN_BLOCK_SIZE 8         //Minimum block size
 #define NUM_BLOCK_SIZES 5        //Number of distinct block sizes (=log2(MAX_SB_SIZE/MIN_BLOCK_SIZE)+1)
@@ -104,6 +101,18 @@ static inline void fatalerror(char error_text[])
 #define WEIGHT_SHIFT 6          // Bit accuracy of forward weights
 #define NUM_QM_LEVELS 12
 
+#define TEMP_INTERP_USE_CHROMA 0 // 444 not supported!
+
 /* Testing and analysis*/
 #define STAT 0                   //Extended statistics printout in decoder
+
+#include "types.h"
+
+static inline unsigned int saturate(int n, int bitdepth) {
+  return min((1<<bitdepth)-1, max(0, n));
+}
+
+// Used with int64_t in improve_uv_prediction()
+#define clip(n, low, high) min(high, max(n, low))
+
 #endif

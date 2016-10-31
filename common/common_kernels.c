@@ -163,7 +163,7 @@ static void transpose8x8(const int16_t *src, int sstride, int16_t *dst, int dstr
 
 static void get_inter_prediction_luma_edge_bipred(int width, int height, int xoff, int yoff,
                                                   uint8_t *restrict qp, int qstride,
-                                                  const uint8_t *restrict ip, int istride)
+                                                  const uint8_t *restrict ip, int istride, int bitdepth)
 {
   static const ALIGN(16) int16_t coeffs[4][6][4] = {
     { {   2,   2,   2,   2 },
@@ -280,7 +280,7 @@ static void get_inter_prediction_luma_edge_bipred(int width, int height, int xof
 
 static void get_inter_prediction_luma_edge(int width, int height, int xoff, int yoff,
                                              uint8_t *restrict qp, int qstride,
-                                             const uint8_t *restrict ip, int istride)
+                                           const uint8_t *restrict ip, int istride, int bitdepth)
 {
   static const ALIGN(16) int16_t coeffs[4][6][4] = {
     { {   1,   1,   1,   1 },
@@ -395,7 +395,7 @@ static void get_inter_prediction_luma_edge(int width, int height, int xoff, int 
 
 static void get_inter_prediction_luma_inner_bipred(int width, int height, int xoff, int yoff,
                                                    uint8_t *restrict qp, int qstride,
-                                                   const uint8_t *restrict ip, int istride)
+                                                   const uint8_t *restrict ip, int istride, int bitdepth)
 {
 #define G0 { 0,   0,   1,   0,   0, 0,   0, 0 }
 #define G1 { 2, -10,  59,  17,  -5, 1,   0, 0 }
@@ -450,7 +450,7 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
 
       for (int x = 0; x < 3; x++) {
         res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12);
-        *qp++ = clip255(res);
+        *qp++ = saturate(res, bitdepth);
         a0 = v128_shr_n_byte(a0, 2);
         a1 = v128_shr_n_byte(a1, 2);
         a2 = v128_shr_n_byte(a2, 2);
@@ -478,7 +478,7 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
 
       res = (int)(v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
                   a08 + a18 + a28 + a38 + a48 + a58);
-      *qp++ = clip255((res + 2048) >> 12);
+      *qp++ = saturate((res + 2048) >> 12, bitdepth);
       ip += istride;
       qp += qstride - 4;
     }
@@ -487,7 +487,7 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
     v128 c = v128_load_aligned(coeffs2[xoff + yoff*4][0]);
     const uint8_t *restrict ip2 = ip;
     v128 c1, c2, c3;
-    int16_t *ax = thor_alloc((width+8)*height*2, 16);
+    int16_t *ax = thor_alloc((width+8)*height*2, 32);
 
     if (yoff == 1) {
       c1 = v128_dup_16((  2 << 8)  | (uint8_t)-10);
@@ -538,7 +538,7 @@ static void get_inter_prediction_luma_inner_bipred(int width, int height, int xo
 
 static void get_inter_prediction_luma_inner(int width, int height, int xoff, int yoff,
                                             uint8_t *restrict qp, int qstride,
-                                            const uint8_t *restrict ip, int istride)
+                                            const uint8_t *restrict ip, int istride, int bitdepth)
 {
 #define F0 { 0,   0,   1,   0,   0, 0,   0, 0 }
 #define F1 { 1,  -7,  55,  19,  -5, 1,   0, 0 }
@@ -591,7 +591,7 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
 
       for (int x = 0; x < 3; x++) {
         res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) + 2048) >> 12);
-        *qp++ = clip255(res);
+        *qp++ = saturate(res, bitdepth);
         ax = v128_shr_n_byte(ax, 2);
         a0 = v128_shr_n_byte(a0, 2);
         a1 = v128_shr_n_byte(a1, 2);
@@ -639,7 +639,7 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
 
       res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
                    + a08 + a18 + a28 + a38 + a48 + a58 + 2048) >> 12);
-      *qp++ = clip255(res);
+      *qp++ = saturate(res, bitdepth);
       ip += istride;
       qp += qstride - 4;
     }
@@ -648,7 +648,7 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
     v128 c = v128_load_aligned(coeffs2[xoff + yoff*4][0]);
     const uint8_t *restrict ip2 = ip;
     v128 c1, c2, c3;
-    int16_t *ax = thor_alloc((width+8)*height*2, 16);
+    int16_t *ax = thor_alloc((width+8)*height*2, 32);
 
     if (yoff == 1) {
       c1 = v128_dup_16((  1 << 8)  | (uint8_t)-7);
@@ -757,7 +757,7 @@ static void get_inter_prediction_luma_centre(int width, int height,
 
 void get_inter_prediction_luma_simd(int width, int height, int xoff, int yoff,
                                     uint8_t *restrict qp, int qstride,
-                                    const uint8_t *restrict ip, int istride, int bipred)
+                                    const uint8_t *restrict ip, int istride, int bipred, int bitdepth)
 {
   if (xoff == 2 && yoff == 2 && bipred < 2)
     get_inter_prediction_luma_centre(width, height, qp, qstride, ip, istride);
@@ -772,10 +772,10 @@ void get_inter_prediction_luma_simd(int width, int height, int xoff, int yoff,
     }
     if (bipred)
     (!xoff || !yoff ? get_inter_prediction_luma_edge_bipred : get_inter_prediction_luma_inner_bipred)
-      (width, height, xoff, yoff, qp, qstride, ip, istride);
+      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth);
     else
     (!xoff || !yoff ? get_inter_prediction_luma_edge : get_inter_prediction_luma_inner)
-      (width, height, xoff, yoff, qp, qstride, ip, istride);
+      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth);
   }
 }
 
@@ -917,12 +917,12 @@ int check_nz_area(const int16_t *coeff, int size)
 
 
 /* 4x4 transform, both dimensions */
-static void transform4(const int16_t *src, int16_t *dst)
+static void transform4(const int16_t *src, int16_t *dst, int bitdepth)
 {
   v128 t;
-  v128 add1 = v128_dup_32(2);
+  v128 add1 = v128_dup_32(1 << (bitdepth - 7));
   v128 add2 = v128_dup_32(64);
-
+  int shift1 = bitdepth - 6;
   v64 h0, h1, h2, h3;
   v64 g0 = v64_from_64(0x0040004000400040LL); /*  64  64  64  64 */
   v64 g1 = v64_from_64(0xffadffdc00240053LL); /* -83 -36  36  83 */
@@ -934,28 +934,28 @@ static void transform4(const int16_t *src, int16_t *dst)
   v64 s3 = v64_load_aligned(src + 3*4);
 
   /* Horizontal transform */
-  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g0),
-                                              (int32_t)v64_dotp_s16(s2, g0),
-                                              (int32_t)v64_dotp_s16(s1, g0),
-                                              (int32_t)v64_dotp_s16(s0, g0)), add1), 2);
+  t = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g0),
+                                            (int32_t)v64_dotp_s16(s2, g0),
+                                            (int32_t)v64_dotp_s16(s1, g0),
+                                            (int32_t)v64_dotp_s16(s0, g0)), add1), shift1);
   h0 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g1),
-                                              (int32_t)v64_dotp_s16(s2, g1),
-                                              (int32_t)v64_dotp_s16(s1, g1),
-                                              (int32_t)v64_dotp_s16(s0, g1)), add1), 2);
+  t = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g1),
+                                            (int32_t)v64_dotp_s16(s2, g1),
+                                            (int32_t)v64_dotp_s16(s1, g1),
+                                            (int32_t)v64_dotp_s16(s0, g1)), add1), shift1);
   h1 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g2),
-                                              (int32_t)v64_dotp_s16(s2, g2),
-                                              (int32_t)v64_dotp_s16(s1, g2),
-                                              (int32_t)v64_dotp_s16(s0, g2)), add1), 2);
+  t = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g2),
+                                            (int32_t)v64_dotp_s16(s2, g2),
+                                            (int32_t)v64_dotp_s16(s1, g2),
+                                            (int32_t)v64_dotp_s16(s0, g2)), add1), shift1);
   h2 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
-  t = v128_shr_n_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g3),
-                                              (int32_t)v64_dotp_s16(s2, g3),
-                                              (int32_t)v64_dotp_s16(s1, g3),
-                                              (int32_t)v64_dotp_s16(s0, g3)), add1), 2);
+  t = v128_shr_s32(v128_add_32(v128_from_32((int32_t)v64_dotp_s16(s3, g3),
+                                            (int32_t)v64_dotp_s16(s2, g3),
+                                            (int32_t)v64_dotp_s16(s1, g3),
+                                            (int32_t)v64_dotp_s16(s0, g3)), add1), shift1);
   h3 = v64_pack_s32_s16(v128_high_v64(t), v128_low_v64(t));
 
   /* Vertical transform */
@@ -985,9 +985,10 @@ static void transform4(const int16_t *src, int16_t *dst)
 }
 
 
-static void inverse_transform4(const int16_t *coeff, int16_t *block) {
+static void inverse_transform4(const int16_t *coeff, int16_t *block, int bitdepth) {
   v128 round1 = v128_dup_32(64);
-  v128 round2 = v128_dup_32(2048);
+  v128 round2 = v128_dup_32(1 << (19 - bitdepth));
+  int shift2 = 20 - bitdepth;
   v64 c83 = v64_dup_16(83);
   v64 c36 = v64_dup_16(36);
   v64 load0 = v64_load_aligned(coeff +  0);
@@ -1029,10 +1030,10 @@ static void inverse_transform4(const int16_t *coeff, int16_t *block) {
   e0 = v128_add_32(e0, round2);
   e1 = v128_add_32(e1, round2);
 
-  d0 = v128_shr_n_s32(v128_add_32(e0, o0), 12);
-  d1 = v128_shr_n_s32(v128_add_32(e1, o1), 12);
-  d2 = v128_shr_n_s32(v128_sub_32(e1, o1), 12);
-  d3 = v128_shr_n_s32(v128_sub_32(e0, o0), 12);
+  d0 = v128_shr_s32(v128_add_32(e0, o0), shift2);
+  d1 = v128_shr_s32(v128_add_32(e1, o1), shift2);
+  d2 = v128_shr_s32(v128_sub_32(e1, o1), shift2);
+  d3 = v128_shr_s32(v128_sub_32(e0, o0), shift2);
 
   x0 = v128_ziplo_32(d1, d0);
   x1 = v128_ziphi_32(d1, d0);
@@ -1045,9 +1046,10 @@ static void inverse_transform4(const int16_t *coeff, int16_t *block) {
   v64_store_aligned(block + 12, v64_pack_s32_s16(v128_high_v64(x3), v128_high_v64(x1)));
 }
 
-static void inverse_transform8_4x4(const int16_t *coeff, int16_t *block) {
+static void inverse_transform8_4x4(const int16_t *coeff, int16_t *block, int bitdepth) {
   v128 t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12;
-  v128 round =  v128_dup_32(64);
+  v128 round = v128_dup_32(64);
+  int shift2 = 20 - bitdepth;
   v128 c0  = v128_dup_32(  83 << 16  |   64);
   v128 c1  = v128_dup_32(-(36 << 16) |   64);
   v128 c2  = v128_dup_32(-(83 << 16) |   64);
@@ -1104,43 +1106,43 @@ static void inverse_transform8_4x4(const int16_t *coeff, int16_t *block) {
   t11 = v128_ziplo_16(t3, t1);
   t12 = v128_ziphi_16(t3, t1);
 
-  round =  v128_dup_32(2048);
+  round =  v128_dup_32(1 << (19 - bitdepth));
 
   t8 = v128_madd_s16(c0, t10);
   t9 = v128_madd_s16(c0, t4);
   t3 = v128_madd_s16(c7, t11);
   t7 = v128_madd_s16(c7, t12);
-  t0 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(t9, t7), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_add_32(t8, t3), round), 12));
-  t7 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(t9, t7), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_sub_32(t8, t3), round), 12));
+  t0 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(t9, t7), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_add_32(t8, t3), round), shift2));
+  t7 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(t9, t7), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_sub_32(t8, t3), round), shift2));
 
   t8 = v128_madd_s16(c3, t10);
   t9 = v128_madd_s16(c3, t4);
   t3 = v128_madd_s16(c4, t11);
   t6 = v128_madd_s16(c4, t12);
-  t1 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(t9, t6), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_sub_32(t8, t3), round), 12));
-  t6 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(t9, t6), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_add_32(t8, t3), round), 12));
+  t1 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(t9, t6), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_sub_32(t8, t3), round), shift2));
+  t6 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(t9, t6), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_add_32(t8, t3), round), shift2));
 
   t8 = v128_madd_s16(c1, t10);
   t9 = v128_madd_s16(c1, t4);
   t3 = v128_madd_s16(c6, t11);
   t5 = v128_madd_s16(c6, t12);
-  t2 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(t9, t5), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_add_32(t8, t3), round), 12));
-  t5 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(t9, t5), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_sub_32(t8, t3), round), 12));
+  t2 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(t9, t5), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_add_32(t8, t3), round), shift2));
+  t5 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(t9, t5), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_sub_32(t8, t3), round), shift2));
 
   t8  = v128_madd_s16(c2, t10);
   t9  = v128_madd_s16(c2, t4);
   t10 = v128_madd_s16(c5, t11);
   t4  = v128_madd_s16(c5, t12);
-  t3 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(t9, t4), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_sub_32(t8, t10), round), 12));
-  t4 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(t9, t4), round), 12),
-                         v128_shr_n_s32(v128_add_32(v128_add_32(t8, t10), round), 12));
+  t3 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(t9, t4), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_sub_32(t8, t10), round), shift2));
+  t4 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(t9, t4), round), shift2),
+                         v128_shr_s32(v128_add_32(v128_add_32(t8, t10), round), shift2));
 
 
 
@@ -1173,9 +1175,10 @@ static void inverse_transform8_4x4(const int16_t *coeff, int16_t *block) {
 
 
 /* Inverse transform, take advantage of symmetries to minimise operations */
-static void inverse_transform8(const int16_t *coeff, int16_t *block) {
+static void inverse_transform8(const int16_t *coeff, int16_t *block, int bitdepth) {
   v128 t0, t1, t2, t3, t4 ,t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16;
   v128 round = v128_dup_32(64);
+  int shift2 = 20 - bitdepth;
   v128 c0  = v128_dup_16(64);
   v128 c1  = v128_dup_32(-(64 << 16) |   64);
   v128 c2  = v128_dup_32(  36 << 16  |   83);
@@ -1341,23 +1344,23 @@ static void inverse_transform8(const int16_t *coeff, int16_t *block) {
   t10 = v128_add_32(v128_madd_s16(c7, t9), v128_madd_s16(c11, t10));
 
   /* Get transposed results */
-  round = v128_dup_32(2048);
-  load0 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32( t8,  t5), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_add_32(t13, t10), round), 12));
-  load1 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32( t7,  t2), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_sub_32(t16,  t0), round), 12));
-  load2 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(t14, t15), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_add_32(t11,  t4), round), 12));
-  load3 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32( t6,  t3), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_sub_32(t12,  t1), round), 12));
-  load4 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32( t6,  t3), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_add_32(t12,  t1), round), 12));
-  load5 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(t14, t15), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_sub_32(t11,  t4), round), 12));
-  load6 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32( t7,  t2), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_add_32(t16,  t0), round), 12));
-  load7 = v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32( t8,  t5), round), 12),
-                            v128_shr_n_s32(v128_add_32(v128_sub_32(t13, t10), round), 12));
+  round = v128_dup_32(1 << (19 - bitdepth));
+  load0 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32( t8,  t5), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_add_32(t13, t10), round), shift2));
+  load1 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32( t7,  t2), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_sub_32(t16,  t0), round), shift2));
+  load2 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(t14, t15), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_add_32(t11,  t4), round), shift2));
+  load3 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32( t6,  t3), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_sub_32(t12,  t1), round), shift2));
+  load4 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32( t6,  t3), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_add_32(t12,  t1), round), shift2));
+  load5 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(t14, t15), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_sub_32(t11,  t4), round), shift2));
+  load6 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32( t7,  t2), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_add_32(t16,  t0), round), shift2));
+  load7 = v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32( t8,  t5), round), shift2),
+                            v128_shr_s32(v128_add_32(v128_sub_32(t13, t10), round), shift2));
 
   /* Transpose */
   t0 = v128_ziplo_16(load1, load0);
@@ -1603,7 +1606,7 @@ static void inverse_transform16(const int16_t *src, int16_t *dst, int shift) {
 }
 
 /* 16x16 inverse transform assuming everything but top left 4x4 is 0 */
-static void inverse_transform16_4x4(const int16_t *coeff, int16_t *block) {
+static void inverse_transform16_4x4(const int16_t *coeff, int16_t *block, int bitdepth) {
   static const ALIGN(16) int16_t c[] = {
      64,  89,  64,  89,  64,  89,  64,  89,
      90,  87,  90,  87,  90,  87,  90,  87,
@@ -1624,6 +1627,7 @@ static void inverse_transform16_4x4(const int16_t *coeff, int16_t *block) {
   v128 t[8];
   v128 t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11;
   v128 round = v128_dup_32(64);
+  int shift2 = 20 - bitdepth;
   v128 load0 = v128_from_v64(v64_load_aligned(coeff + 16), v64_load_aligned(coeff +  0));
   v128 load1 = v128_from_v64(v64_load_aligned(coeff + 48), v64_load_aligned(coeff + 32));
   v128 lo = v128_ziplo_16(load1, load0);
@@ -1687,7 +1691,7 @@ static void inverse_transform16_4x4(const int16_t *coeff, int16_t *block) {
   t11 = v128_ziplo_16(t5, t3);
   t3 = v128_ziphi_16(t5, t3);
 
-  round = v128_dup_32(2048);
+  round = v128_dup_32(1 << (19 - bitdepth));
 
   for (i = 0; i < 8; i++) {
     int i1 = i*16;
@@ -1703,22 +1707,22 @@ static void inverse_transform16_4x4(const int16_t *coeff, int16_t *block) {
     v128 v2 = v128_madd_s16(c1, t11);
     v128 v3 = v128_madd_s16(c1, t3);
     v128_store_aligned(block + i3,
-                       v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(v0, v3), round), 12),
-                                         v128_shr_n_s32(v128_add_32(v128_add_32(v1, v2), round), 12)));
+                       v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(v0, v3), round), shift2),
+                                         v128_shr_s32(v128_add_32(v128_add_32(v1, v2), round), shift2)));
     v128_store_aligned(block + i4,
-                       v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(v0, v3), round), 12),
-                                         v128_shr_n_s32(v128_add_32(v128_sub_32(v1, v2), round), 12)));
+                       v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(v0, v3), round), shift2),
+                                         v128_shr_s32(v128_add_32(v128_sub_32(v1, v2), round), shift2)));
 
     v0 = v128_madd_s16(c0, t0);
     v1 = v128_madd_s16(c0, t1);
     v2 = v128_madd_s16(c1, t8);
     v3 = v128_madd_s16(c1, t7);
     v128_store_aligned(block + 8 + i5,
-                       v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_add_32(v0, v3), round), 12),
-                                         v128_shr_n_s32(v128_add_32(v128_add_32(v1, v2), round), 12)));
+                       v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_add_32(v0, v3), round), shift2),
+                                         v128_shr_s32(v128_add_32(v128_add_32(v1, v2), round), shift2)));
     v128_store_aligned(block + 8 + i6,
-                       v128_pack_s32_s16(v128_shr_n_s32(v128_add_32(v128_sub_32(v0, v3), round), 12),
-                                         v128_shr_n_s32(v128_add_32(v128_sub_32(v1, v2), round), 12)));
+                       v128_pack_s32_s16(v128_shr_s32(v128_add_32(v128_sub_32(v0, v3), round), shift2),
+                                         v128_shr_s32(v128_add_32(v128_sub_32(v1, v2), round), shift2)));
   }
 
   for (i = 0; i < 16; i += 8)
@@ -1854,10 +1858,10 @@ static void transform_1d_32(const int16_t *coeff, const int16_t *tcoeff, int j, 
 }
 
 
-static void inverse_transform32(const int16_t * coeff, int16_t *block)
+static void inverse_transform32(const int16_t * coeff, int16_t *block, int bitdepth)
 {
-  int16_t *tmp = thor_alloc(32*32*2, 16);
-  int16_t *tcoeff = thor_alloc(8*32*2, 16);
+  int16_t *tmp = thor_alloc(32*32*2, 32);
+  int16_t *tcoeff = thor_alloc(8*32*2, 32);
   memset(tcoeff, 0, 8*32*2);
 
   /* 1st dimension */
@@ -1874,7 +1878,7 @@ static void inverse_transform32(const int16_t * coeff, int16_t *block)
   transpose8x8(tmp + 56, 64, tcoeff + 192, 8);
 
   for (int i = 0; i < 32; i++)
-    transform_1d_32(tmp, tcoeff, i, block + i*32, 12);
+    transform_1d_32(tmp, tcoeff, i, block + i*32, 20 - bitdepth);
 
   thor_free(tmp);
   thor_free(tcoeff);
@@ -2193,29 +2197,29 @@ static void transform32(const int16_t *src, int16_t *dst, int shift, int it)
 }
 
 
-void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
+void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast, int bitdepth)
 {
   if (size == 4) {
-    transform4(block, coeff);
+    transform4(block, coeff, bitdepth);
   } else if (size == 8) {
-    int16_t *tmp = thor_alloc(size*size*2, 16);
-    transform8(block, tmp, 3);
+    int16_t *tmp = thor_alloc(size*size*2, 32);
+    transform8(block, tmp, bitdepth - 5);
     transform8(tmp, coeff, 8);
     thor_free(tmp);
   } else if (size == 16) {
-    int16_t *tmp = thor_alloc(size*size*2, 16);
-    transform16(block, tmp, 4);
+    int16_t *tmp = thor_alloc(size*size*2, 32);
+    transform16(block, tmp, bitdepth - 4);
     transform16(tmp, coeff, 9);
     thor_free(tmp);
   } else if (size == 32) {
     if (fast) {
-      int16_t *tmp = thor_alloc(16*16*2, 16);
-      int16_t *tmp2 = thor_alloc(16*16*2, 16);
-      int16_t *tmp3 = thor_alloc(16*16*2, 16);
+      int16_t *tmp = thor_alloc(16*16*2, 32);
+      int16_t *tmp2 = thor_alloc(16*16*2, 32);
+      int16_t *tmp3 = thor_alloc(16*16*2, 32);
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++)
           tmp2[i*16+j] = block[(i*2+0)*32+j*2+0] + block[(i*2+1)*32+j*2+0] + block[(i*2+0)*32+j*2+1] + block[(i*2+1)*32+j*2+1];
-      transform16(tmp2, tmp, 6);
+      transform16(tmp2, tmp, bitdepth - 2);
       transform16(tmp, tmp3, 9);
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++)
@@ -2224,25 +2228,25 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
       thor_free(tmp2);
       thor_free(tmp3);
     } else {
-      int16_t *tmp = thor_alloc(size*size*2, 16);
-      transform32(block, tmp, 5, 32);
+      int16_t *tmp = thor_alloc(size*size*2, 32);
+      transform32(block, tmp, bitdepth - 3, 32);
       transform32(tmp, coeff, 10, 16);
       thor_free(tmp);
     }
   } else { // size >= 64
     if (fast) {
-      int16_t *tmp = thor_alloc(16*16*2, 16);
-      int16_t *tmp2 = thor_alloc(16*16*2, 16);
-      int16_t *tmp3 = thor_alloc(16*16*2, 16);
+      int16_t *tmp = thor_alloc(16*16*2, 32);
+      int16_t *tmp2 = thor_alloc(16*16*2, 32);
+      int16_t *tmp3 = thor_alloc(16*16*2, 32);
       int scale = size >> 4;
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++) {
           tmp2[i*16+j] = 0;
           for (int k = 0; k < scale; k++)
             for (int l = 0; l < scale; l++)
-              tmp2[i*16+j] += block[(i*scale+k)*size+j*scale+l];
+              tmp2[i*16+j] = min(max(tmp2[i*16+j] + block[(i*scale+k)*size+j*scale+l], -16384), 16383);
         }
-      transform16(tmp2, tmp, 2*log2i(size) - 4);
+      transform16(tmp2, tmp, log2i(size) + log2i(scale) + bitdepth - 8);
       transform16(tmp, tmp3, 9);
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++)
@@ -2251,9 +2255,9 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
       thor_free(tmp2);
       thor_free(tmp3);
     } else {
-      int16_t *tmp = thor_alloc(32*32*2, 16);
-      int16_t *tmp2 = thor_alloc(32*32*2, 16);
-      int16_t *tmp3 = thor_alloc(32*32*2, 16);
+      int16_t *tmp = thor_alloc(32*32*2, 32);
+      int16_t *tmp2 = thor_alloc(32*32*2, 32);
+      int16_t *tmp3 = thor_alloc(32*32*2, 32);
       int scale = size >> 5;
       for (int i = 0; i < 32; i++)
         for (int j = 0; j < 32; j++) {
@@ -2262,7 +2266,7 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
             for (int l = 0; l < scale; l++)
               tmp2[i*32+j] += block[(i*scale+k)*size+j*scale+l];
         }
-      transform32(tmp2, tmp, 2*log2i(size) - 5, 32);
+      transform32(tmp2, tmp, 2*log2i(size) + bitdepth - 13, 32);
       transform32(tmp, tmp3, 10, 16);
       for (int i = 0; i < 32; i++)
         for (int j = 0; j < 32; j++)
@@ -2274,29 +2278,29 @@ void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast)
   }
 }
 
-void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size)
+void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int bitdepth)
 {
   if (size == 4) {
-    inverse_transform4(coeff, block);
+    inverse_transform4(coeff, block, bitdepth);
   } else if (size == 8) {
     int nz = check_nz_area(coeff, size);
     if (nz == COEFF_4x4_ONLY) {
-      inverse_transform8_4x4(coeff, block);
+      inverse_transform8_4x4(coeff, block, bitdepth);
     } else {
-      inverse_transform8(coeff, block);
+      inverse_transform8(coeff, block, bitdepth);
     }
   } else if (size == 16) {
     int nz = check_nz_area(coeff, size);
     if (nz == COEFF_4x4_ONLY) {
-      inverse_transform16_4x4(coeff, block);
+      inverse_transform16_4x4(coeff, block, bitdepth);
     } else {
-      int16_t *tmp = thor_alloc(size*size*2, 16);
+      int16_t *tmp = thor_alloc(size*size*2, 32);
       inverse_transform16(coeff, tmp, 7);
-      inverse_transform16(tmp, block, 12);
+      inverse_transform16(tmp, block, 20 - bitdepth);
       thor_free(tmp);
     }
   } else
-    inverse_transform32(coeff, block);
+    inverse_transform32(coeff, block, bitdepth);
 }
 
 void clpf_block4(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength) {
@@ -2470,4 +2474,63 @@ void clpf_block8(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, i
       dst += stride*2;
     }
   }
+}
+
+void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout)
+{
+  int wo=sout->width;
+  int ho=sout->height;
+  int so=sout->stride_y;
+  int si=sin->stride_y;
+  int i, j;
+  v128 ones = v128_dup_8(1);
+  v128 z = v128_dup_8(0);
+  for (i=0; i<ho; ++i) {
+
+    for (j=0; j<=wo-8; j+=8) {
+      v128 a = v128_load_aligned(&sin->y[(2*i+0)*si+2*j]);
+      v128 b = v128_load_aligned(&sin->y[(2*i+1)*si+2*j]);
+      v128 c = v128_avg_u8(a,b);
+      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
+      v64_store_aligned(&sout->y[i*so+j], v128_low_v64(v128_pack_s16_u8(z,d)));
+    }
+    for (; j<wo; ++j) {
+      sout->y[i*so+j]=( ((sin->y[(2*i+0)*si+(2*j+0)] + sin->y[(2*i+1)*si+(2*j+0)]+1)>>1)+
+                      + ((sin->y[(2*i+0)*si+(2*j+1)] + sin->y[(2*i+1)*si+(2*j+1)]+1)>>1) )>>1;
+    }
+
+  }
+#if TEMP_INTERP_USE_CHROMA
+  int soc=sout->stride_c;
+  int sic=sin->stride_c;
+  ho /= 2;
+  wo /= 2;
+  for (int i=0; i<ho; ++i) {
+
+    for (j=0; j<=wo-8; j+=8) {
+      v128 a = v128_load_aligned(&sin->u[(2*i+0)*sic+2*j]);
+      v128 b = v128_load_aligned(&sin->u[(2*i+1)*sic+2*j]);
+      v128 c = v128_avg_u8(a,b);
+      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
+      v64_store_aligned(&sout->u[i*soc+j], v128_low_v64(v128_pack_s16_u8(z,d)));
+    }
+    for (; j<wo; ++j) {
+      sout->u[i*soc+j]=( ((sin->u[(2*i+0)*sic+(2*j+0)] + sin->u[(2*i+1)*sic+(2*j+0)]+1)>>1)+
+                       + ((sin->u[(2*i+0)*sic+(2*j+1)] + sin->u[(2*i+1)*sic+(2*j+1)]+1)>>1) )>>1;
+    }
+
+    for (j=0; j<=wo-8; j+=8) {
+      v128 a = v128_load_aligned(&sin->v[(2*i+0)*sic+2*j]);
+      v128 b = v128_load_aligned(&sin->v[(2*i+1)*sic+2*j]);
+      v128 c = v128_avg_u8(a,b);
+      v128 d = v128_shr_s16(v128_madd_us8(c,ones),1);
+      v64_store_aligned(&sout->v[i*soc+j], v128_low_v64(v128_pack_s16_u8(z,d)));
+    }
+    for (; j<wo; ++j) {
+      sout->v[i*soc+j]=( ((sin->v[(2*i+0)*sic+(2*j+0)] + sin->v[(2*i+1)*sic+(2*j+0)]+1)>>1)+
+                       + ((sin->v[(2*i+0)*sic+(2*j+1)] + sin->v[(2*i+1)*sic+(2*j+1)]+1)>>1) )>>1;
+    }
+
+  }
+#endif
 }

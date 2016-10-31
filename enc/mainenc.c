@@ -63,6 +63,9 @@ static const int dc8[8+1] = {-8,4,2,5,1,6,3,7,0};
 static const int dc16[16+1] = {-16,8,4,9,2,10,5,11,1,12,6,13,3,14,7,15,0};
 static const int* dyadic_reorder_display_to_code[5] = {dc1,dc2,dc4,dc8,dc16};
 
+#undef TEMPLATE
+#define TEMPLATE(func) (encoder_info.params->frame_bitdepth == 8 ? func ## _lbd : func ## _hbd)
+
 static int reorder_frame_offset(int idx, int sub_gop, int dyadic)
 {
   if (dyadic && sub_gop>1) {
@@ -77,7 +80,7 @@ int main(int argc, char **argv)
 {
   FILE *infile, *strfile, *reconfile;
 
-  int input_file_size; //TODO: Support file size values larger than 32 bits 
+  long input_file_size;
   yuv_frame_t orig,ref[MAX_REF_FRAMES];
   yuv_frame_t rec[MAX_REORDER_BUFFER+1];  // Last one is for temp use
   int rec_available[MAX_REORDER_BUFFER] = {0};
@@ -87,7 +90,8 @@ int main(int argc, char **argv)
   int rec_buffer_idx;
   int k,frame_num,frame_num0,r;
   int frame_offset;
-  int ysize,csize,frame_size;
+  int ysize,csize;
+  long frame_size;
   int width,height;
   int min_interp_depth;
   int last_intra_frame_num = 0;
@@ -142,11 +146,13 @@ int main(int argc, char **argv)
   input_file_size = ftell(infile);
   fseek(infile, 0, SEEK_SET);
 
-
   if (y4m_output) {
     fprintf(reconfile,
-            "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d\x0a",
+            "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d",
             params->width, params->height, (int)params->frame_rate, params->aspectnum, params->aspectden, params->subsample);
+    if (params->input_bitdepth > 8)
+      fprintf(reconfile, "p%d XYSCSS=%dp%d", params->input_bitdepth, params->subsample, params->input_bitdepth);
+    fprintf(reconfile, "\x0a");
   }
 
   accsnr.y = 0;
@@ -158,20 +164,21 @@ int main(int argc, char **argv)
   width = params->width;
   ysize = height * width;
   csize = ysize >> 2*(params->subsample == 420);
-  frame_size = ysize + 2*csize;
+  frame_size = (ysize + 2*csize) * (1 + (params->input_bitdepth > 8));
+  encoder_info.params = params;
 
   /* Create frames*/
-  create_yuv_frame(&orig,width,height,params->subsample == 420,0,0);
+  TEMPLATE(create_yuv_frame)(&orig,width,height,params->subsample == 420,0,0,params->bitdepth,params->input_bitdepth);
   for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-    create_yuv_frame(&rec[r],width,height,params->subsample == 420,0,0);
+    TEMPLATE(create_yuv_frame)(&rec[r],width,height,params->subsample == 420,0,0,params->bitdepth,params->input_bitdepth);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
-    create_yuv_frame(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y);
+    TEMPLATE(create_yuv_frame)(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
       encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-      create_yuv_frame(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y);
+      TEMPLATE(create_yuv_frame)(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
     }
   }
 
@@ -184,7 +191,6 @@ int main(int argc, char **argv)
   stream.bytesize = MAX_BUFFER_SIZE;
 
   /* Configure encoder */
-  encoder_info.params = params;
   encoder_info.orig = &orig;
   for (r=0;r<MAX_REF_FRAMES;r++){
     encoder_info.ref[r] = &ref[r];
@@ -333,8 +339,8 @@ int main(int argc, char **argv)
                 // Add this interpolated frame to the reference buffer and use it as the first reference
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
-                interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, 2, 1);
-                pad_yuv_frame(encoder_info.interp_frames[0]);
+                TEMPLATE(interpolate_frames)(encoder_info.interp_frames[0], ref1, ref2, 2, 1);
+                TEMPLATE(pad_yuv_frame)(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
                 /* use most recent frames for the last ref(s)*/
                 for (r=3;r<encoder_info.frame_info.num_ref;r++){
@@ -389,8 +395,8 @@ int main(int argc, char **argv)
                 // Add this interpolated frame to the reference buffer and use it as the first reference
                 yuv_frame_t* ref1=encoder_info.ref[encoder_info.frame_info.ref_array[1]];
                 yuv_frame_t* ref2=encoder_info.ref[encoder_info.frame_info.ref_array[2]];
-                interpolate_frames(encoder_info.interp_frames[0], ref1, ref2, sub_gop-phase,phase!=0 ? 1 : sub_gop-phase-1);
-                pad_yuv_frame(encoder_info.interp_frames[0]);
+                TEMPLATE(interpolate_frames)(encoder_info.interp_frames[0], ref1, ref2, sub_gop-phase,phase!=0 ? 1 : sub_gop-phase-1);
+                TEMPLATE(pad_yuv_frame)(encoder_info.interp_frames[0]);
                 encoder_info.interp_frames[0]->frame_num = encoder_info.frame_info.frame_num;
 
                 /* Use the prior P frame as the 4th ref */
@@ -523,12 +529,12 @@ int main(int argc, char **argv)
 
       /* Read input frame */
       fseek(infile, frame_num*(frame_size+params->frame_headerlen)+params->file_headerlen+params->frame_headerlen, SEEK_SET);
-      read_yuv_frame(&orig,infile);
+      TEMPLATE(read_yuv_frame)(&orig,infile);
       orig.frame_num = encoder_info.frame_info.frame_num;
 
       /* Encode frame */
       start_bits = get_bit_pos(&stream);
-      encode_frame(&encoder_info);
+      TEMPLATE(encode_frame)(&encoder_info);
 
       rec_available[rec_buffer_idx]=1;
       end_bits =  get_bit_pos(&stream);
@@ -537,7 +543,7 @@ int main(int argc, char **argv)
 
       /* Compute SNR */
       if (params->snrcalc){
-        snr_yuv(&psnr,&orig,&rec[rec_buffer_idx],height,width);
+        TEMPLATE(snr_yuv)(&psnr,&orig,&rec[rec_buffer_idx],height,width,encoder_info.params->input_bitdepth);
       }
       else{
         psnr.y =  psnr.u = psnr.v = 0.0;
@@ -586,7 +592,7 @@ int main(int argc, char **argv)
           {
             fprintf(reconfile, "FRAME\x0a");
           }
-          write_yuv_frame(&rec[rec_buffer_idx],reconfile);
+          TEMPLATE(write_yuv_frame)(&rec[rec_buffer_idx],reconfile);
           rec_available[rec_buffer_idx]=0;
         }
       }
@@ -613,7 +619,7 @@ int main(int argc, char **argv)
       if (rec_available[rec_buffer_idx]) {
         if (y4m_output)
             fprintf(reconfile, "FRAME\x0a");
-        write_yuv_frame(&rec[rec_buffer_idx],reconfile);
+        TEMPLATE(write_yuv_frame)(&rec[rec_buffer_idx],reconfile);
         rec_available[rec_buffer_idx]=0;
       }
       else
@@ -652,16 +658,16 @@ int main(int argc, char **argv)
     }
   }
 
-  close_yuv_frame(&orig);
+  TEMPLATE(close_yuv_frame)(&orig);
   for (int i=0; i<MAX_REORDER_BUFFER+1; ++i) {
-    close_yuv_frame(&rec[i]);
+    TEMPLATE(close_yuv_frame)(&rec[i]);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){
-    close_yuv_frame(&ref[r]);
+    TEMPLATE(close_yuv_frame)(&ref[r]);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
-      close_yuv_frame(encoder_info.interp_frames[r]);
+      TEMPLATE(close_yuv_frame)(encoder_info.interp_frames[r]);
       free(encoder_info.interp_frames[r]);
     }
   }

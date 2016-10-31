@@ -24,18 +24,13 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef ENC_SIMDKERNELS_H
-#define ENC_SIMDKERNELS_H
+#include "global.h"
 
-#include <stdint.h>
-
-int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height);
-int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size);
-void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength);
-void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum);
-unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int astride, int bstride, int width, int height, int *x, int *y);
-unsigned int sad_calc_fastquarter_simd(const uint8_t *o, const uint8_t *r, int os, int rs, int width, int height, int *x, int *y);
-unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height, int *x);
-int calc_cbp_simd(int16_t *block, int size, int threshold);
-
-#endif
+const double squared_lambda_QP [52] = {
+    0.0382, 0.0485, 0.0615, 0.0781, 0.0990, 0.1257, 0.1595, 0.2023, 0.2567,
+    0.3257, 0.4132, 0.5243, 0.6652, 0.8440, 1.0709, 1.3588, 1.7240, 2.1874,
+    2.7754, 3.5214, 4.4679, 5.6688, 7.1926, 9.1259, 11.5789, 14.6912, 18.6402,
+    23.6505, 30.0076, 38.0735, 48.3075, 61.2922, 77.7672, 98.6706, 125.1926, 158.8437,
+    201.5399, 255.7126, 324.4467, 411.6560, 522.3067, 662.6996, 840.8294, 1066.8393, 1353.5994,
+    1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
+};

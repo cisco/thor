@@ -27,8 +27,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined(_ENCODE_BLOCK_H_)
 #define _ENCODE_BLOCK_H_
 
-int process_block(encoder_info_t *encoder_info,int size,int yposY,int xposY, int qp, int sub);
-void detect_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0,int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength);
-void detect_multi_clpf(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum);
+int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int yposY,int xposY, int qp, int sub);
+void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0,int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift);
+void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift);
 
 #endif

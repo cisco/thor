@@ -30,20 +30,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "types.h"
 #include "simd.h"
 
-int get_left_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
-int get_up_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
-int get_upright_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
-int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size);
+void TEMPLATE(dequantize)(int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix);
+void TEMPLATE(reconstruct_block)(int16_t *block, SAMPLE *pblock, SAMPLE *rec, int size, int pstride, int stride, int bitdepth);
 
-void dequantize (int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix);
-void reconstruct_block(int16_t *block, uint8_t *pblock, uint8_t *rec, int size, int pstride, int stride);
+void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
 
-void find_block_contexts(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
+void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength);
 
-void clpf_block(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength);
+int TEMPLATE(clpf_sample)(int X, int A, int B, int C, int D, int E, int F, int b);
 
-int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int b);
+void TEMPLATE(improve_uv_prediction)(SAMPLE *y, SAMPLE *u, SAMPLE *v, SAMPLE *ry, int n, int cstride, int stride, int sub, int bitdepth);
 
-void improve_uv_prediction(uint8_t *y, uint8_t *u, uint8_t *v, uint8_t *ry, int n, int cstride, int stride, int sub);
+SIMD_INLINE int get_left_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
+  return xpos > 0;
+}
+
+SIMD_INLINE int get_up_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
+  return ypos > 0;
+}
+
+SIMD_INLINE int get_upright_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
+
+  int upright_available;
+  int size, size2;
+
+  /* Test for frame boundaries */
+  upright_available = (ypos > 0) && (xpos + bwidth < fwidth);
+
+  /* Test for coding block boundaries */
+  size = max(bwidth, bheight);
+  for (size2 = size; size2 < sb_size; size2 *= 2) {
+    if ((ypos % (size2 << 1)) == size2 && (xpos % size2) == (size2 - size)) upright_available = 0;
+  }
+  return upright_available;
+}
+
+SIMD_INLINE int get_downleft_available(int ypos, int xpos, int bwidth, int bheight, int fwidth, int fheight, int sb_size) {
+
+  int downleft_available;
+  int size, size2;
+
+  /* Test for frame boundaries */
+  downleft_available = (xpos > 0) && (ypos + bheight < fheight);
+
+  size = max(bwidth, bheight);
+  /* Test for external super block boundaries */
+  if ((ypos % sb_size) == (sb_size - size) && (xpos % sb_size) == 0) downleft_available = 0;
+
+  /* Test for coding block boundaries */
+  size = max(bwidth, bheight);
+  for (size2 = 2 * size; size2 <= sb_size; size2 *= 2) {
+    if ((ypos % size2) == (size2 - size) && (xpos % size2) > 0) downleft_available = 0;
+  }
+
+  return downleft_available;
+}
 
 #endif

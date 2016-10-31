@@ -45,39 +45,38 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern int chroma_qp[52];
 
-static void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock, int16_t *coeffq,
-                                                int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp,
+static void decode_and_reconstruct_block_intra (SAMPLE *rec, int stride, int size, int qp, SAMPLE *pblock, int16_t *coeffq,
+                                                int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp, int bitdepth,
                                                 qmtx_t ** iwmatrix){
 
-  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
 
-  uint8_t* left_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-  uint8_t* top_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-  uint8_t top_left;
+  SAMPLE* left_data = (SAMPLE*)thor_alloc((2*MAX_TR_SIZE+2)*sizeof(SAMPLE),32)+1;
+  SAMPLE* top_data = (SAMPLE*)thor_alloc((2*MAX_TR_SIZE+2)*sizeof(SAMPLE),32)+1;
+  SAMPLE top_left;
 
   if (tb_split){
     int size2 = size/2;
     int i,j,index;
     for (i=0;i<size;i+=size2){
       for (j=0;j<size;j+=size2){
-        make_top_and_left(left_data,top_data,&top_left,rec,stride,&rec[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1);
-
-        get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode);
+        TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec,stride,&rec[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1,bitdepth);
+        TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock[i*size+j],size,intra_mode,bitdepth);
         index = 2*(i/size2) + (j/size2);
-        dequantize (coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
-        inverse_transform (rcoeff, rblock2, size2);
-        reconstruct_block(rblock2,&pblock[i*size+j],&rec[i*stride+j],size2,size,stride);
+        TEMPLATE(dequantize)(coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
+        inverse_transform (rcoeff, rblock2, size2, bitdepth);
+        TEMPLATE(reconstruct_block)(rblock2,&pblock[i*size+j],&rec[i*stride+j],size2,size,stride,bitdepth);
       }
     }
   }
   else{
-    make_top_and_left(left_data,top_data,&top_left,rec,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-    get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode);
-    dequantize (coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
-    inverse_transform (rcoeff, rblock, size);
-    reconstruct_block(rblock,pblock,rec,size,size,stride);
+    TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0,bitdepth);
+    TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos,xpos,size,pblock,size,intra_mode,bitdepth);
+    TEMPLATE(dequantize)(coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
+    inverse_transform (rcoeff, rblock, size, bitdepth);
+    TEMPLATE(reconstruct_block)(rblock,pblock,rec,size,size,stride,bitdepth);
   }
 
   thor_free(top_data - 1);
@@ -87,52 +86,52 @@ static void decode_and_reconstruct_block_intra (uint8_t *rec, int stride, int si
   thor_free(rblock2);
 }
 
-static void decode_and_reconstruct_block_intra_uv (uint8_t *rec_u, uint8_t *rec_v, int stride, int size, int qp, uint8_t *pblock_u, uint8_t *pblock_v, int16_t *coeffq_u, int16_t *coeffq_v,
-                                                   int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp,
-                                                   qmtx_t ** iwmatrix, uint8_t *pblock_y, uint8_t *rec_y, int rec_stride, int sub){
+static void decode_and_reconstruct_block_intra_uv (SAMPLE *rec_u, SAMPLE *rec_v, int stride, int size, int qp, SAMPLE *pblock_u, SAMPLE *pblock_v, int16_t *coeffq_u, int16_t *coeffq_v,
+                                                   int tb_split, int upright_available,int downleft_available, intra_mode_t intra_mode,int ypos,int xpos,int width,int comp, int bitdepth,
+                                                   qmtx_t ** iwmatrix, SAMPLE *pblock_y, SAMPLE *rec_y, int rec_stride, int sub){
 
-  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
 
-  uint8_t* left_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-  uint8_t* top_data = (uint8_t*)thor_alloc(2*MAX_TR_SIZE+2,16)+1;
-  uint8_t top_left;
+  SAMPLE* left_data = (SAMPLE*)thor_alloc((2*MAX_TR_SIZE+2)*sizeof(SAMPLE),32)+1;
+  SAMPLE* top_data = (SAMPLE*)thor_alloc((2*MAX_TR_SIZE+2)*sizeof(SAMPLE),32)+1;
+  SAMPLE top_left;
 
   if (tb_split){
     int size2 = size/2;
     int i,j,index;
     for (i=0;i<size;i+=size2){
       for (j=0;j<size;j+=size2){
-        make_top_and_left(left_data,top_data,&top_left,rec_u,stride,&rec_u[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1);
-        get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock_u[i*size+j],size,intra_mode);
-        make_top_and_left(left_data,top_data,&top_left,rec_v,stride,&rec_v[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1);
-        get_intra_prediction(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock_v[i*size+j],size,intra_mode);
+        TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec_u,stride,&rec_u[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1,bitdepth);
+        TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock_u[i*size+j],size,intra_mode,bitdepth);
+        TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec_v,stride,&rec_v[i*stride+j],stride,i,j,ypos,xpos,size2,upright_available,downleft_available,1,bitdepth);
+        TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos+i,xpos+j,size2,&pblock_v[i*size+j],size,intra_mode,bitdepth);
 	if (pblock_y)
-	  improve_uv_prediction(&pblock_y[i*size+j], &pblock_u[i*size+j], &pblock_v[i*size+j], &rec_y[(i<<sub)*rec_stride+(j<<sub)], size2 << sub, size << sub, rec_stride, sub);
+	  TEMPLATE(improve_uv_prediction)(&pblock_y[i*size+j], &pblock_u[i*size+j], &pblock_v[i*size+j], &rec_y[(i<<sub)*rec_stride+(j<<sub)], size2 << sub, size << sub, rec_stride, sub, bitdepth);
         index = 2*(i/size2) + (j/size2);
-        dequantize (coeffq_u+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
-        inverse_transform (rcoeff, rblock2, size2);
-        reconstruct_block(rblock2,&pblock_u[i*size+j],&rec_u[i*stride+j],size2,size,stride);
-        dequantize (coeffq_v+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
-        inverse_transform (rcoeff, rblock2, size2);
-        reconstruct_block(rblock2,&pblock_v[i*size+j],&rec_v[i*stride+j],size2,size,stride);
+        TEMPLATE(dequantize)(coeffq_u+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
+        inverse_transform (rcoeff, rblock2, size2, bitdepth);
+        TEMPLATE(reconstruct_block)(rblock2,&pblock_u[i*size+j],&rec_u[i*stride+j],size2,size,stride,bitdepth);
+        TEMPLATE(dequantize)(coeffq_v+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
+        inverse_transform (rcoeff, rblock2, size2, bitdepth);
+        TEMPLATE(reconstruct_block)(rblock2,&pblock_v[i*size+j],&rec_v[i*stride+j],size2,size,stride,bitdepth);
       }
     }
   }
   else{
-    make_top_and_left(left_data,top_data,&top_left,rec_u,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-    get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock_u,size,intra_mode);
-    make_top_and_left(left_data,top_data,&top_left,rec_v,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0);
-    get_intra_prediction(left_data,top_data,top_left,ypos,xpos,size,pblock_v,size,intra_mode);
+    TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec_u,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0,bitdepth);
+    TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos,xpos,size,pblock_u,size,intra_mode,bitdepth);
+    TEMPLATE(make_top_and_left)(left_data,top_data,&top_left,rec_v,stride,NULL,0,0,0,ypos,xpos,size,upright_available,downleft_available,0,bitdepth);
+    TEMPLATE(get_intra_prediction)(left_data,top_data,top_left,ypos,xpos,size,pblock_v,size,intra_mode,bitdepth);
     if (pblock_y)
-      improve_uv_prediction(pblock_y, pblock_u, pblock_v, rec_y, size << sub, size << sub, rec_stride, sub);
-    dequantize (coeffq_u, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
-    inverse_transform (rcoeff, rblock, size);
-    reconstruct_block(rblock,pblock_u,rec_u,size,size,stride);
-    dequantize (coeffq_v, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
-    inverse_transform (rcoeff, rblock, size);
-    reconstruct_block(rblock,pblock_v,rec_v,size,size,stride);
+      TEMPLATE(improve_uv_prediction)(pblock_y, pblock_u, pblock_v, rec_y, size << sub, size << sub, rec_stride, sub, bitdepth);
+    TEMPLATE(dequantize)(coeffq_u, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
+    inverse_transform (rcoeff, rblock, size, bitdepth);
+    TEMPLATE(reconstruct_block)(rblock,pblock_u,rec_u,size,size,stride,bitdepth);
+    TEMPLATE(dequantize)(coeffq_v, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
+    inverse_transform (rcoeff, rblock, size, bitdepth);
+    TEMPLATE(reconstruct_block)(rblock,pblock_v,rec_v,size,size,stride,bitdepth);
   }
 
   thor_free(top_data - 1);
@@ -142,12 +141,12 @@ static void decode_and_reconstruct_block_intra_uv (uint8_t *rec_u, uint8_t *rec_
   thor_free(rblock2);
 }
 
-static void decode_and_reconstruct_block_inter (uint8_t *rec, int stride, int size, int qp, uint8_t *pblock,
-                                                int16_t *coeffq,int tb_split, qmtx_t ** iwmatrix){
+static void decode_and_reconstruct_block_inter (SAMPLE *rec, int stride, int size, int qp, SAMPLE *pblock,
+                                                int16_t *coeffq,int tb_split, int bitdepth, qmtx_t ** iwmatrix){
 
-  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
+  int16_t *rcoeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *rblock2 = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
 
   if (tb_split){
     int size2 = size/2;
@@ -155,8 +154,8 @@ static void decode_and_reconstruct_block_inter (uint8_t *rec, int stride, int si
     for (i=0;i<size;i+=size2){
       for (j=0;j<size;j+=size2){
         index = 2*(i/size2) + (j/size2);
-        dequantize (coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
-        inverse_transform (rcoeff, rblock2, size2);
+        TEMPLATE(dequantize)(coeffq+index*size2*size2, rcoeff, qp, size2, iwmatrix ? iwmatrix[log2i(size2/4)] : NULL);
+        inverse_transform (rcoeff, rblock2, size2, bitdepth);
         /* Copy from compact block of quarter size to full size */
         for (k=0;k<size2;k++){
           memcpy(rblock+(i+k)*size+j,rblock2+k*size2,size2*sizeof(int16_t));
@@ -164,19 +163,19 @@ static void decode_and_reconstruct_block_inter (uint8_t *rec, int stride, int si
       }
     }
   }
-  else{
-    dequantize (coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
+  else {
+    TEMPLATE(dequantize)(coeffq, rcoeff, qp, size, iwmatrix ? iwmatrix[log2i(size/4)] : NULL);
 
-    inverse_transform (rcoeff, rblock, size);
+    inverse_transform (rcoeff, rblock, size, bitdepth);
   }
-  reconstruct_block(rblock,pblock,rec,size,size,stride);
+  TEMPLATE(reconstruct_block)(rblock,pblock,rec,size,size,stride,bitdepth);
 
   thor_free(rcoeff);
   thor_free(rblock);
   thor_free(rblock2);
 }
 
-void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_info){
+static void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_info){
 
   int size = block_info->block_pos.size;
   int block_posy = block_info->block_pos.ypos/MIN_PB_SIZE;
@@ -223,7 +222,7 @@ void copy_deblock_data(decoder_info_t *decoder_info, block_info_dec_t *block_inf
   }
 }
 
-void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int sub){
+static void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int sub){
 
   int width = decoder_info->width;
   int height = decoder_info->height;
@@ -244,28 +243,28 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
   int qpC = chroma_qp[qpY];
 
   /* Intermediate block variables */
-  uint8_t *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-  uint8_t *pblock_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-  int16_t *coeff_y = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 16);
-  int16_t *coeff_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE >> 2*sub, 16);
-  int16_t *coeff_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE >> 2*sub, 16);
+  SAMPLE *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+  SAMPLE *pblock_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+  SAMPLE *pblock_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+  int16_t *coeff_y = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *coeff_u = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
+  int16_t *coeff_v = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
 
   /* Block variables for bipred */
-  uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-  uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-  uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-  uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-  uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
+  SAMPLE *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+  SAMPLE *pblock0_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+  SAMPLE *pblock0_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+  SAMPLE *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+  SAMPLE *pblock1_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+  SAMPLE *pblock1_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
   yuv_frame_t *rec = decoder_info->rec;
   yuv_frame_t *ref = decoder_info->ref[0];
 
 
   /* Pointers to current position in reconstructed frame*/
-  uint8_t *rec_y = &rec->y[yposY*rec->stride_y+xposY];
-  uint8_t *rec_u = &rec->u[yposC*rec->stride_c+xposC];
-  uint8_t *rec_v = &rec->v[yposC*rec->stride_c+xposC];
+  SAMPLE *rec_y = &rec->y[yposY*rec->stride_y+xposY];
+  SAMPLE *rec_u = &rec->u[yposC*rec->stride_c+xposC];
+  SAMPLE *rec_v = &rec->v[yposC*rec->stride_c+xposC];
 
   stream_t *stream = decoder_info->stream;
 
@@ -289,7 +288,6 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
   mode = block_info.block_param.mode;
 
   if (mode == MODE_INTRA){
-    /* Dequantize, inverse tranform, predict and reconstruct */
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     intra_mode = block_info.block_param.intra_mode;
     int bwidth = size; //TODO: fix for non-square blocks
@@ -300,20 +298,20 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
     //int upright_available = get_upright_available(ypos, xpos, size, width, 1 << decoder_info->log2_sb_size);
     //int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
     int tb_split = block_info.block_param.tb_split;
-    decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL);
-    decode_and_reconstruct_block_intra_uv(rec_u,rec_v,rec->stride_c,sizeC,qpC,pblock_u,pblock_v,coeff_u,coeff_v,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL, decoder_info->cfl_intra ? pblock_y : 0, rec_y, rec->stride_y, sub);
+    decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL);
+    decode_and_reconstruct_block_intra_uv(rec_u,rec_v,rec->stride_c,sizeC,qpC,pblock_u,pblock_v,coeff_u,coeff_v,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL, decoder_info->cfl_intra ? pblock_y : 0, rec_y, rec->stride_y, sub);
   }
   else
   {
     int tb_split = block_info.block_param.tb_split;
     if (mode==MODE_SKIP){
       if (block_info.block_param.dir==2){
-        uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
+        SAMPLE *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+        SAMPLE *pblock0_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock0_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
 
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
@@ -322,12 +320,12 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
         yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
         int sign1 = ref1->frame_num >= rec->frame_num;
         if (decoder_info->bit_count.stat_frame_type == B_FRAME && decoder_info->interp_ref == 2 && block_info.block_param.skip_idx==0) {
-          get_inter_prediction_temp(width, height, ref0, ref1, &block_info.block_pos, decoder_info->deblock_data, decoder_info->num_reorder_pics + 1, decoder_info->frame_info.phase, pblock_y, pblock_u, pblock_v);
+          TEMPLATE(get_inter_prediction_temp)(width, height, ref0, ref1, &block_info.block_pos, decoder_info->deblock_data, decoder_info->num_reorder_pics + 1, decoder_info->frame_info.phase, pblock_y, pblock_u, pblock_v);
         }
         else {
-          get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
-          get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
-          average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
+          TEMPLATE(get_inter_prediction_yuv)(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0, decoder_info->bitdepth);
+          TEMPLATE(get_inter_prediction_yuv)(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0, decoder_info->bitdepth);
+          TEMPLATE(average_blocks_all)(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
         }
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -342,15 +340,15 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
 
-        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
+        TEMPLATE(get_inter_prediction_yuv)(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0, decoder_info->bitdepth);
       }
       int j;
       for (j = 0; j<bheight; j++) {
-        memcpy(&rec_y[j*rec->stride_y], &pblock_y[j*sizeY], bwidth*sizeof(uint8_t));
+        memcpy(&rec_y[j*rec->stride_y], &pblock_y[j*sizeY], bwidth*sizeof(SAMPLE));
       }
       for (j = 0; j<bheight >> sub; j++) {
-        memcpy(&rec_u[j*rec->stride_c], &pblock_u[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
-        memcpy(&rec_v[j*rec->stride_c], &pblock_v[j*sizeC], (bwidth >> sub)*sizeof(uint8_t));
+        memcpy(&rec_u[j*rec->stride_c], &pblock_u[j*sizeC], (bwidth >> sub)*sizeof(SAMPLE));
+        memcpy(&rec_v[j*rec->stride_c], &pblock_v[j*sizeC], (bwidth >> sub)*sizeof(SAMPLE));
       }
       copy_deblock_data(decoder_info, &block_info);
       return;
@@ -358,24 +356,24 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
     else if (mode==MODE_MERGE){
       if (block_info.block_param.dir==2){
 
-        uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-        uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-        uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
+        SAMPLE *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+        SAMPLE *pblock0_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock0_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+        SAMPLE *pblock1_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
 
         int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
         yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
         int sign0 = ref0->frame_num >= rec->frame_num;
-        get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0);
+        TEMPLATE(get_inter_prediction_yuv)(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, 0, decoder_info->bitdepth);
 
         int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
         yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
         int sign1 = ref1->frame_num >= rec->frame_num;
-        get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0);
+        TEMPLATE(get_inter_prediction_yuv)(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, 0, decoder_info->bitdepth);
 
-        average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
+        TEMPLATE(average_blocks_all)(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
 
         thor_free(pblock0_y);
         thor_free(pblock0_u);
@@ -389,7 +387,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
         int r = decoder_info->frame_info.ref_array[ref_idx];
         ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
         int sign = ref->frame_num > rec->frame_num;
-        get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0);
+        TEMPLATE(get_inter_prediction_yuv)(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, 0, decoder_info->bitdepth);
       }
     }
     else if (mode == MODE_INTER){
@@ -397,28 +395,28 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
       int r = decoder_info->frame_info.ref_array[ref_idx];
       ref = r>=0 ? decoder_info->ref[r] : decoder_info->interp_frames[0];
       int sign = ref->frame_num > rec->frame_num;
-      get_inter_prediction_yuv(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, decoder_info->pb_split);
+      TEMPLATE(get_inter_prediction_yuv)(ref, pblock_y, pblock_u, pblock_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign, width, height, bipred, decoder_info->pb_split, decoder_info->bitdepth);
     }
     else if (mode == MODE_BIPRED){
 
-      uint8_t *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock0_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-      uint8_t *pblock0_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-      uint8_t *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE, 16);
-      uint8_t *pblock1_u = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
-      uint8_t *pblock1_v = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub, 16);
+      SAMPLE *pblock0_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+      SAMPLE *pblock0_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+      SAMPLE *pblock0_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+      SAMPLE *pblock1_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
+      SAMPLE *pblock1_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
+      SAMPLE *pblock1_v = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*sub)*sizeof(SAMPLE), 32);
 
       int r0 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx0];
       yuv_frame_t *ref0 = r0 >= 0 ? decoder_info->ref[r0] : decoder_info->interp_frames[0];
       int sign0 = ref0->frame_num >= rec->frame_num;
-      get_inter_prediction_yuv(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, decoder_info->pb_split);
+      TEMPLATE(get_inter_prediction_yuv)(ref0, pblock0_y, pblock0_u, pblock0_v, &block_info.block_pos, block_info.block_param.mv_arr0, sign0, width, height, bipred, decoder_info->pb_split, decoder_info->bitdepth);
 
       int r1 = decoder_info->frame_info.ref_array[block_info.block_param.ref_idx1];
       yuv_frame_t *ref1 = r1 >= 0 ? decoder_info->ref[r1] : decoder_info->interp_frames[0];
       int sign1 = ref1->frame_num >= rec->frame_num;
-      get_inter_prediction_yuv(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, decoder_info->pb_split);
+      TEMPLATE(get_inter_prediction_yuv)(ref1, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, block_info.block_param.mv_arr1, sign1, width, height, bipred, decoder_info->pb_split, decoder_info->bitdepth);
 
-      average_blocks_all(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
+      TEMPLATE(average_blocks_all)(pblock_y, pblock_u, pblock_v, pblock0_y, pblock0_u, pblock0_v, pblock1_y, pblock1_u, pblock1_v, &block_info.block_pos, sub);
 
       thor_free(pblock0_y);
       thor_free(pblock0_u);
@@ -430,11 +428,11 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
 
     /* Dequantize, invere tranform and reconstruct */
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
-    decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
+    decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
     if (decoder_info->cfl_inter)  // Use reconstructed luma to improve chroma prediction
-      improve_uv_prediction(pblock_y, pblock_u, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub);
-    decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
-    decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
+      TEMPLATE(improve_uv_prediction)(pblock_y, pblock_u, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub, decoder_info->bitdepth);
+    decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
+    decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);
   }
 
   /* Copy deblock data to frame array */
@@ -455,7 +453,7 @@ void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos,int su
 }
 
 
-int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_size){
+static int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_size){
   stream_t *stream = decoder_info->stream;
   block_context_t *block_context = decoder_info->block_context;
 
@@ -611,7 +609,7 @@ int decode_super_mode(decoder_info_t *decoder_info, int size, int decode_this_si
 }
 
 
-void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY,int sub)
+void TEMPLATE(process_block_dec)(decoder_info_t *decoder_info,int size,int yposY,int xposY,int sub)
 {
   int width = decoder_info->width;
   int height = decoder_info->height;
@@ -630,7 +628,7 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
   int mode = MODE_SKIP;
  
   block_context_t block_context;
-  find_block_contexts(yposY, xposY, height, width, size, decoder_info->deblock_data, &block_context, decoder_info->use_block_contexts);
+  TEMPLATE(find_block_contexts)(yposY, xposY, height, width, size, decoder_info->deblock_data, &block_context, decoder_info->use_block_contexts);
   decoder_info->block_context = &block_context;
 
   split_flag = decode_super_mode(decoder_info,size,decode_this_size);
@@ -652,10 +650,10 @@ void process_block_dec(decoder_info_t *decoder_info,int size,int yposY,int xposY
 
   if (split_flag){
     int new_size = size/2;
-    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size,sub);
-    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size,sub);
-    process_block_dec(decoder_info,new_size,yposY+0*new_size,xposY+1*new_size,sub);
-    process_block_dec(decoder_info,new_size,yposY+1*new_size,xposY+1*new_size,sub);
+    TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size,sub);
+    TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size,sub);
+    TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+0*new_size,xposY+1*new_size,sub);
+    TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+1*new_size,xposY+1*new_size,sub);
   }
   else if (decode_this_size || decode_rectangular_size){
     decode_block(decoder_info,size,yposY,xposY,sub);

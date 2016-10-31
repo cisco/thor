@@ -38,11 +38,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern int chroma_qp[52];
 
-static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2) {
+#undef TEMPLATE
+#define TEMPLATE(func) (decoder_info->bitdepth == 8 ? func ## _lbd : func ## _hbd)
+
+static int clpf_true(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift) {
   return 1;
 }
 
-static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2) {
+static int clpf_bit(int k, int l, yuv_frame_t *r, yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift) {
   return get_flc(1, (stream_t*)stream);
 }
 
@@ -104,8 +107,8 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       off1 = off2 = 1;
     }
     // FIXME: won't work for the 1-sided case
-    interpolate_frames(decoder_info->interp_frames[0], ref1, ref2, off1+off2 , off2);
-    pad_yuv_frame(decoder_info->interp_frames[0]);
+    TEMPLATE(interpolate_frames)(decoder_info->interp_frames[0], ref1, ref2, off1+off2 , off2);
+    TEMPLATE(pad_yuv_frame)(decoder_info->interp_frames[0]);
     decoder_info->interp_frames[0]->frame_num = display_frame_num;
   }
 
@@ -120,7 +123,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       int sub = decoder_info->subsample != 444;
       int xposY = l*sb_size;
       int yposY = k*sb_size;
-      process_block_dec(decoder_info, sb_size, yposY, xposY, sub);
+      TEMPLATE(process_block_dec)(decoder_info, sb_size, yposY, xposY, sub);
     }
   }
 
@@ -133,13 +136,13 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
     int b_level = log2i(coded_phase);
     int frame_type = decoder_info->bit_count.stat_frame_type;
     int frame_num = decoder_info->frame_info.display_frame_num;
-    store_mv(width, height, b_level, frame_type, frame_num, gop_size, decoder_info->deblock_data);
+    TEMPLATE(store_mv)(width, height, b_level, frame_type, frame_num, gop_size, decoder_info->deblock_data);
   }
 
   if (decoder_info->deblocking){
-    deblock_frame_y(decoder_info->rec, decoder_info->deblock_data, width, height, qp);
+    TEMPLATE(deblock_frame_y)(decoder_info->rec, decoder_info->deblock_data, width, height, qp, decoder_info->bitdepth);
     int qpc = chroma_qp[qp];
-    deblock_frame_uv(decoder_info->rec, decoder_info->deblock_data, width, height, qpc);
+    TEMPLATE(deblock_frame_uv)(decoder_info->rec, decoder_info->deblock_data, width, height, qpc, decoder_info->bitdepth);
   }
 
   if (decoder_info->clpf) {
@@ -150,7 +153,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       if (fb_size_log2 == 4)
         fb_size_log2 = 7;
       yuv_frame_t tmp = *decoder_info->rec;
-      clpf_frame(decoder_info->tmp, decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_fb_flag, strength + (strength == 3), fb_size_log2, enable_fb_flag ? clpf_bit : clpf_true);
+      TEMPLATE(clpf_frame)(decoder_info->tmp, decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_fb_flag, strength + (strength == 3), fb_size_log2, decoder_info->bitdepth, enable_fb_flag ? clpf_bit : clpf_true);
       *decoder_info->rec = *decoder_info->tmp;
       *decoder_info->tmp = tmp;
       decoder_info->rec->frame_num = tmp.frame_num;
@@ -169,7 +172,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   decoder_info->ref[0] = tmp;
 
   /* Pad the reconstructed frame and write into ref[0] */
-  create_reference_frame(decoder_info->ref[0],decoder_info->rec);
+  TEMPLATE(create_reference_frame)(decoder_info->ref[0],decoder_info->rec);
 }
 
 

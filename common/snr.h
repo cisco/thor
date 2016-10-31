@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "types.h"
 
-int snr_yuv(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width);
+int snr_yuv_lbd(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,int input_bitdepth);
+int snr_yuv_hbd(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,int width,int input_bitdepth);
 
 #endif

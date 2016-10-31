@@ -24,18 +24,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef ENC_SIMDKERNELS_H
-#define ENC_SIMDKERNELS_H
+#define SAMPLE uint16_t
+#define TEMPLATE(name) name##_hbd
 
-#include <stdint.h>
-
-int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height);
-int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size);
-void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength);
-void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum);
-unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int astride, int bstride, int width, int height, int *x, int *y);
-unsigned int sad_calc_fastquarter_simd(const uint8_t *o, const uint8_t *r, int os, int rs, int width, int height, int *x, int *y);
-unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height, int *x);
-int calc_cbp_simd(int16_t *block, int size, int threshold);
-
-#endif
+#include "encode_block.c"

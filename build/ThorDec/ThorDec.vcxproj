@@ -20,16 +20,23 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\common\common_block.c" />
+    <ClCompile Include="..\..\common\common_block_hbd.c" />
     <ClCompile Include="..\..\common\common_frame.c" />
+    <ClCompile Include="..\..\common\common_frame_hbd.c" />
     <ClCompile Include="..\..\common\common_kernels.c" />
+    <ClCompile Include="..\..\common\common_tables.c" />
     <ClCompile Include="..\..\common\inter_prediction.c" />
+    <ClCompile Include="..\..\common\inter_prediction_hbd.c" />
     <ClCompile Include="..\..\common\intra_prediction.c" />
+    <ClCompile Include="..\..\common\intra_prediction_hbd.c" />
     <ClCompile Include="..\..\common\simd.c" />
     <ClCompile Include="..\..\common\snr.c" />
     <ClCompile Include="..\..\common\temporal_interp.c" />
+    <ClCompile Include="..\..\common\temporal_interp_hbd.c" />
     <ClCompile Include="..\..\common\transform.c" />
     <ClCompile Include="..\..\common\wt_matrix.c" />
     <ClCompile Include="..\..\dec\decode_block.c" />
+    <ClCompile Include="..\..\dec\decode_block_hbd.c" />
     <ClCompile Include="..\..\dec\decode_frame.c" />
     <ClCompile Include="..\..\dec\getbits.c" />
     <ClCompile Include="..\..\dec\getvlc.c" />

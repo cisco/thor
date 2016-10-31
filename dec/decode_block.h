@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "maindec.h"
 
-void process_block_dec(decoder_info_t *encoder_info,int size,int yposY,int xposY,int sub);
+void process_block_dec_lbd(decoder_info_t *encoder_info,int size,int yposY,int xposY,int sub);
+void process_block_dec_hbd(decoder_info_t *encoder_info,int size,int yposY,int xposY,int sub);
 
 #endif

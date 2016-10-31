@@ -28,19 +28,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _INTRA_PREDICTION_H_
 #include "types.h"
 
-void make_top_and_left(uint8_t* left, uint8_t* top, uint8_t* top_left, uint8_t* rec_frame, int fstride, uint8_t* rblock, int rbstride, int i, int j,
-    int ypos, int xpos, int size, int upright_available,int downleft_available, int tb_split);
-void get_dc_pred(uint8_t* left, uint8_t* top, int size, uint8_t *pblock, int pstride);
-void get_hor_pred(uint8_t* left, int size, uint8_t *pblock, int pstride);
-void get_ver_pred(uint8_t* top, int size,uint8_t *pblock, int pstride);
-void get_planar_pred(uint8_t* left, uint8_t* top, uint8_t top_left,int size,uint8_t *pblock, int pstride);
-void get_upleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock, int pstride);
-void get_upright_pred(uint8_t *top, int size, uint8_t *pblock, int pstride);
-void get_upupright_pred(uint8_t *top,int size,uint8_t *pblock, int pstride);
-void get_upupleft_pred(uint8_t *left,uint8_t * top, uint8_t top_left, int size,uint8_t *pblock, int pstride);
-void get_upleftleft_pred(uint8_t* left, uint8_t* top, uint8_t top_left, int size,uint8_t *pblock, int pstride);
-void get_downleftleft_pred(uint8_t *left,int size,uint8_t *pblock, int pstride);
+void TEMPLATE(make_top_and_left)(SAMPLE* left, SAMPLE* top, SAMPLE* top_left, SAMPLE* rec_frame, int fstride, SAMPLE* rblock, int rbstride, int i, int j,
+                                 int ypos, int xpos, int size, int upright_available,int downleft_available, int tb_split,int bitdepth);
+void TEMPLATE(get_dc_pred)(SAMPLE* left, SAMPLE* top, int size, SAMPLE *pblock, int pstride, int bitdepth);
+void TEMPLATE(get_hor_pred)(SAMPLE* left, int size, SAMPLE *pblock, int pstride);
+void TEMPLATE(get_ver_pred)(SAMPLE* top, int size,SAMPLE *pblock, int pstride);
+void TEMPLATE(get_planar_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left,int size,SAMPLE *pblock, int pstride, int bitdepth);
+void TEMPLATE(get_upleft_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int size,SAMPLE *pblock, int pstride);
+void TEMPLATE(get_upright_pred)(SAMPLE *top, int size, SAMPLE *pblock, int pstride);
+void TEMPLATE(get_upupright_pred)(SAMPLE *top,int size,SAMPLE *pblock, int pstride);
+void TEMPLATE(get_upupleft_pred)(SAMPLE *left,SAMPLE * top, SAMPLE top_left, int size,SAMPLE *pblock, int pstride);
+void TEMPLATE(get_upleftleft_pred)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int size,SAMPLE *pblock, int pstride);
+void TEMPLATE(get_downleftleft_pred)(SAMPLE *left,int size,SAMPLE *pblock, int pstride);
 
-void get_intra_prediction(uint8_t* left, uint8_t* top, uint8_t top_left, int ypos,int xpos,
-			  int size, uint8_t *pblock, int pstride, intra_mode_t intra_mode);
+void TEMPLATE(get_intra_prediction)(SAMPLE* left, SAMPLE* top, SAMPLE top_left, int ypos,int xpos,
+                                    int size, SAMPLE *pblock, int pstride, intra_mode_t intra_mode, int bitdepth);
 #endif

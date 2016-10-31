@@ -66,6 +66,12 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
   put_flc(4, params->num_reorder_pics, stream);
   put_flc(1, params->cfl_intra, stream);
   put_flc(1, params->cfl_inter, stream);
+  put_flc(1, params->bitdepth != 8, stream);
+  if (params->bitdepth != 8)
+    put_flc(1, params->bitdepth == 12, stream);
+  put_flc(1, params->input_bitdepth != 8, stream);
+  if (params->input_bitdepth != 8)
+    put_flc(1, params->input_bitdepth == 12, stream);
 }
 
 void write_frame_header(stream_t *stream, frame_info_t *frame_info) {

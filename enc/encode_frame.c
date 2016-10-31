@@ -38,24 +38,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "write_bits.h"
 
 extern int chroma_qp[52];
-const double squared_lambda_QP [52] = {
-    0.0382, 0.0485, 0.0615, 0.0781, 0.0990, 0.1257, 0.1595, 0.2023, 0.2567,
-    0.3257, 0.4132, 0.5243, 0.6652, 0.8440, 1.0709, 1.3588, 1.7240, 2.1874,
-    2.7754, 3.5214, 4.4679, 5.6688, 7.1926, 9.1259, 11.5789, 14.6912, 18.6402,
-    23.6505, 30.0076, 38.0735, 48.3075, 61.2922, 77.7672, 98.6706, 125.1926, 158.8437,
-    201.5399, 255.7126, 324.4467, 411.6560, 522.3067, 662.6996, 840.8294, 1066.8393, 1353.5994,
-    1717.4389, 2179.0763, 2764.7991, 3507.9607, 4450.8797, 5647.2498, 7165.1970
-};
+extern double squared_lambda_QP[52];
 
-static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2) {
+static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift) {
   int sum0 = 0, sum1 = 0;
   for (int m = 0; m < h; m++) {
     for (int n = 0; n < w; n++) {
       int xpos = (l<<fb_size_log2) + n*block_size;
       int ypos = (k<<fb_size_log2) + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
-      if (deblock_data[index].mode != MODE_SKIP)
-        (use_simd ? detect_clpf_simd : detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength);
+      if (deblock_data[index].mode != MODE_SKIP) {
+        if (use_simd && sizeof(SAMPLE) == 1)
+          detect_clpf_simd((uint8_t *)rec->y, (uint8_t *)org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength);
+        else
+          TEMPLATE(detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift);
+      }
     }
   }
   put_flc(1, sum1 < sum0, (stream_t*)stream);
@@ -71,7 +68,7 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
 // res[2][1-3] : strength=1,2,4, fb size = 64
 // res[3][0]   : (bit count, fb size = 32)
 // res[3][1-3] : strength=1,2,4, fb size = 32
-static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, unsigned int block_size, unsigned int fb_size_log2, int w, int h, int64_t res[4][4]) {
+static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, unsigned int block_size, unsigned int fb_size_log2, int w, int h, int64_t res[4][4], int bitdepth) {
   int filtered = 0;
   int sum[4];
   int bslog = log2i(block_size);
@@ -87,12 +84,12 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
     int64_t oldfiltered = res[i][0];
     res[i][0] = 0;
 
-    filtered = clpf_rdo(y, x, rec, org, deblock_data, block_size, fb_size_log2, w1, h1, res);
+    filtered = clpf_rdo(y, x, rec, org, deblock_data, block_size, fb_size_log2, w1, h1, res, bitdepth);
     if (1<<(fb_size_log2-bslog) < w)
-      filtered |= clpf_rdo(y, x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h1, res);
+      filtered |= clpf_rdo(y, x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h1, res, bitdepth);
     if (1<<(fb_size_log2-bslog) < h) {
-      filtered |= clpf_rdo(y+(1<<fb_size_log2), x, rec, org, deblock_data, block_size, fb_size_log2, w1, h2, res);
-      filtered |= clpf_rdo(y+(1<<fb_size_log2), x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h2, res);
+      filtered |= clpf_rdo(y+(1<<fb_size_log2), x, rec, org, deblock_data, block_size, fb_size_log2, w1, h2, res, bitdepth);
+      filtered |= clpf_rdo(y+(1<<fb_size_log2), x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h2, res, bitdepth);
     }
 
     res[i][1] = min(sum1 + res[i][0], res[i][1]);
@@ -108,7 +105,10 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
       int ypos = y + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-	      (use_simd ? detect_multi_clpf_simd : detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum);
+        if (use_simd && sizeof(SAMPLE) == 1)
+          detect_multi_clpf_simd((uint8_t *)rec->y, (uint8_t *)org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum);
+        else
+          TEMPLATE(detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum, bitdepth - 8);
         filtered = 1;
       }
     }
@@ -123,7 +123,7 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
   return filtered;
 }
 
-void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, const frame_info_t *frame_info, int *best_strength, int *best_bs) {
+static void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, const frame_info_t *frame_info, int *best_strength, int *best_bs, int bitdepth) {
 
   int64_t sums[4][4];
   int width = rec->width, height = rec->height;
@@ -137,7 +137,7 @@ void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *d
       int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
       h += !h << fb_size_log2;
       w += !w << fb_size_log2;
-      clpf_rdo((k<<fb_size_log2), (l<<fb_size_log2), rec, org, deblock_data, bs, fb_size_log2, w/bs, h/bs, sums);
+      clpf_rdo((k<<fb_size_log2), (l<<fb_size_log2), rec, org, deblock_data, bs, fb_size_log2, w/bs, h/bs, sums, bitdepth);
     }
   }
   for (int j = 0; j < 4; j++) {
@@ -159,7 +159,7 @@ void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *d
   *best_strength = best ? 1<<((best-1) & 3) : 0;  
 }
 
-void encode_frame(encoder_info_t *encoder_info)
+void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
 {
   int k,l;
   int width = encoder_info->width;
@@ -234,7 +234,7 @@ void encode_frame(encoder_info_t *encoder_info)
         max_qp = qp+max_delta_qp;
         int pqp = encoder_info->frame_info.prev_qp; // Save prev_qp in local variable
         for (qp0=min_qp;qp0<=max_qp;qp0+=encoder_info->params->delta_qp_step){
-          cost = process_block(encoder_info, sb_size, yposY, xposY, qp0, sub);
+          cost = TEMPLATE(process_block)(encoder_info, sb_size, yposY, xposY, qp0, sub);
           if (cost < min_cost){
             min_cost = cost;
             best_qp = qp0;
@@ -242,19 +242,19 @@ void encode_frame(encoder_info_t *encoder_info)
         }
         encoder_info->frame_info.prev_qp = pqp; // Restore prev_qp from local variable
         write_stream_pos(stream,&stream_pos_ref);
-        process_block(encoder_info, sb_size, yposY, xposY, best_qp, sub);
+        TEMPLATE(process_block)(encoder_info, sb_size, yposY, xposY, best_qp, sub);
       }
       else{
         if (encoder_info->params->bitrate > 0) {
           start_bits_sb = get_bit_pos(stream);
-          process_block(encoder_info, sb_size, yposY, xposY, qp, sub);
+          TEMPLATE(process_block)(encoder_info, sb_size, yposY, xposY, qp, sub);
           end_bits_sb = get_bit_pos(stream);
           num_bits_sb = end_bits_sb - start_bits_sb;
           qp = update_rate_control_sb(encoder_info->rc, sb_idx, num_bits_sb, qp);
           sb_idx++;
         }
         else {
-          process_block(encoder_info, sb_size, yposY, xposY, qp, sub);
+          TEMPLATE(process_block)(encoder_info, sb_size, yposY, xposY, qp, sub);
         }
       }
     }
@@ -268,14 +268,14 @@ void encode_frame(encoder_info_t *encoder_info)
     int b_level = encoder_info->frame_info.b_level;
     int frame_type = encoder_info->frame_info.frame_type;
     int frame_num = encoder_info->frame_info.frame_num;
-    store_mv(width, height, b_level, frame_type, frame_num, gop_size, encoder_info->deblock_data);
+    TEMPLATE(store_mv)(width, height, b_level, frame_type, frame_num, gop_size, encoder_info->deblock_data);
   }
 
   if (encoder_info->params->deblocking){
     //TODO: Use QP per SB or average QP
-    deblock_frame_y(encoder_info->rec, encoder_info->deblock_data, width, height, qp);
+    TEMPLATE(deblock_frame_y)(encoder_info->rec, encoder_info->deblock_data, width, height, qp, encoder_info->params->bitdepth);
     int qpc = chroma_qp[qp];
-    deblock_frame_uv(encoder_info->rec, encoder_info->deblock_data, width, height, qpc);
+    TEMPLATE(deblock_frame_uv)(encoder_info->rec, encoder_info->deblock_data, width, height, qpc, encoder_info->params->bitdepth);
   }
 
   if (encoder_info->params->clpf){
@@ -286,7 +286,7 @@ void encode_frame(encoder_info_t *encoder_info)
       int fb_size_log2;
       int strength;
       // Find the best strength for the entire frame
-      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength, &fb_size_log2);
+      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength, &fb_size_log2, encoder_info->params->bitdepth);
       if (!fb_size_log2) { // Disable sb signal
         enable_sb_flag = 0;
         fb_size_log2 = log2i(MAX_SB_SIZE);
@@ -298,7 +298,7 @@ void encode_frame(encoder_info_t *encoder_info)
         yuv_frame_t tmp = *encoder_info->rec;
         put_flc(2, strength - (strength == 4), stream);
         put_flc(2, (fb_size_log2-log2i(MAX_SB_SIZE)+3)*enable_sb_flag, stream);
-        clpf_frame(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, fb_size_log2, clpf_decision);
+        TEMPLATE(clpf_frame)(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, fb_size_log2, encoder_info->params->bitdepth, clpf_decision);
         *encoder_info->rec = *encoder_info->tmp;
         *encoder_info->tmp = tmp;
         encoder_info->rec->frame_num = tmp.frame_num;
@@ -324,7 +324,7 @@ void encode_frame(encoder_info_t *encoder_info)
   encoder_info->ref[0] = tmp;
 
   /* Pad the reconstructed frame and write into ref[0] */
-  create_reference_frame(encoder_info->ref[0],encoder_info->rec);
+  TEMPLATE(create_reference_frame)(encoder_info->ref[0],encoder_info->rec);
 
 #if 0
   /* To test sliding window operation */

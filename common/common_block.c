@@ -146,7 +146,8 @@ void TEMPLATE(improve_uv_prediction)(SAMPLE *y, SAMPLE *u, SAMPLE *v, SAMPLE *ry
     return;
 
   // Compute linear fit between predicted chroma and predicted luma
-  int32_t ysum = 0, usum = 0, vsum = 0, yysum = 0, yusum = 0, yvsum = 0, uusum = 0, vvsum = 0;
+  // Could be int32_t when SAMPLE is 8 bit
+  int64_t ysum = 0, usum = 0, vsum = 0, yysum = 0, yusum = 0, yvsum = 0, uusum = 0, vvsum = 0;
   for (int i = 0; i < nc; i++)
     for (int j = 0; j < nc; j++) {
       int us = u[i * (cstride >> sub) + j];
@@ -165,18 +166,18 @@ void TEMPLATE(improve_uv_prediction)(SAMPLE *y, SAMPLE *u, SAMPLE *v, SAMPLE *ry
       vvsum += vs * vs;
     }
 
-  int64_t ssyy = yysum - ((int64_t)ysum*ysum >> lognc * 2);
-  int64_t ssuu = uusum - ((int64_t)usum*usum >> lognc * 2);
-  int64_t ssvv = vvsum - ((int64_t)vsum*vsum >> lognc * 2);
-  int64_t ssyu = yusum - ((int64_t)ysum*usum >> lognc * 2);
-  int64_t ssyv = yvsum - ((int64_t)ysum*vsum >> lognc * 2);
+  int64_t ssyy = yysum - (ysum*ysum >> lognc * 2);
+  int64_t ssuu = uusum - (usum*usum >> lognc * 2);
+  int64_t ssvv = vvsum - (vsum*vsum >> lognc * 2);
+  int64_t ssyu = yusum - (ysum*usum >> lognc * 2);
+  int64_t ssyv = yvsum - (ysum*vsum >> lognc * 2);
 
   // Require a correlation above a threshold
   if (ssyy) {
     if (ssyu * ssyu * 2 > ssyy * ssuu) {
-      int64_t a64 = ((int64_t)ssyu << 16) / ssyy;
-      int64_t b64 = (((int64_t)usum << 16) - a64 * ysum) >> lognc * 2;
-      int32_t a = (int32_t)clip(a64, -(1 << 23), 1 << 23);
+      int64_t a64 = (ssyu << 16) / ssyy;
+      int64_t b64 = ((usum << 16) - a64 * ysum) >> lognc * 2;
+      int32_t a = (int32_t)clip(a64, -(1 << (31 - bitdepth)), 1 << (31 - bitdepth));
       int32_t b = (int32_t)clip(b64 + (1 << 15), -(1LL << 31), (1U << 31) - 1);
 
       // Map reconstructed luma to new predicted chroma
@@ -191,9 +192,9 @@ void TEMPLATE(improve_uv_prediction)(SAMPLE *y, SAMPLE *u, SAMPLE *v, SAMPLE *ry
         }
     }
     if (ssyv * ssyv * 2 > ssyy * ssvv) {
-      int64_t a64 = ((int64_t)ssyv << 16) / ssyy;
-      int64_t b64 = (((int64_t)vsum << 16) - a64 * ysum) >> lognc * 2;
-      int32_t a = (int32_t)clip(a64, -(1 << 23), 1 << 23);
+      int64_t a64 = (ssyv << 16) / ssyy;
+      int64_t b64 = ((vsum << 16) - a64 * ysum) >> lognc * 2;
+      int32_t a = (int32_t)clip(a64, -(1 << (31 - bitdepth)), 1 << (31 - bitdepth));
       int32_t b = (int32_t)clip(b64 + (1 << 15), -(1LL << 31), (1U << 31) - 1);
 
       // Map reconstructed luma to new predicted chroma

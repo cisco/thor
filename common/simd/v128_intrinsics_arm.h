@@ -147,6 +147,7 @@ SIMD_INLINE uint32_t v128_sad_u8_sum(sad128_internal s) {
   return (uint32_t)(v64_sad_u8_sum(s.hi) + v64_sad_u8_sum(s.lo));
 }
 
+
 typedef struct { ssd64_internal hi, lo; } ssd128_internal;
 
 SIMD_INLINE ssd128_internal v128_ssd_u8_init() {
@@ -626,5 +627,46 @@ SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int c) {
 }
 
 #endif
+
+typedef v128 sad128_internal_u16;
+
+// TODO: Optimise better?
+SIMD_INLINE sad128_internal_u16 v128_sad_u16_init() {
+  return v128_zero();
+}
+
+/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum().
+   The result for more than 16 v128_sad_u16() for 12 bit input calls is undefined. */
+SIMD_INLINE sad128_internal_u16 v128_sad_u16(sad128_internal_u16 s, v128 a, v128 b) {
+  return v128_add_16(s, v128_abs_s16(v128_sub_16(a, b)));
+}
+
+SIMD_INLINE uint32_t v128_sad_u16_sum(sad128_internal_u16 s) {
+  v128 t = v128_padd_s16(s);
+  return
+    v128_low_u32(t) +
+    v128_low_u32(v128_shr_n_byte(t, 4)) +
+    v128_low_u32(v128_shr_n_byte(t, 8)) +
+    v128_low_u32(v128_shr_n_byte(t, 12));
+}
+
+typedef v128 ssd128_internal_u16;
+SIMD_INLINE ssd128_internal_u16 v128_ssd_u16_init() {
+  return v128_zero();
+}
+
+/* Implementation dependent return value.  Result must be finalised with v128_ssd_u16_sum(). */
+SIMD_INLINE ssd128_internal_u16 v128_ssd_u16(ssd128_internal_u16 s, v128 a, v128 b) {
+  v128 d = v128_sub_16(a, b);
+  return v128_add_32(s, v128_madd_s16(d, d));
+}
+
+SIMD_INLINE uint32_t v128_ssd_u16_sum(ssd128_internal_u16 s) {
+  return
+    v128_low_u32(s) +
+    v128_low_u32(v128_shr_n_byte(s, 4)) +
+    v128_low_u32(v128_shr_n_byte(s, 8)) +
+    v128_low_u32(v128_shr_n_byte(s, 12));
+}
 
 #endif /* _V128_INTRINSICS_H */

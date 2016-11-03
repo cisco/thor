@@ -187,6 +187,24 @@ SIMD_INLINE uint32_t c_v128_ssd_u8_sum(c_ssd128_internal s) {
   return s;
 }
 
+typedef uint32_t c_ssd128_internal_u16;
+
+SIMD_INLINE c_ssd128_internal_u16 c_v128_ssd_u16_init() {
+  return 0;
+}
+
+/* Implementation dependent return value.  Result must be finalised with v128_ssd_u16_sum(). */
+SIMD_INLINE c_ssd128_internal_u16 c_v128_ssd_u16(c_ssd128_internal_u16 s, c_v128 a, c_v128 b) {
+  int c;
+  for (c = 0; c < 8; c++)
+    s += (a.u16[c] - b.u16[c]) * (a.u16[c] - b.u16[c]);
+  return s;
+}
+
+SIMD_INLINE uint32_t c_v128_ssd_u16_sum(c_ssd128_internal_u16 s) {
+  return s;
+}
+
 
 
 SIMD_INLINE c_v128 c_v128_or(c_v128 a, c_v128 b) {
@@ -664,6 +682,25 @@ SIMD_INLINE c_v128 c_v128_shr_n_s16(c_v128 a, const unsigned int n) {
 
 SIMD_INLINE c_v128 c_v128_shr_n_s32(c_v128 a, const unsigned int n) {
   return c_v128_shr_s32(a, n);
+}
+
+typedef uint32_t c_sad128_internal_u16;
+
+SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16_init() {
+  return 0;
+}
+
+/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum().
+   The result for more than 16 v128_sad_u16() for 12 bit input calls is undefined. */
+SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16(c_sad128_internal_u16 s, c_v128 a, c_v128 b) {
+  int c;
+  for (c = 0; c < 8; c++)
+    s += a.u16[c] > b.u16[c] ? a.u16[c] - b.u16[c] : b.u16[c] - a.u16[c];
+  return s;
+}
+
+SIMD_INLINE uint32_t c_v128_sad_u16_sum(c_sad128_internal_u16 s) {
+  return s;
 }
 
 #endif /* _V128_INTRINSICS_C_H */

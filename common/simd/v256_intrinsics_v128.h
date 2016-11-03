@@ -109,10 +109,7 @@ SIMD_INLINE uint64_t v256_hadd_u8(v256 a) {
   return v128_hadd_u8(a.hi) + v128_hadd_u8(a.lo);
 }
 
-typedef struct {
-  sad128_internal hi;
-  sad128_internal lo;
-} sad256_internal;
+typedef struct { sad128_internal hi, lo; } sad256_internal;
 
 SIMD_INLINE sad256_internal v256_sad_u8_init() {
   sad256_internal t;
@@ -135,10 +132,7 @@ SIMD_INLINE uint32_t v256_sad_u8_sum(sad256_internal s) {
   return v128_sad_u8_sum(s.hi) + v128_sad_u8_sum(s.lo);
 }
 
-typedef struct {
-  ssd128_internal hi;
-  ssd128_internal lo;
-} ssd256_internal;
+typedef struct { ssd128_internal hi, lo; } ssd256_internal;
 
 SIMD_INLINE ssd256_internal v256_ssd_u8_init() {
   ssd256_internal t;
@@ -534,5 +528,47 @@ SIMD_INLINE v256 v256_shr_s32(v256 a, const unsigned int c) {
   v256_from_v128(v128_shr_n_s16(a.hi, n), v128_shr_n_s16(a.lo, n))
 #define v256_shr_n_s32(a, n) \
   v256_from_v128(v128_shr_n_s32(a.hi, n), v128_shr_n_s32(a.lo, n))
+
+typedef v256 sad256_internal_u16;
+
+SIMD_INLINE sad256_internal_u16 v256_sad_u16_init() {
+  return v256_zero();
+}
+
+/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum(). */
+SIMD_INLINE sad256_internal_u16 v256_sad_u16(sad256_internal_u16 s, v256 a, v256 b) {
+  return v256_add_32(s, v256_padd_s16(v256_abs_s16(v256_sub_16(a, b))));
+}
+
+SIMD_INLINE uint32_t v256_sad_u16_sum(sad256_internal_u16 s) {
+  v128 t = v128_add_32(v256_high_v128(s), v256_low_v128(s));
+    return
+      v128_low_u32(t) +
+      v128_low_u32(v128_shr_n_byte(t, 4)) +
+      v128_low_u32(v128_shr_n_byte(t, 8)) +
+      v128_low_u32(v128_shr_n_byte(t, 12));
+}
+
+typedef v256 ssd256_internal_u16;
+
+SIMD_INLINE ssd256_internal_u16 v256_ssd_u16_init() {
+  return v256_zero();
+}
+
+/* Implementation dependent return value.  Result must be finalised with v256_ssd_u16_sum(). */
+SIMD_INLINE ssd256_internal_u16 v256_ssd_u16(ssd256_internal_u16 s, v256 a, v256 b) {
+  v256 d = v256_sub_16(a, b);
+  return v256_add_32(s, v256_madd_s16(d, d));
+}
+
+SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
+  v128 t = v128_add_32(v256_high_v128(s), v256_low_v128(s));
+  return
+    v128_low_u32(t) +
+    v128_low_u32(v128_shr_n_byte(t, 4)) +
+    v128_low_u32(v128_shr_n_byte(t, 8)) +
+    v128_low_u32(v128_shr_n_byte(t, 12));
+}
+
 
 #endif /* _V256_INTRINSICS_V128_H */

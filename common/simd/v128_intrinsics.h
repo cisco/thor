@@ -68,6 +68,10 @@ typedef uint32_t ssd128_internal;
 SIMD_INLINE ssd128_internal v128_ssd_u8_init() { return c_v128_ssd_u8_init(); }
 SIMD_INLINE ssd128_internal v128_ssd_u8(ssd128_internal s, v128 a, v128 b) { return c_v128_ssd_u8(s, a, b); }
 SIMD_INLINE uint32_t v128_ssd_u8_sum(ssd128_internal s) { return c_v128_ssd_u8_sum(s); }
+typedef uint32_t ssd128_internal_u16;
+SIMD_INLINE ssd128_internal_u16 v128_ssd_u16_init() { return c_v128_ssd_u16_init(); }
+SIMD_INLINE ssd128_internal_u16 v128_ssd_u16(ssd128_internal_u16 s, v128 a, v128 b) { return c_v128_ssd_u16(s, a, b); }
+SIMD_INLINE uint32_t v128_ssd_u16_sum(ssd128_internal_u16 s) { return c_v128_ssd_u16_sum(s); }
 SIMD_INLINE int64_t v128_dotp_s16(v128 a, v128 b) { return c_v128_dotp_s16(a, b); }
 SIMD_INLINE uint64_t v128_hadd_u8(v128 a) { return c_v128_hadd_u8(a); }
 
@@ -172,5 +176,10 @@ SIMD_INLINE v128 v128_shr_n_u32(v128 a, const unsigned int n) { return c_v128_sh
 SIMD_INLINE v128 v128_shr_n_s8(v128 a, const unsigned int n) { return c_v128_shr_n_s8(a, n); }
 SIMD_INLINE v128 v128_shr_n_s16(v128 a, const unsigned int n) { return c_v128_shr_n_s16(a, n); }
 SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int n) { return c_v128_shr_n_s32(a, n); }
+
+typedef uint32_t sad128_internal_u16;
+SIMD_INLINE sad128_internal_u16 v128_sad_u16_init() { return c_v128_sad_u16_init(); }
+SIMD_INLINE sad128_internal_u16 v128_sad_u16(sad128_internal_u16 s, v128 a, v128 b) { return c_v128_sad_u16(s, a, b); }
+SIMD_INLINE uint32_t v128_sad_u16_sum(sad128_internal_u16 s) { return c_v128_sad_u16_sum(s); }
 
 #endif /* _V128_INTRINSICS_H */

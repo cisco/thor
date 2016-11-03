@@ -93,6 +93,15 @@ SIMD_INLINE ssd256_internal v256_ssd_u8(ssd256_internal s, v256 a, v256 b) {
 SIMD_INLINE uint32_t v256_ssd_u8_sum(ssd256_internal s) {
   return c_v256_ssd_u8_sum(s);
 }
+
+typedef uint32_t ssd256_internal_u16;
+SIMD_INLINE ssd256_internal_u16 v256_ssd_u16_init() { return c_v256_ssd_u16_init(); }
+SIMD_INLINE ssd256_internal_u16 v256_ssd_u16(ssd256_internal_u16 s, v256 a, v256 b) {
+  return c_v256_ssd_u16(s, a, b);
+}
+SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
+  return c_v256_ssd_u16_sum(s);
+}
 SIMD_INLINE int64_t v256_dotp_s16(v256 a, v256 b) {
   return c_v256_dotp_s16(a, b);
 }
@@ -286,6 +295,15 @@ SIMD_INLINE v256 v256_shr_n_s16(v256 a, const unsigned int n) {
 }
 SIMD_INLINE v256 v256_shr_n_s32(v256 a, const unsigned int n) {
   return c_v256_shr_n_s32(a, n);
+}
+
+typedef uint32_t sad256_internal_u16;
+SIMD_INLINE sad256_internal_u16 v256_sad_u16_init() { return c_v256_sad_u16_init(); }
+SIMD_INLINE sad256_internal_u16 v256_sad_u16(sad256_internal_u16 s, v256 a, v256 b) {
+  return c_v256_sad_u16(s, a, b);
+}
+SIMD_INLINE uint32_t v256_sad_u16_sum(sad256_internal_u16 s) {
+  return c_v256_sad_u16_sum(s);
 }
 
 #endif /* _V256_INTRINSICS_H */

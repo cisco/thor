@@ -147,12 +147,12 @@ SIMD_INLINE uint64_t c_v256_hadd_u8(c_v256 a) {
 
 typedef uint32_t c_sad256_internal;
 
-SIMD_INLINE c_sad128_internal c_v256_sad_u8_init() { return 0; }
+SIMD_INLINE c_sad256_internal c_v256_sad_u8_init() { return 0; }
 
 /* Implementation dependent return value.  Result must be finalised with
    v256_sad_u8_sum().
    The result for more than 16 v256_sad_u8() calls is undefined. */
-SIMD_INLINE c_sad128_internal c_v256_sad_u8(c_sad256_internal s, c_v256 a,
+SIMD_INLINE c_sad256_internal c_v256_sad_u8(c_sad256_internal s, c_v256 a,
                                             c_v256 b) {
   int c;
   for (c = 0; c < 32; c++)
@@ -705,5 +705,37 @@ SIMD_INLINE c_v256 c_v256_shr_n_s16(c_v256 a, const unsigned int n) {
 SIMD_INLINE c_v256 c_v256_shr_n_s32(c_v256 a, const unsigned int n) {
   return c_v256_shr_s32(a, n);
 }
+
+typedef uint32_t c_sad256_internal_u16;
+
+SIMD_INLINE c_sad256_internal_u16 c_v256_sad_u16_init() { return 0; }
+
+/* Implementation dependent return value.  Result must be finalised with
+   v256_sad_u16_sum(). */
+SIMD_INLINE c_sad256_internal_u16 c_v256_sad_u16(c_sad256_internal_u16 s, c_v256 a,
+						 c_v256 b) {
+  int c;
+  for (c = 0; c < 16; c++)
+    s += a.u16[c] > b.u16[c] ? a.u16[c] - b.u16[c] : b.u16[c] - a.u16[c];
+  return s;
+}
+
+SIMD_INLINE uint32_t c_v256_sad_u16_sum(c_sad256_internal_u16 s) { return s; }
+
+typedef uint32_t c_ssd256_internal_u16;
+
+SIMD_INLINE c_ssd256_internal_u16 c_v256_ssd_u16_init() { return 0; }
+
+/* Implementation dependent return value.  Result must be finalised with
+ * v256_ssd_u16_sum(). */
+SIMD_INLINE c_ssd256_internal_u16 c_v256_ssd_u16(c_ssd256_internal_u16 s, c_v256 a,
+						 c_v256 b) {
+  int c;
+  for (c = 0; c < 16; c++) s += (a.u16[c] - b.u16[c]) * (a.u16[c] - b.u16[c]);
+  return s;
+}
+
+SIMD_INLINE uint32_t c_v256_ssd_u16_sum(c_ssd256_internal_u16 s) { return s; }
+
 
 #endif /* _V256_INTRINSICS_C_H */

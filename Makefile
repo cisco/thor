@@ -24,6 +24,7 @@ COMMON_SOURCES = \
 	common/intra_prediction.c \
 	common/inter_prediction.c \
 	common/common_kernels.c \
+	common/common_kernels_hbd.c \
 	common/snr.c \
 	common/snr_hbd.c \
 	common/simd.c \
@@ -45,6 +46,7 @@ ENCODER_SOURCES = \
 	enc/strings.c \
 	enc/write_bits.c \
 	enc/enc_kernels.c \
+	enc/enc_kernels_hbd.c \
 	enc/rc.c \
         enc/encode_block_hbd.c \
         enc/encode_frame_hbd.c \
@@ -77,6 +79,10 @@ $(ENCODER_PROGRAM): $(ENCODER_OBJECTS)
 $(DECODER_PROGRAM): $(DECODER_OBJECTS)
 	$(CC) -o $@ $(DECODER_OBJECTS) $(LDFLAGS)
 
+common/common_kernels_gen.c: common/common_kernels.c scripts/lbd_to_hbd.sh
+	scripts/lbd_to_hbd.sh common/common_kernels.c common/common_kernels_gen.c
+enc/enc_kernels_gen.c: enc/enc_kernels.c scripts/lbd_to_hbd.sh
+	scripts/lbd_to_hbd.sh enc/enc_kernels.c enc/enc_kernels_gen.c
 
 # Build object files. In addition, track header dependencies.
 %.o: %.c

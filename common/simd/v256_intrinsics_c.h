@@ -50,6 +50,8 @@ SIMD_INLINE uint32_t c_v256_low_u32(c_v256 a) { return a.u32[0]; }
 
 SIMD_INLINE c_v64 c_v256_low_v64(c_v256 a) { return a.v64[0]; }
 
+SIMD_INLINE uint64_t c_v256_low_u64(c_v256 a) { return a.u64[0]; }
+
 SIMD_INLINE c_v128 c_v256_low_v128(c_v256 a) { return a.v128[0]; }
 
 SIMD_INLINE c_v128 c_v256_high_v128(c_v256 a) { return a.v128[1]; }
@@ -133,6 +135,12 @@ SIMD_INLINE c_v256 c_v256_dup_16(uint16_t x) {
 SIMD_INLINE c_v256 c_v256_dup_32(uint32_t x) {
   c_v256 t;
   t.v64[3] = t.v64[2] = t.v64[1] = t.v64[0] = c_v64_dup_32(x);
+  return t;
+}
+
+SIMD_INLINE c_v256 c_v256_dup_64(uint64_t x) {
+  c_v256 t;
+  t.u64[3] = t.u64[2] = t.u64[1] = t.u64[0] = x;
   return t;
 }
 
@@ -304,6 +312,11 @@ SIMD_INLINE c_v256 c_v256_avg_u8(c_v256 a, c_v256 b) {
 SIMD_INLINE c_v256 c_v256_rdavg_u8(c_v256 a, c_v256 b) {
   return c_v256_from_v128(c_v128_rdavg_u8(a.v128[1], b.v128[1]),
                           c_v128_rdavg_u8(a.v128[0], b.v128[0]));
+}
+
+SIMD_INLINE c_v256 c_v256_rdavg_u16(c_v256 a, c_v256 b) {
+  return c_v256_from_v128(c_v128_rdavg_u16(a.v128[1], b.v128[1]),
+                          c_v128_rdavg_u16(a.v128[0], b.v128[0]));
 }
 
 SIMD_INLINE c_v256 c_v256_avg_u16(c_v256 a, c_v256 b) {
@@ -502,6 +515,11 @@ SIMD_INLINE c_v256 c_v256_pack_s32_s16(c_v256 a, c_v256 b) {
                           c_v128_pack_s32_s16(b.v128[1], b.v128[0]));
 }
 
+SIMD_INLINE c_v256 c_v256_pack_s32_u16(c_v256 a, c_v256 b) {
+  return c_v256_from_v128(c_v128_pack_s32_u16(a.v128[1], a.v128[0]),
+                          c_v128_pack_s32_u16(b.v128[1], b.v128[0]));
+}
+
 SIMD_INLINE c_v256 c_v256_pack_s16_u8(c_v256 a, c_v256 b) {
   return c_v256_from_v128(c_v128_pack_s16_u8(a.v128[1], a.v128[0]),
                           c_v128_pack_s16_u8(b.v128[1], b.v128[0]));
@@ -670,6 +688,45 @@ SIMD_INLINE c_v256 c_v256_shr_s32(c_v256 a, const unsigned int c) {
                           c_v128_shr_s32(a.v128[0], c));
 }
 
+SIMD_INLINE c_v256 c_v256_shr_s64(c_v256 a, unsigned int n) {
+  c_v256 t;
+  if (simd_check && n > 63) {
+    fprintf(stderr, "Error: undefined s64 shift right %d\n", n);
+    abort();
+  }
+  t.s64[3] = a.s64[3] >> n;
+  t.s64[2] = a.s64[2] >> n;
+  t.s64[1] = a.s64[1] >> n;
+  t.s64[0] = a.s64[0] >> n;
+  return t;
+}
+
+SIMD_INLINE c_v256 c_v256_shr_u64(c_v256 a, unsigned int n) {
+  c_v256 t;
+  if (simd_check && n > 63) {
+    fprintf(stderr, "Error: undefined s64 shift right %d\n", n);
+    abort();
+  }
+  t.u64[3] = a.u64[3] >> n;
+  t.u64[2] = a.u64[2] >> n;
+  t.u64[1] = a.u64[1] >> n;
+  t.u64[0] = a.u64[0] >> n;
+  return t;
+}
+
+SIMD_INLINE c_v256 c_v256_shl_64(c_v256 a, unsigned int n) {
+  c_v256 t;
+  if (simd_check && n > 63) {
+    fprintf(stderr, "Error: undefined s64 shift right %d\n", n);
+    abort();
+  }
+  t.u64[3] = a.u64[3] << n;
+  t.u64[2] = a.u64[2] << n;
+  t.u64[1] = a.u64[1] << n;
+  t.u64[0] = a.u64[0] << n;
+  return t;
+}
+
 SIMD_INLINE c_v256 c_v256_shl_n_8(c_v256 a, const unsigned int n) {
   return c_v256_shl_8(a, n);
 }
@@ -680,6 +737,10 @@ SIMD_INLINE c_v256 c_v256_shl_n_16(c_v256 a, const unsigned int n) {
 
 SIMD_INLINE c_v256 c_v256_shl_n_32(c_v256 a, const unsigned int n) {
   return c_v256_shl_32(a, n);
+}
+
+SIMD_INLINE c_v256 c_v256_shl_n_64(c_v256 a, const unsigned int n) {
+  return c_v256_shl_64(a, n);
 }
 
 SIMD_INLINE c_v256 c_v256_shr_n_u8(c_v256 a, const unsigned int n) {
@@ -694,6 +755,10 @@ SIMD_INLINE c_v256 c_v256_shr_n_u32(c_v256 a, const unsigned int n) {
   return c_v256_shr_u32(a, n);
 }
 
+SIMD_INLINE c_v256 c_v256_shr_n_u64(c_v256 a, const unsigned int n) {
+  return c_v256_shr_u64(a, n);
+}
+
 SIMD_INLINE c_v256 c_v256_shr_n_s8(c_v256 a, const unsigned int n) {
   return c_v256_shr_s8(a, n);
 }
@@ -704,6 +769,10 @@ SIMD_INLINE c_v256 c_v256_shr_n_s16(c_v256 a, const unsigned int n) {
 
 SIMD_INLINE c_v256 c_v256_shr_n_s32(c_v256 a, const unsigned int n) {
   return c_v256_shr_s32(a, n);
+}
+
+SIMD_INLINE c_v256 c_v256_shr_n_s64(c_v256 a, const unsigned int n) {
+  return c_v256_shr_s64(a, n);
 }
 
 typedef uint32_t c_sad256_internal_u16;
@@ -737,5 +806,7 @@ SIMD_INLINE c_ssd256_internal_u16 c_v256_ssd_u16(c_ssd256_internal_u16 s, c_v256
 
 SIMD_INLINE uint32_t c_v256_ssd_u16_sum(c_ssd256_internal_u16 s) { return s; }
 
+SIMD_INLINE c_v256 c_v256_shr_n_word(c_v256 a, const unsigned int n) { return c_v256_shr_n_byte(a, 2*n); }
+SIMD_INLINE c_v256 c_v256_shl_n_word(c_v256 a, const unsigned int n) { return c_v256_shl_n_byte(a, 2*n); }
 
 #endif /* _V256_INTRINSICS_C_H */

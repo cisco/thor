@@ -94,6 +94,7 @@ SIMD_INLINE v64 v64_unziphi_16(v64 a, v64 b) { return c_v64_unziphi_16(a, b); }
 SIMD_INLINE v64 v64_unpacklo_u8_s16(v64 a) { return c_v64_unpacklo_u8_s16(a); }
 SIMD_INLINE v64 v64_unpackhi_u8_s16(v64 a) { return c_v64_unpackhi_u8_s16(a); }
 SIMD_INLINE v64 v64_pack_s32_s16(v64 a, v64 b) { return c_v64_pack_s32_s16(a, b); }
+SIMD_INLINE v64 v64_pack_s32_u16(v64 a, v64 b) { return c_v64_pack_s32_u16(a, b); }
 SIMD_INLINE v64 v64_pack_s16_u8(v64 a, v64 b) { return c_v64_pack_s16_u8(a, b); }
 SIMD_INLINE v64 v64_pack_s16_s8(v64 a, v64 b) { return c_v64_pack_s16_s8(a, b); }
 SIMD_INLINE v64 v64_unpacklo_u16_s32(v64 a) { return c_v64_unpacklo_u16_s32(a); }
@@ -132,6 +133,7 @@ SIMD_INLINE v64 v64_madd_us8(v64 a, v64 b) { return c_v64_madd_us8(a, b); }
 
 SIMD_INLINE v64 v64_avg_u8(v64 a, v64 b) { return c_v64_avg_u8(a, b); }
 SIMD_INLINE v64 v64_rdavg_u8(v64 a, v64 b) { return c_v64_rdavg_u8(a, b); }
+SIMD_INLINE v64 v64_rdavg_u16(v64 a, v64 b) { return c_v64_rdavg_u16(a, b); }
 SIMD_INLINE v64 v64_avg_u16(v64 a, v64 b) { return c_v64_avg_u16(a, b); }
 SIMD_INLINE v64 v64_min_u8(v64 a, v64 b) { return c_v64_min_u8(a, b); }
 SIMD_INLINE v64 v64_max_u8(v64 a, v64 b) { return c_v64_max_u8(a, b); }

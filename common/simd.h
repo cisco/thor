@@ -118,7 +118,6 @@ SIMD_INLINE void thor_free(void *p)
 
 #endif
 
-
 static const int simd_check = 1;
 
 #if defined(__ARM_NEON__) && defined(ALIGN)

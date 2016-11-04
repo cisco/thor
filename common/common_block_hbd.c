@@ -26,5 +26,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define SAMPLE uint16_t
 #define TEMPLATE(name) name##_hbd
+#define HBD
 
 #include "common_block.c"

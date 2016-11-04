@@ -418,24 +418,20 @@ static unsigned int sad_calc(SAMPLE *a, SAMPLE *b, int astride, int bstride, int
 {
   unsigned int sad = 0;
 
-  if (use_simd && sizeof(SAMPLE) == 1 && width > 4){
-    return sad_calc_simd((uint8_t *)a, (uint8_t *)b, astride, bstride, width, height);
-  }
-  else {
-    for(int i=0;i<height;i++){
-      for (int j=0;j<width;j++){
+  if (use_simd && width > 4)
+    return TEMPLATE(sad_calc_simd)(a, b, astride, bstride, width, height);
+  else
+    for (int i = 0; i < height; i++)
+      for (int j = 0; j < width; j++)
         sad += abs(a[i*astride+j] - b[i*bstride+j]);
-      }
-    }
-  }
   return sad;
 }
 
 static unsigned int widesad_calc(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width, int height, int *x)
 {
   // Calculate the SAD for five positions x.xXx.x and return the best
-  if (use_simd && sizeof(SAMPLE) == 1 && width == 16 && height == 16) {
-    return widesad_calc_simd((uint8_t *)a, (uint8_t *)b, astride, bstride, width, height, x);
+  if (use_simd && width == 16 && height == 16) {
+    return TEMPLATE(widesad_calc_simd)(a, b, astride, bstride, width, height, x);
   }
   else {
     static int off[] = { -3, -1, 0, 1, 3 };
@@ -459,17 +455,12 @@ static unsigned int widesad_calc(SAMPLE *a, SAMPLE *b, int astride, int bstride,
 static uint64_t ssd_calc(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width,int height)
 {
   uint64_t ssd = 0;
-  if (use_simd && sizeof(SAMPLE) == 1 && width > 4 && width==height){
-    int size = width;
-    return ssd_calc_simd((uint8_t *)a, (uint8_t *)b, astride, bstride, size);
-  }
-  else{
-    for (int i=0;i<height;i++){
-      for (int j=0;j<width;j++){
+  if (use_simd && width > 4 && width==height)
+    return TEMPLATE(ssd_calc_simd)(a, b, astride, bstride, width);
+  else
+    for (int i = 0; i < height; i++)
+      for (int j = 0; j < width; j++)
         ssd += (a[i*astride+j] - b[i*bstride+j]) * (a[i*astride+j] - b[i*bstride+j]);
-      }
-    }
-  }
   return ssd;
 }
 
@@ -676,8 +667,8 @@ static int motion_estimate(SAMPLE *orig, SAMPLE *ref, int size, int stride_r, in
 
     /* Half-pel search */
     int spx, spy;
-    if (use_simd && sizeof(SAMPLE) == 1 && width > 4)
-      sad = sad_calc_fasthalf_simd((uint8_t *)orig, (uint8_t *)ref + (mv_ref.x >> 2) + (mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
+    if (use_simd && width > 4)
+      sad = TEMPLATE(sad_calc_fasthalf_simd)(orig, ref + (mv_ref.x >> 2) + (mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
     else
       sad = sad_calc_fasthalf(orig, ref + (mv_ref.x >> 2) + (mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
     sad >>= params->bitdepth - 8;
@@ -697,8 +688,8 @@ static int motion_estimate(SAMPLE *orig, SAMPLE *ref, int size, int stride_r, in
     mv_opt.y += ydelta_hp;
 
     /* Quarter-pel search */
-    if (use_simd && sizeof(SAMPLE) == 1 && width > 4)
-      sad = sad_calc_fastquarter_simd((uint8_t *)orig, (uint8_t *)ref + s*(mv_ref.x >> 2) + s*(mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
+    if (use_simd && width > 4)
+      sad = TEMPLATE(sad_calc_fastquarter_simd)(orig, ref + s*(mv_ref.x >> 2) + s*(mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
     else
       sad = sad_calc_fastquarter(orig, ref + s*(mv_ref.x >> 2) + s*(mv_ref.y >> 2)*stride_r, size, stride_r, width, height, &spx, &spy);
     sad >>= params->bitdepth - 8;
@@ -1557,115 +1548,6 @@ static void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_po
     memcpy(&block->u[(i+1)*size>>frame->sub],&frame->u[pos2],(bwidth>>frame->sub)*sizeof(SAMPLE));
     memcpy(&block->v[(i+1)*size>>frame->sub],&frame->v[pos2],(bwidth>>frame->sub)*sizeof(SAMPLE));
   }
-}
-
-static void get_mv_cand(int ypos,int xpos,int width,int height,int size,int sb_size,int ref_idx,deblock_data_t *deblock_data, mv_t *mvcand){
-
-  mv_t zerovec;
-  zerovec.x = 0;
-  zerovec.y = 0;
-
-  /* Parameters values measured in units of 4 pixels */
-  int block_size = size/MIN_PB_SIZE;
-  int block_stride = width/MIN_PB_SIZE;
-  int block_posy = ypos/MIN_PB_SIZE;
-  int block_posx = xpos/MIN_PB_SIZE;
-  int block_index = block_posy * block_stride + block_posx;
-
-  /* Block positions in units of 8x8 pixels */
-  int up_index0 = block_index - block_stride;
-  int up_index1 = block_index - block_stride + (block_size - 1)/2;
-  int up_index2 = block_index - block_stride + block_size - 1;
-  int left_index0 = block_index - 1;
-  int left_index1 = block_index + block_stride*((block_size-1)/2) - 1;
-  int left_index2 = block_index + block_stride*(block_size-1) - 1;
-  int upright_index = block_index - block_stride + block_size;
-  int upleft_index = block_index - block_stride - 1;
-  int downleft_index = block_index + block_stride*block_size - 1;
-
-  int bwidth = size; //TODO: fix for non-square blocks
-  int bheight = size; //TODO: fix for non-square blocks
-  int up_available = get_up_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
-  int left_available = get_left_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
-  int upright_available = get_upright_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
-  int downleft_available = get_downleft_available(ypos, xpos, bwidth, bheight, width, height, sb_size);
-
-  int U = up_available;
-  int UR = upright_available;
-  int L = left_available;
-  int DL = downleft_available;
-
-  mvcand[0] = zerovec;
-  mvcand[1] = zerovec;
-  mvcand[2] = zerovec;
-  mvcand[3] = zerovec;
-
-  if (U==0 && UR==0 && L==0 && DL==0){
-    mvcand[0] = zerovec;
-    mvcand[1] = zerovec;
-    mvcand[2] = zerovec;
-    mvcand[3] = zerovec;
-  }
-  else if (U==1 && UR==0 && L==0 && DL==0){
-    mvcand[0] = deblock_data[up_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[up_index1].inter_pred.mv0;
-    mvcand[2] = deblock_data[up_index2].inter_pred.mv0;
-    mvcand[3] = deblock_data[up_index2].inter_pred.mv0;
-  }
-  else if (U==1 && UR==1 && L==0 && DL==0){
-    mvcand[0] = deblock_data[up_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[up_index2].inter_pred.mv0;
-    mvcand[2] = deblock_data[upright_index].inter_pred.mv0;
-    mvcand[3] = deblock_data[upright_index].inter_pred.mv0;
-  }
-  else if (U==0 && UR==0 && L==1 && DL==0){
-    mvcand[0] = deblock_data[left_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[left_index1].inter_pred.mv0;
-    mvcand[2] = deblock_data[left_index2].inter_pred.mv0;
-    mvcand[3] = deblock_data[left_index2].inter_pred.mv0;
-  }
-  else if (U==1 && UR==0 && L==1 && DL==0){
-    mvcand[0] = deblock_data[upleft_index].inter_pred.mv0;
-    mvcand[1] = deblock_data[up_index2].inter_pred.mv0;
-    mvcand[2] = deblock_data[left_index2].inter_pred.mv0;
-    mvcand[3] = deblock_data[up_index0].inter_pred.mv0;
-  }
- 
-  else if (U==1 && UR==1 && L==1 && DL==0){
-    mvcand[0] = deblock_data[up_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[upright_index].inter_pred.mv0;
-    mvcand[2] = deblock_data[left_index2].inter_pred.mv0;
-    mvcand[3] = deblock_data[left_index0].inter_pred.mv0;
-  }
-  else if (U==0 && UR==0 && L==1 && DL==1){
-    mvcand[0] = deblock_data[left_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[left_index2].inter_pred.mv0;
-    mvcand[2] = deblock_data[downleft_index].inter_pred.mv0;
-    mvcand[3] = deblock_data[downleft_index].inter_pred.mv0;
-  }
-  else if (U==1 && UR==0 && L==1 && DL==1){
-    mvcand[0] = deblock_data[up_index2].inter_pred.mv0;
-    mvcand[1] = deblock_data[left_index0].inter_pred.mv0;
-    mvcand[2] = deblock_data[downleft_index].inter_pred.mv0;
-    mvcand[3] = deblock_data[up_index0].inter_pred.mv0;
-  }
-  else if (U==1 && UR==1 && L==1 && DL==1){
-    mvcand[0] = deblock_data[up_index0].inter_pred.mv0;
-    mvcand[1] = deblock_data[upright_index].inter_pred.mv0;
-    mvcand[2] = deblock_data[left_index0].inter_pred.mv0;
-    mvcand[3] = deblock_data[downleft_index].inter_pred.mv0;
-  }
-  else{
-    printf("Error in ME candidate definition\n");
-  }
-
-  /* Make sure neighbor has the same reference as the current */
-  /*
-  if (ref_idx != mvc[0].ref_idx) mvcand[0] = zerovec;
-  if (ref_idx != mvc[1].ref_idx) mvcand[1] = zerovec;
-  if (ref_idx != mvc[2].ref_idx) mvcand[2] = zerovec;
-  if (ref_idx != mvc[3].ref_idx) mvcand[3] = zerovec;
-  */
 }
 
 static void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_info){
@@ -2657,46 +2539,54 @@ int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int ypos,int x
 
 void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift)
 {
+  uint32_t s0 = 0, s1 = 0;
   for (int y = y0; y < y0+8; y++) {
     for (int x = x0; x < x0+8; x++) {
-      int O = org[y*so + x] >> shift;
-      int X = rec[(y+0)*stride + x+0] >> shift;
-      int A = rec[max(0, y-1)*stride + x] >> shift;
-      int B = rec[y*stride + max(0, x-2)] >> shift;
-      int C = rec[y*stride + max(0, x-1)] >> shift;
-      int D = rec[y*stride + min(width-1, x+1)] >> shift;
-      int E = rec[y*stride + min(width-1, x+2)] >> shift;
-      int F = rec[min(height-1, y+1)*stride + x] >> shift;
-      int delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength >> shift);
+      int O = org[y*so + x];
+      int X = rec[(y+0)*stride + x+0];
+      int A = rec[max(0, y-1)*stride + x];
+      int B = rec[y*stride + max(0, x-2)];
+      int C = rec[y*stride + max(0, x-1)];
+      int D = rec[y*stride + min(width-1, x+1)];
+      int E = rec[y*stride + min(width-1, x+2)];
+      int F = rec[min(height-1, y+1)*stride + x];
+      int delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
       int Y = X + delta;
-      *sum0 += (O-X)*(O-X);
-      *sum1 += (O-Y)*(O-Y);
+      s0 += ((O-X)*(O-X));
+      s1 += ((O-Y)*(O-Y));
     }
   }
+  *sum0 += s0 >> (shift*2);
+  *sum1 += s1 >> (shift*2);
 }
 
 void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift)
 {
+  uint32_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
   for (int y = y0; y < y0+8; y++) {
     for (int x = x0; x < x0+8; x++) {
-      int O = org[y*so + x] >> shift;
-      int X = rec[y*stride + x] >> shift;
-      int A = rec[max(0, y-1)*stride + x] >> shift;
-      int B = rec[y*stride + max(0, x-2)] >> shift;
-      int C = rec[y*stride + max(0, x-1)] >> shift;
-      int D = rec[y*stride + min(width-1, x+1)] >> shift;
-      int E = rec[y*stride + min(width-1, x+2)] >> shift;
-      int F = rec[min(height-1, y+1)*stride + x] >> shift;
-      int delta1 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 1);
-      int delta2 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 2);
-      int delta3 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 4);
+      int O = org[y*so + x];
+      int X = rec[y*stride + x];
+      int A = rec[max(0, y-1)*stride + x];
+      int B = rec[y*stride + max(0, x-2)];
+      int C = rec[y*stride + max(0, x-1)];
+      int D = rec[y*stride + min(width-1, x+1)];
+      int E = rec[y*stride + min(width-1, x+2)];
+      int F = rec[min(height-1, y+1)*stride + x];
+      int delta1 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 1 << shift);
+      int delta2 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 2 << shift);
+      int delta3 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 4 << shift);
       int F1 = X + delta1;
       int F2 = X + delta2;
       int F3 = X + delta3;
-      sum[0] += (O-X)*(O-X);
-      sum[1] += (O-F1)*(O-F1);
-      sum[2] += (O-F2)*(O-F2);
-      sum[3] += (O-F3)*(O-F3);
+      s0 += (O-X)*(O-X);
+      s1 += (O-F1)*(O-F1);
+      s2 += (O-F2)*(O-F2);
+      s3 += (O-F3)*(O-F3);
     }
   }
+  sum[0] += s0 >> (shift*2);
+  sum[1] += s1 >> (shift*2);
+  sum[2] += s2 >> (shift*2);
+  sum[3] += s3 >> (shift*2);
 }

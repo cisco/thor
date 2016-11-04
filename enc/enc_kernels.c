@@ -26,16 +26,23 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /* -*- mode: c; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
 
+// The high bitdepth version of this file is made from the low
+// bitdepth version by running scripts/lbd_to_hbd.sh.
+
 #include "simd.h"
 #include "global.h"
 
-int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height)
+int TEMPLATE(sad_calc_simd)(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width, int height)
 {
   int i, j;
 
   if (width == 8) {
     sad64_internal s = v64_sad_u8_init();
+#ifdef HBD
+    if ((intptr_t)b & 15)
+#else
     if ((intptr_t)b & 7)
+#endif
       for (i = 0; i < height; i += 4) {
         s = v64_sad_u8(s, v64_load_aligned(a + 0*astride), v64_load_unaligned(b + 0*bstride));
         s = v64_sad_u8(s, v64_load_aligned(a + 1*astride), v64_load_unaligned(b + 1*bstride));
@@ -56,7 +63,11 @@ int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, i
     return v64_sad_u8_sum(s);
   } else {
     sad128_internal s = v128_sad_u8_init();
+#ifdef HBD
+    if ((intptr_t)b & 31)
+#else
     if ((intptr_t)b & 15)
+#endif
       for (i = 0; i < height; i++)
         for (j = 0; j < width; j += 16)
           s = v128_sad_u8(s, v128_load_aligned(a + i*astride + j), v128_load_unaligned(b + i*bstride + j));
@@ -68,7 +79,8 @@ int sad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, i
   }
 }
 
-unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height, int *x)
+
+unsigned int TEMPLATE(widesad_calc_simd)(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width, int height, int *x)
 {
   // Calculate the 16x16 SAD for five positions x.xXx.x and return the best
   sad128_internal s0 = v128_sad_u8_init();
@@ -82,11 +94,17 @@ unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride,
     v128 bb = v128_load_unaligned(b+13);
 
     s0 = v128_sad_u8(s0, aa, ba);
+#ifdef HBD
+    s1 = v128_sad_u8(s1, aa, v128_align(bb, ba, 2*2));
+    s2 = v128_sad_u8(s2, aa, v128_align(bb, ba, 3*2));
+    s3 = v128_sad_u8(s3, aa, v128_align(bb, ba, 4*2));
+    s4 = v128_sad_u8(s4, aa, v128_align(bb, ba, 6*2));
+#else
     s1 = v128_sad_u8(s1, aa, v128_align(bb, ba, 2));
     s2 = v128_sad_u8(s2, aa, v128_align(bb, ba, 3));
     s3 = v128_sad_u8(s3, aa, v128_align(bb, ba, 4));
     s4 = v128_sad_u8(s4, aa, v128_align(bb, ba, 6));
-
+#endif
     b += bstride;
     a += astride;
   }
@@ -97,7 +115,7 @@ unsigned int widesad_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride,
   return r >> 3;
 }
 
-int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size)
+uint64_t TEMPLATE(ssd_calc_simd)(SAMPLE *a, SAMPLE *b, int astride, int bstride, int size)
 {
   int i, j;
 
@@ -113,20 +131,46 @@ int ssd_calc_simd(uint8_t *a, uint8_t *b, int astride, int bstride, int size)
     s = v64_ssd_u8(s, v64_load_aligned(a + 7*astride), v64_load_aligned(b + 7*bstride));
     return v64_ssd_u8_sum(s);
   } else {
-    ssd128_internal s = v128_ssd_u8_init();
-    for (i = 0; i < size; i++)
-      for (j = 0; j < size; j += 16)
-        s = v128_ssd_u8(s, v128_load_aligned(a + i*astride + j), v128_load_aligned(b + i*bstride + j));
-    return v128_ssd_u8_sum(s);
+    uint64_t ssd = 0;
+    for (i = 0; i < size; i += 8) {
+      ssd128_internal s = v128_ssd_u8_init();
+      for (j = 0; j < size; j += 16) {
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+0)*astride + j), v128_load_aligned(b + (i+0)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+1)*astride + j), v128_load_aligned(b + (i+1)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+2)*astride + j), v128_load_aligned(b + (i+2)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+3)*astride + j), v128_load_aligned(b + (i+3)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+4)*astride + j), v128_load_aligned(b + (i+4)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+5)*astride + j), v128_load_aligned(b + (i+5)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+6)*astride + j), v128_load_aligned(b + (i+6)*bstride + j));
+        s = v128_ssd_u8(s, v128_load_aligned(a + (i+7)*astride + j), v128_load_aligned(b + (i+7)*bstride + j));
+      }
+      ssd += v128_ssd_u8_sum(s);
+    }
+    return ssd;
   }
 }
 
+#ifdef HBD
+static ALIGN(32) uint64_t bshuff[] = { 0x0302010001000100LL, 0x0b0a090807060504LL,
+                                       0x0302010001000100LL, 0x0b0a090807060504LL };
+static ALIGN(32) uint64_t cshuff[] = { 0x0504030201000100LL, 0x0d0c0b0a09080706LL,
+                                       0x0504030201000100LL, 0x0d0c0b0a09080706LL };
+static ALIGN(32) uint64_t dshuff[] = { 0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL,
+                                       0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL };
+static ALIGN(32) uint64_t eshuff[] = { 0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL,
+                                       0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL };
+#else
+static ALIGN(16) uint64_t bshuff[] = { 0x0504030201000000LL, 0x0d0c0b0a09080808LL };
+static ALIGN(16) uint64_t cshuff[] = { 0x0605040302010000LL, 0x0e0d0c0b0a090808LL };
+static ALIGN(16) uint64_t dshuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09LL };
+static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
+#endif
 
-void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength)
+void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, int shift)
 {
   ssd128_internal ssd0 = v128_ssd_u8_init();
   ssd128_internal ssd1 = v128_ssd_u8_init();
-  v128 c128 = v128_dup_8(128);
+  v128 c128 = v128_dup_8(128); // Only necessary for the LBD version
   v128 sp = v128_dup_8(strength);
   v128 sm = v128_dup_8(-(int)strength);
   int bottom = height-2-y0;
@@ -135,11 +179,6 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
   org += x0 + y0*so;
 
   if (!x0) { // Clip left
-    v128 s1 = v128_from_v64(v64_from_64(0x0e0d0c0b0a090808LL),
-			    v64_from_64(0x0605040302010000LL));
-    v128 s2 = v128_from_v64(v64_from_64(0x0d0c0b0a09080808LL),
-			    v64_from_64(0x0504030201000000LL));
-
     for (int y = 0; y < 8; y += 2) {
       v64 k1 = v64_load_aligned(org);
       v64 k2 = v64_load_aligned(org+so);
@@ -149,8 +188,8 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
       v128 q = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, q);
       v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_shuffle_8(x, s2);
-      v128 c = v128_shuffle_8(x, s1);
+      v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
+      v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
       v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
 					      v64_load_unaligned(rec + 1 + stride)));
       v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
@@ -172,11 +211,6 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
       org += so*2;
     }
   } else if (!(width-x0-8)) { // Clip right
-    v128 s1 = v128_from_v64(v64_from_64(0x0f0f0e0d0c0b0a09LL),
-			    v64_from_64(0x0707060504030201LL));
-    v128 s2 = v128_from_v64(v64_from_64(0x0f0f0f0e0d0c0b0aLL),
-			    v64_from_64(0x0707070605040302LL));
-
     for (int y = 0; y < 8; y += 2) {
       v64 k1 = v64_load_aligned(org);
       v64 k2 = v64_load_aligned(org+so);
@@ -190,8 +224,8 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
 					      v64_load_unaligned(rec - 2 + stride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
 					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_shuffle_8(x, s1);
-      v128 e = v128_shuffle_8(x, s2);
+      v128 d = v128_shuffle_8(x, v128_load_aligned(dshuff));
+      v128 e = v128_shuffle_8(x, v128_load_aligned(eshuff));
       v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
 
       v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
@@ -242,21 +276,21 @@ void detect_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int 
       org += so*2;
     }
   }
-  *sum0 += v128_ssd_u8_sum(ssd0);
-  *sum1 += v128_ssd_u8_sum(ssd1);
+  *sum0 += v128_ssd_u8_sum(ssd0) >> (shift*2);
+  *sum1 += v128_ssd_u8_sum(ssd1) >> (shift*2);
 }
 
 
 // Test multiple filter strengths at once.  Use a simpler filter (4 tap, every second line).
-void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0, int width, int height, int so,int stride, int *sum)
+void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, int shift)
 {
-  v128 c128 = v128_dup_8(128);
-  v128 cp1 = v128_dup_8(1);
-  v128 cm1 = v128_dup_8(-1);
-  v128 cp2 = v128_dup_8(2);
-  v128 cm2 = v128_dup_8(-2);
-  v128 cp4 = v128_dup_8(4);
-  v128 cm4 = v128_dup_8(-4);
+  v128 c128 = v128_dup_8(128); // Only necessary for the LBD version
+  v128 cp1 = v128_dup_8(1 << shift);
+  v128 cm1 = v128_dup_8(-1 << shift);
+  v128 cp2 = v128_dup_8(2 << shift);
+  v128 cm2 = v128_dup_8(-2 << shift);
+  v128 cp4 = v128_dup_8(4 << shift);
+  v128 cm4 = v128_dup_8(-4 << shift);
   v128 c8 = v128_dup_8(8);
   int bottom = height-2-y0;
   ssd128_internal ssd0 = v128_ssd_u8_init();
@@ -268,11 +302,6 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
   org += x0 + y0*so;
 
   if (!x0) { // Clip left
-    v128 s1 = v128_from_v64(v64_from_64(0x0e0d0c0b0a090808LL),
-			    v64_from_64(0x0605040302010000LL));
-    v128 s2 = v128_from_v64(v64_from_64(0x0d0c0b0a09080808LL),
-			    v64_from_64(0x0504030201000000LL));
-
     for (int y = 0; y < 8; y += 2) {
       v64 k1 = v64_load_aligned(org);
       v64 k2 = v64_load_aligned(org+so);
@@ -282,8 +311,8 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
       v128 q = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, q);
       v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_shuffle_8(x, s2);
-      v128 c = v128_shuffle_8(x, s1);
+      v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
+      v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
       v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
 					      v64_load_unaligned(rec + 1 + stride)));
       v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
@@ -323,11 +352,6 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
       org += 2*so;
     }
   } else if (!(width-x0-8)) { // Clip right
-    v128 s1 = v128_from_v64(v64_from_64(0x0f0f0e0d0c0b0a09LL),
-			    v64_from_64(0x0707060504030201LL));
-    v128 s2 = v128_from_v64(v64_from_64(0x0f0f0f0e0d0c0b0aLL),
-			    v64_from_64(0x0707070605040302LL));
-
     for (int y = 0; y < 8; y += 2) {
       v64 k1 = v64_load_aligned(org);
       v64 k2 = v64_load_aligned(org+so);
@@ -341,8 +365,8 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
 					      v64_load_unaligned(rec - 2 + stride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
 					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_shuffle_8(x, s1);
-      v128 e = v128_shuffle_8(x, s2);
+      v128 d = v128_shuffle_8(x, v128_load_aligned(dshuff));
+      v128 e = v128_shuffle_8(x, v128_load_aligned(eshuff));
       v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
 
       a = v128_ssub_s8(a, x);
@@ -430,14 +454,14 @@ void detect_multi_clpf_simd(const uint8_t *rec,const uint8_t *org,int x0, int y0
       org += 2*so;
     }
   }
-  sum[0] += v128_ssd_u8_sum(ssd0);
-  sum[1] += v128_ssd_u8_sum(ssd1);
-  sum[2] += v128_ssd_u8_sum(ssd2);
-  sum[3] += v128_ssd_u8_sum(ssd3);
+  sum[0] += v128_ssd_u8_sum(ssd0) >> (shift*2);
+  sum[1] += v128_ssd_u8_sum(ssd1) >> (shift*2);
+  sum[2] += v128_ssd_u8_sum(ssd2) >> (shift*2);
+  sum[3] += v128_ssd_u8_sum(ssd3) >> (shift*2);
 }
 
 /* Return the best approximated half-pel position around the centre */
-unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int as, int bs, int width, int height, int *x, int *y, unsigned int *maxsad)
+unsigned int TEMPLATE(sad_calc_fasthalf_simd)(const SAMPLE *a, const SAMPLE *b, int as, int bs, int width, int height, int *x, int *y, unsigned int *maxsad)
 {
   unsigned int sad_tl, sad_tr, sad_br, sad_bl;
   unsigned int sad_top, sad_right, sad_down, sad_left;
@@ -623,7 +647,7 @@ unsigned int sad_calc_fasthalf_simd(const uint8_t *a, const uint8_t *b, int as, 
 
 
 /* Return the best approximated quarter-pel position around the centre */
-unsigned int sad_calc_fastquarter_simd(const uint8_t *po, const uint8_t *r, int os, int rs, int width, int height, int *x, int *y)
+unsigned int TEMPLATE(sad_calc_fastquarter_simd)(const SAMPLE *po, const SAMPLE *r, int os, int rs, int width, int height, int *x, int *y)
 {
   unsigned int sad_tl, sad_tr, sad_br, sad_bl;
   unsigned int sad_top, sad_right, sad_down, sad_left;
@@ -934,6 +958,7 @@ unsigned int sad_calc_fastquarter_simd(const uint8_t *po, const uint8_t *r, int 
   return sad_top;
 }
 
+#ifndef HBD
 int calc_cbp_simd(int16_t *block, int size, int threshold) {
   int cbp = 0;
   if (size ==8 ) {
@@ -958,3 +983,4 @@ int calc_cbp_simd(int16_t *block, int size, int threshold) {
   }
   return cbp;
 }
+#endif

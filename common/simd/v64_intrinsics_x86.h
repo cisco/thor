@@ -210,6 +210,22 @@ SIMD_INLINE v64 v64_pack_s32_s16(v64 a, v64 b) {
   return _mm_packs_epi32(t, t);
 }
 
+SIMD_INLINE v64 v64_pack_s32_u16(v64 a, v64 b) {
+#if defined (__SSE4_1__)
+  __m128i t = _mm_unpacklo_epi64(b, a);
+  return _mm_packus_epi32(t, t);
+#else
+  int32_t ah = v64_high_u32(a);
+  int32_t al = v64_low_u32(a);
+  int32_t bh = v64_high_u32(b);
+  int32_t bl = v64_low_u32(b);
+  return v64_from_16(ah > 65535 ? 65535 : ah < 0 ? 0 : ah,
+                     al > 65535 ? 65535 : al < 0 ? 0 : al,
+                     bh > 65535 ? 65535 : bh < 0 ? 0 : bh,
+                     bl > 65535 ? 65535 : bl < 0 ? 0 : bl);
+#endif
+}
+
 SIMD_INLINE v64 v64_pack_s16_u8(v64 a, v64 b) {
   __m128i t = _mm_unpacklo_epi64(b, a);
   return _mm_packus_epi16(t, t);
@@ -417,6 +433,10 @@ SIMD_INLINE v64 v64_avg_u8(v64 a, v64 b) {
 
 SIMD_INLINE v64 v64_rdavg_u8(v64 a, v64 b) {
   return _mm_sub_epi8(_mm_avg_epu8(a, b), _mm_and_si128(_mm_xor_si128(a, b), v64_dup_8(1)));
+}
+
+SIMD_INLINE v64 v64_rdavg_u16(v64 a, v64 b) {
+  return _mm_sub_epi16(_mm_avg_epu16(a, b), _mm_and_si128(_mm_xor_si128(a, b), v64_dup_16(1)));
 }
 
 SIMD_INLINE v64 v64_avg_u16(v64 a, v64 b) {

@@ -43,6 +43,8 @@ SIMD_INLINE uint32_t v256_low_u32(v256 a) { return v128_low_u32(a.lo); }
 
 SIMD_INLINE v64 v256_low_v64(v256 a) { return v128_low_v64(a.lo); }
 
+SIMD_INLINE uint64_t v256_low_u64(v256 a) { return v64_u64(v256_low_v64(a)); }
+
 SIMD_INLINE v128 v256_low_v128(v256 a) { return a.lo; }
 
 SIMD_INLINE v128 v256_high_v128(v256 a) { return a.hi; }
@@ -98,6 +100,11 @@ SIMD_INLINE v256 v256_dup_16(uint16_t x) {
 
 SIMD_INLINE v256 v256_dup_32(uint32_t x) {
   v128 t = v128_dup_32(x);
+  return v256_from_v128(t, t);
+}
+
+SIMD_INLINE v256 v256_dup_64(uint64_t x) {
+  v128 t = v128_dup_64(x);
   return v256_from_v128(t, t);
 }
 
@@ -186,6 +193,10 @@ SIMD_INLINE v256 v256_add_32(v256 a, v256 b) {
   return v256_from_v128(v128_add_32(a.hi, b.hi), v128_add_32(a.lo, b.lo));
 }
 
+SIMD_INLINE v256 v256_add_64(v256 a, v256 b) {
+  return v256_from_v128(v128_add_64(a.hi, b.hi), v128_add_64(a.lo, b.lo));
+}
+
 SIMD_INLINE v256 v256_padd_s16(v256 a) {
   return v256_from_v128(v128_padd_s16(a.hi), v128_padd_s16(a.lo));
 }
@@ -212,6 +223,10 @@ SIMD_INLINE v256 v256_ssub_s16(v256 a, v256 b) {
 
 SIMD_INLINE v256 v256_sub_32(v256 a, v256 b) {
   return v256_from_v128(v128_sub_32(a.hi, b.hi), v128_sub_32(a.lo, b.lo));
+}
+
+SIMD_INLINE v256 v256_sub_64(v256 a, v256 b) {
+  return v256_from_v128(v128_sub_64(a.hi, b.hi), v128_sub_64(a.lo, b.lo));
 }
 
 SIMD_INLINE v256 v256_abs_s16(v256 a) {
@@ -251,6 +266,10 @@ SIMD_INLINE v256 v256_avg_u8(v256 a, v256 b) {
 
 SIMD_INLINE v256 v256_rdavg_u8(v256 a, v256 b) {
   return v256_from_v128(v128_rdavg_u8(a.hi, b.hi), v128_rdavg_u8(a.lo, b.lo));
+}
+
+SIMD_INLINE v256 v256_rdavg_u16(v256 a, v256 b) {
+  return v256_from_v128(v128_rdavg_u16(a.hi, b.hi), v128_rdavg_u16(a.lo, b.lo));
 }
 
 SIMD_INLINE v256 v256_avg_u16(v256 a, v256 b) {
@@ -378,6 +397,11 @@ SIMD_INLINE v256 v256_pack_s32_s16(v256 a, v256 b) {
                         v128_pack_s32_s16(b.hi, b.lo));
 }
 
+SIMD_INLINE v256 v256_pack_s32_u16(v256 a, v256 b) {
+  return v256_from_v128(v128_pack_s32_u16(a.hi, a.lo),
+                        v128_pack_s32_u16(b.hi, b.lo));
+}
+
 SIMD_INLINE v256 v256_pack_s16_u8(v256 a, v256 b) {
   return v256_from_v128(v128_pack_s16_u8(a.hi, a.lo),
                         v128_pack_s16_u8(b.hi, b.lo));
@@ -491,6 +515,19 @@ SIMD_INLINE v256 v256_shr_s32(v256 a, const unsigned int c) {
   return v256_from_v128(v128_shr_s32(a.hi, c), v128_shr_s32(a.lo, c));
 }
 
+SIMD_INLINE v256 v256_shl_64(v256 a, const unsigned int c) {
+  return v256_from_v128(v128_shl_64(a.hi, c), v128_shl_64(a.lo, c));
+}
+
+SIMD_INLINE v256 v256_shr_u64(v256 a, const unsigned int c) {
+  return v256_from_v128(v128_shr_u64(a.hi, c), v128_shr_u64(a.lo, c));
+}
+
+SIMD_INLINE v256 v256_shr_s64(v256 a, const unsigned int c) {
+  return v256_from_v128(v128_shr_s64(a.hi, c), v128_shr_s64(a.lo, c));
+}
+
+
 /* These intrinsics require immediate values, so we must use #defines
    to enforce that. */
 #define v256_shl_n_byte(a, n)                                                 \
@@ -516,18 +553,24 @@ SIMD_INLINE v256 v256_shr_s32(v256 a, const unsigned int c) {
   v256_from_v128(v128_shl_n_16(a.hi, n), v128_shl_n_16(a.lo, n))
 #define v256_shl_n_32(a, n) \
   v256_from_v128(v128_shl_n_32(a.hi, n), v128_shl_n_32(a.lo, n))
+#define v256_shl_n_64(a, n) \
+  v256_from_v128(v128_shl_n_64(a.hi, n), v128_shl_n_64(a.lo, n))
 #define v256_shr_n_u8(a, n) \
   v256_from_v128(v128_shr_n_u8(a.hi, n), v128_shr_n_u8(a.lo, n))
 #define v256_shr_n_u16(a, n) \
   v256_from_v128(v128_shr_n_u16(a.hi, n), v128_shr_n_u16(a.lo, n))
 #define v256_shr_n_u32(a, n) \
   v256_from_v128(v128_shr_n_u32(a.hi, n), v128_shr_n_u32(a.lo, n))
+#define v256_shr_n_u64(a, n) \
+  v256_from_v128(v128_shr_n_u64(a.hi, n), v128_shr_n_u64(a.lo, n))
 #define v256_shr_n_s8(a, n) \
   v256_from_v128(v128_shr_n_s8(a.hi, n), v128_shr_n_s8(a.lo, n))
 #define v256_shr_n_s16(a, n) \
   v256_from_v128(v128_shr_n_s16(a.hi, n), v128_shr_n_s16(a.lo, n))
 #define v256_shr_n_s32(a, n) \
   v256_from_v128(v128_shr_n_s32(a.hi, n), v128_shr_n_s32(a.lo, n))
+#define v256_shr_n_s64(a, n) \
+  v256_from_v128(v128_shr_n_s64(a.hi, n), v128_shr_n_s64(a.lo, n))
 
 typedef v256 sad256_internal_u16;
 
@@ -570,5 +613,7 @@ SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
     v128_low_u32(v128_shr_n_byte(t, 12));
 }
 
+#define v256_shr_n_word(a, n) v256_shr_n_byte(a, 2*(n))
+#define v256_shl_n_word(a, n) v256_shl_n_byte(a, 2*(n))
 
 #endif /* _V256_INTRINSICS_V128_H */

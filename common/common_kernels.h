@@ -28,24 +28,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define COMMON_SIMDKERNELS_H
 
 #include <stdint.h>
-void block_avg_simd(uint8_t *p,uint8_t *r0, uint8_t *r1, int sp, int s0, int s1, int width, int height);
-int sad_calc_simd_unaligned(uint8_t *a, uint8_t *b, int astride, int bstride, int width, int height);
-void get_inter_prediction_luma_simd(int width, int height, int xoff, int yoff, unsigned char *restrict qp, int qstride, const unsigned char *restrict ip, int istride, int bipred);
-void get_inter_prediction_chroma_simd(int width, int height, int xoff, int yoff, unsigned char *restrict qp, int qstride, const unsigned char *restrict ip, int istride);
+void TEMPLATE(block_avg_simd)(SAMPLE *p,SAMPLE *r0, SAMPLE *r1, int sp, int s0, int s1, int width, int height);
+int TEMPLATE(sad_calc_simd_unaligned)(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width, int height);
+void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride, int bipred);
+void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride);
 void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast, int bitdepth);
 void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int bitdepth);
-void clpf_block4(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
-void clpf_block8(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
-void scale_frame_down2x2_simd(yuv_frame_t* sin, yuv_frame_t* sout);
+void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
+void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
+void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout);
 
-SIMD_INLINE void clpf_block_simd(const uint8_t *src, uint8_t *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
+SIMD_INLINE void TEMPLATE(clpf_block_simd)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
   if (sizex == 4 && sizey == 4) // chroma 420
-    clpf_block4(src, dst, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src, dst, stride, x0, y0, width, height, strength);
   else if (sizex == 4) { // chroma 422
-    clpf_block4(src, dst, stride, x0, y0, width, height, strength);
-    clpf_block4(src + 4*stride, dst + 4*stride, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src, dst, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src + 4*stride, dst + 4*stride, stride, x0, y0, width, height, strength);
   } else // luma 444 or luma 420
-    clpf_block8(src, dst, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block8)(src, dst, stride, x0, y0, width, height, strength);
 }
 
 #endif

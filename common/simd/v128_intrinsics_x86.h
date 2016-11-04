@@ -116,6 +116,10 @@ SIMD_INLINE v128 v128_dup_32(uint32_t x) {
   return _mm_set1_epi32(x);
 }
 
+SIMD_INLINE v128 v128_dup_64(uint64_t x) {
+  return _mm_set1_epi64(_mm_set_pi64x(x));
+}
+
 
 
 SIMD_INLINE v128 v128_add_8(v128 a, v128 b) {
@@ -132,6 +136,10 @@ SIMD_INLINE v128 v128_sadd_s16(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_add_32(v128 a, v128 b) {
   return _mm_add_epi32(a, b);
+}
+
+SIMD_INLINE v128 v128_add_64(v128 a, v128 b) {
+  return _mm_add_epi64(a, b);
 }
 
 SIMD_INLINE v128 v128_padd_s16(v128 a) {
@@ -160,6 +168,10 @@ SIMD_INLINE v128 v128_ssub_s16(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_sub_32(v128 a, v128 b) {
   return _mm_sub_epi32(a, b);
+}
+
+SIMD_INLINE v128 v128_sub_64(v128 a, v128 b) {
+  return _mm_sub_epi64(a, b);
 }
 
 SIMD_INLINE v128 v128_abs_s16(v128 a) {
@@ -264,6 +276,14 @@ SIMD_INLINE v128 v128_unpackhi_u8_s16(v128 a) {
 
 SIMD_INLINE v128 v128_pack_s32_s16(v128 a, v128 b) {
   return _mm_packs_epi32(b, a);
+}
+
+SIMD_INLINE v128 v128_pack_s32_u16(v128 a, v128 b) {
+#if defined (__SSE4_1__)
+  return _mm_packus_epi32(b, a);
+#else
+  return v128_from_v64(v64_pack_s32_u16(v128_high_v64(a), v128_low_v64(a)), v64_pack_s32_u16(v128_high_v64(b), v128_low_v64(b)));
+#endif
 }
 
 SIMD_INLINE v128 v128_pack_s16_u8(v128 a, v128 b) {
@@ -436,6 +456,10 @@ SIMD_INLINE v128 v128_madd_us8(v128 a, v128 b) {
 #endif
 }
 
+SIMD_INLINE v128 v128_padd_s8(v128 a) {
+  return v128_madd_us8(a, _mm_set1_epi8(1));
+}
+
 
 
 SIMD_INLINE v128 v128_avg_u8(v128 a, v128 b) {
@@ -444,6 +468,10 @@ SIMD_INLINE v128 v128_avg_u8(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_rdavg_u8(v128 a, v128 b) {
   return _mm_sub_epi8(_mm_avg_epu8(a, b), _mm_and_si128(_mm_xor_si128(a, b), v128_dup_8(1)));
+}
+
+SIMD_INLINE v128 v128_rdavg_u16(v128 a, v128 b) {
+  return _mm_sub_epi16(_mm_avg_epu16(a, b), _mm_and_si128(_mm_xor_si128(a, b), v128_dup_16(1)));
 }
 
 SIMD_INLINE v128 v128_avg_u16(v128 a, v128 b) {
@@ -553,6 +581,21 @@ SIMD_INLINE v128 v128_shr_s32(v128 a, unsigned int c) {
   return _mm_sra_epi32(a, _mm_cvtsi32_si128(c));
 }
 
+SIMD_INLINE v128 v128_shl_64(v128 a, unsigned int c) {
+  return _mm_sll_epi64(a, _mm_cvtsi32_si128(c));
+}
+
+SIMD_INLINE v128 v128_shr_u64(v128 a, unsigned int c) {
+  return _mm_srl_epi64(a, _mm_cvtsi32_si128(c));
+}
+
+SIMD_INLINE v128 v128_shr_s64(v128 a, unsigned int c) {
+  // _mm_sra_epi64 is missing in gcc?
+  return v128_from_64((int64_t)v64_u64(v128_high_v64(a)) >> c,
+                      (int64_t)v64_u64(v128_low_v64(a)) >> c);
+  //return _mm_sra_epi64(a, _mm_cvtsi32_si128(c));
+}
+
 /* These intrinsics require immediate values, so we must use #defines
    to enforce that. */
 #define v128_shl_n_byte(a, c) _mm_slli_si128(a, c)
@@ -566,6 +609,9 @@ SIMD_INLINE v128 v128_shr_s32(v128 a, unsigned int c) {
 #define v128_shl_n_32(a, c) _mm_slli_epi32(a, c)
 #define v128_shr_n_u32(a, c) _mm_srli_epi32(a, c)
 #define v128_shr_n_s32(a, c) _mm_srai_epi32(a, c)
+#define v128_shl_n_64(a, c) _mm_slli_epi64(a, c)
+#define v128_shr_n_u64(a, c) _mm_srli_epi64(a, c)
+#define v128_shr_n_s64(a, c) v128_shr_s64(a, c) // _mm_srai_epi64 missing in gcc?
 
 typedef v128 sad128_internal_u16;
 

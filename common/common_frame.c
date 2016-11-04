@@ -756,10 +756,10 @@ void TEMPLATE(clpf_frame)(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, 
             int filter = deblock_data[index].mode != MODE_SKIP;
 
             if (filter) {
-              if (use_simd && sizeof(SAMPLE) == 1) {
-                clpf_block_simd((uint8_t *)rec->y, (uint8_t *)dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
-                clpf_block_simd((uint8_t *)rec->u, (uint8_t *)dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-                clpf_block_simd((uint8_t *)rec->v, (uint8_t *)dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+              if (use_simd) {
+                TEMPLATE(clpf_block_simd)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
+                TEMPLATE(clpf_block_simd)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
+                TEMPLATE(clpf_block_simd)(rec->v, dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
               } else {
                 TEMPLATE(clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
                 TEMPLATE(clpf_block)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);

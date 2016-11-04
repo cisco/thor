@@ -48,8 +48,8 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
       int ypos = (k<<fb_size_log2) + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-        if (use_simd && sizeof(SAMPLE) == 1)
-          detect_clpf_simd((uint8_t *)rec->y, (uint8_t *)org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength);
+        if (use_simd)
+          TEMPLATE(detect_clpf_simd)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift);
         else
           TEMPLATE(detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift);
       }
@@ -105,8 +105,8 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
       int ypos = y + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-        if (use_simd && sizeof(SAMPLE) == 1)
-          detect_multi_clpf_simd((uint8_t *)rec->y, (uint8_t *)org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum);
+        if (use_simd)
+          TEMPLATE(detect_multi_clpf_simd)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum, bitdepth - 8);
         else
           TEMPLATE(detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum, bitdepth - 8);
         filtered = 1;

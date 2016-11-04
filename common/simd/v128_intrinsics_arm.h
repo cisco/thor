@@ -110,6 +110,10 @@ SIMD_INLINE v128 v128_dup_32(uint32_t x) {
   return vreinterpretq_s64_u32(vdupq_n_u32(x));
 }
 
+SIMD_INLINE v128 v128_dup_64(uint64_t x) {
+  return vreinterpretq_s64_u64(vdupq_n_u64(x));
+}
+
 
 
 SIMD_INLINE int64_t v128_dotp_s16(v128 a, v128 b) {
@@ -124,6 +128,10 @@ SIMD_INLINE uint64_t v128_hadd_u8(v128 x) {
 
 SIMD_INLINE v128 v128_padd_s16(v128 a) {
   return vreinterpretq_s64_s32(vpaddlq_s16(vreinterpretq_s16_s64(a)));
+}
+
+SIMD_INLINE v128 v128_padd_s8(v128 a) {
+  return vreinterpretq_s64_s16(vpaddlq_s8(vreinterpretq_s8_s64(a)));
 }
 
 typedef struct { sad64_internal hi, lo; } sad128_internal;
@@ -204,6 +212,10 @@ SIMD_INLINE v128 v128_add_32(v128 x, v128 y) {
   return vreinterpretq_s64_u32(vaddq_u32(vreinterpretq_u32_s64(x), vreinterpretq_u32_s64(y)));
 }
 
+SIMD_INLINE v128 v128_add_64(v128 x, v128 y) {
+  return vreinterpretq_s64_u64(vaddq_u64(vreinterpretq_u64_s64(x), vreinterpretq_u64_s64(y)));
+}
+
 SIMD_INLINE v128 v128_sub_8(v128 x, v128 y) {
   return vreinterpretq_s64_u8(vsubq_u8(vreinterpretq_u8_s64(x), vreinterpretq_u8_s64(y)));
 }
@@ -230,6 +242,10 @@ SIMD_INLINE v128 v128_ssub_s8(v128 x, v128 y) {
 
 SIMD_INLINE v128 v128_sub_32(v128 x, v128 y) {
   return vreinterpretq_s64_s32(vsubq_s32(vreinterpretq_s32_s64(x), vreinterpretq_s32_s64(y)));
+}
+
+SIMD_INLINE v128 v128_sub_64(v128 x, v128 y) {
+  return vsubq_s64(x, y);
 }
 
 SIMD_INLINE v128 v128_abs_s16(v128 x) {
@@ -273,6 +289,10 @@ SIMD_INLINE v128 v128_avg_u8(v128 x, v128 y) {
 
 SIMD_INLINE v128 v128_rdavg_u8(v128 x, v128 y) {
   return vreinterpretq_s64_u8(vhaddq_u8(vreinterpretq_u8_s64(x), vreinterpretq_u8_s64(y)));
+}
+
+SIMD_INLINE v128 v128_rdavg_u16(v128 x, v128 y) {
+  return vreinterpretq_s64_u16(vhaddq_u16(vreinterpretq_u16_s64(x), vreinterpretq_u16_s64(y)));
 }
 
 SIMD_INLINE v128 v128_avg_u16(v128 x, v128 y) {
@@ -408,6 +428,11 @@ SIMD_INLINE v128 v128_pack_s32_s16(v128 a, v128 b) {
                        vreinterpret_s64_s16(vqmovn_s32(vreinterpretq_s32_s64(b))));
 }
 
+SIMD_INLINE v128 v128_pack_s32_u16(v128 a, v128 b) {
+  return v128_from_v64(vreinterpret_s64_u16(vqmovun_s32(vreinterpretq_s32_s64(a))),
+                       vreinterpret_s64_u16(vqmovun_s32(vreinterpretq_s32_s64(b))));
+}
+
 SIMD_INLINE v128 v128_pack_s16_u8(v128 a, v128 b) {
   return v128_from_v64(vreinterpret_s64_u8(vqmovun_s16(vreinterpretq_s16_s64(a))),
                        vreinterpret_s64_u8(vqmovun_s16(vreinterpretq_s16_s64(b))));
@@ -514,6 +539,18 @@ SIMD_INLINE v128 v128_shr_s32(v128 a, unsigned int c) {
   return (c > 31) ? v128_ones() : vreinterpretq_s64_s32(vshlq_s32(vreinterpretq_s32_s64(a), vdupq_n_s32(-c)));
 }
 
+SIMD_INLINE v128 v128_shl_64(v128 a, unsigned int c) {
+  return (c > 63) ? v128_zero() : vreinterpretq_s64_u64(vshlq_u64(vreinterpretq_u64_s64(a), vdupq_n_s64(c)));
+}
+
+SIMD_INLINE v128 v128_shr_u64(v128 a, unsigned int c) {
+  return (c > 63) ? v128_zero() : vreinterpretq_s64_u64(vshlq_u64(vreinterpretq_u64_s64(a), vdupq_n_s64(-c)));
+}
+
+SIMD_INLINE v128 v128_shr_s64(v128 a, unsigned int c) {
+  return (c > 63) ? v128_ones() : vshlq_s64(a, vdupq_n_s64(-c));
+}
+
 #if __OPTIMIZE__
 
 SIMD_INLINE v128 v128_shl_n_byte(v128 a, const unsigned int n) {
@@ -570,6 +607,18 @@ SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int c) {
   return vreinterpretq_s64_s32(vshrq_n_s32(vreinterpretq_s32_s64(a), c));
 }
 
+SIMD_INLINE v128 v128_shl_n_64(v128 a, const unsigned int c) {
+  return vreinterpretq_s64_u64(vshlq_n_u64(vreinterpretq_u64_s64(a), c));
+}
+
+SIMD_INLINE v128 v128_shr_n_u64(v128 a, const unsigned int c) {
+  return vreinterpretq_s64_u64(vshrq_n_u64(vreinterpretq_u64_s64(a), c));
+}
+
+SIMD_INLINE v128 v128_shr_n_s64(v128 a, const unsigned int c) {
+  return vshrq_n_s64(a, c);
+}
+
 #else
 
 SIMD_INLINE v128 v128_shl_n_byte(v128 a, const unsigned int n) {
@@ -624,6 +673,18 @@ SIMD_INLINE v128 v128_shr_n_u32(v128 a, const unsigned int c) {
 
 SIMD_INLINE v128 v128_shr_n_s32(v128 a, const unsigned int c) {
   return v128_shr_s32(a, c);
+}
+
+SIMD_INLINE v128 v128_shl_n_64(v128 a, const unsigned int c) {
+  return v128_shl_64(a, c);
+}
+
+SIMD_INLINE v128 v128_shr_n_u64(v128 a, const unsigned int c) {
+  return v128_shr_u64(a, c);
+}
+
+SIMD_INLINE v128 v128_shr_n_s64(v128 a, const unsigned int c) {
+  return v128_shr_s64(a, c);
 }
 
 #endif

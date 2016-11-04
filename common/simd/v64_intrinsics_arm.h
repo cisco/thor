@@ -268,6 +268,10 @@ SIMD_INLINE v64 v64_rdavg_u8(v64 x, v64 y) {
   return vreinterpret_s64_u8(vhadd_u8(vreinterpret_u8_s64(x), vreinterpret_u8_s64(y)));
 }
 
+SIMD_INLINE v64 v64_rdavg_u16(v64 x, v64 y) {
+  return vreinterpret_s64_u16(vhadd_u16(vreinterpret_u16_s64(x), vreinterpret_u16_s64(y)));
+}
+
 SIMD_INLINE v64 v64_avg_u16(v64 x, v64 y) {
   return vreinterpret_s64_u16(vrhadd_u16(vreinterpret_u16_s64(x), vreinterpret_u16_s64(y)));
 }
@@ -336,6 +340,10 @@ SIMD_INLINE v64 v64_unpackhi_u8_s16(v64 a) {
 
 SIMD_INLINE v64 v64_pack_s32_s16(v64 x, v64 y) {
   return vreinterpret_s64_s16(vqmovn_s32(vcombine_s32(vreinterpret_s32_s64(y), vreinterpret_s32_s64(x))));
+}
+
+SIMD_INLINE v64 v64_pack_s32_u16(v64 x, v64 y) {
+  return vreinterpret_s64_u16(vqmovun_s32(vcombine_s32(vreinterpret_s32_s64(y), vreinterpret_s32_s64(x))));
 }
 
 SIMD_INLINE v64 v64_pack_s16_u8(v64 x, v64 y) {

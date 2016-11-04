@@ -456,6 +456,20 @@ SIMD_INLINE c_v64 c_v64_pack_s32_s16(c_v64 a, c_v64 b) {
   return t;
 }
 
+SIMD_INLINE c_v64 c_v64_pack_s32_u16(c_v64 a, c_v64 b) {
+  c_v64 t;
+  if (big_endian()) {
+    c_v64 u = a;
+    a = b;
+    b = u;
+  }
+  t.s16[3] = a.s32[1] > 65535 ? 65535 : a.s32[1] < 0 ? 0 : a.s32[1];
+  t.s16[2] = a.s32[0] > 65535 ? 65535 : a.s32[0] < 0 ? 0 : a.s32[0];
+  t.s16[1] = b.s32[1] > 65535 ? 65535 : b.s32[1] < 0 ? 0 : b.s32[1];
+  t.s16[0] = b.s32[0] > 65535 ? 65535 : b.s32[0] < 0 ? 0 : b.s32[0];
+  return t;
+}
+
 SIMD_INLINE c_v64 c_v64_pack_s16_u8(c_v64 a, c_v64 b) {
   c_v64 t;
   if (big_endian()) {
@@ -676,6 +690,14 @@ SIMD_INLINE c_v64 c_v64_rdavg_u8(c_v64 a, c_v64 b) {
   int c;
   for (c = 0; c < 8; c++)
     t.u8[c] = (a.u8[c] + b.u8[c]) >> 1;
+  return t;
+}
+
+SIMD_INLINE c_v64 c_v64_rdavg_u16(c_v64 a, c_v64 b) {
+  c_v64 t;
+  int c;
+  for (c = 0; c < 4; c++)
+    t.u16[c] = (a.u16[c] + b.u16[c]) >> 1;
   return t;
 }
 

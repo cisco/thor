@@ -333,8 +333,8 @@ static void mot_comp_avg(int xstart, int ystart, SAMPLE* ref0, int s0, SAMPLE * 
 
     SAMPLE* r0=&ref0[ys[0]*s0+xs[0]];
     SAMPLE* r1=&ref1[ys[1]*s1+xs[1]];
-    if (use_simd && sizeof(SAMPLE) == 1 && size>=4) {
-      block_avg_simd((uint8_t *)p,(uint8_t *)r0,(uint8_t *)r1,sp,s0,s1,size,size);
+    if (use_simd && size>=4) {
+      TEMPLATE(block_avg_simd)(p,r0,r1,sp,s0,s1,size,size);
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
@@ -399,8 +399,8 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
 
     SAMPLE* p0=&pic[0]->y[ys[0]*s0+xs[0]];
     SAMPLE* p1=&pic[1]->y[ys[1]*s1+xs[1]];
-    if (use_simd && sizeof(SAMPLE) == 1 && size >= 4) {
-      bcost += sad_calc_simd_unaligned((uint8_t *)p0, (uint8_t *)p1, s0, s1, size, size);
+    if (use_simd && size >= 4) {
+      bcost += TEMPLATE(sad_calc_simd_unaligned)(p0, p1, s0, s1, size, size);
     } else {
       for (int i=0; i<size; ++i) {
         for (int j=0; j<size; ++j) {
@@ -413,9 +413,9 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
       uint32_t ccost=0;
       int cpos0=(ys[0]/2)*sc0+(xs[0]/2);
       int cpos1=(ys[1]/2)*sc1+(xs[1]/2);
-      if (use_simd && sizeof(SAMPLE) == 1 && size >= 8) {
-        ccost += sad_calc_simd_unaligned((uint8_t *)&pic[0]->u[cpos0], (uint8_t *)&pic[1]->u[cpos1], sc0, sc1, size/2, size/2);
-        ccost += sad_calc_simd_unaligned((uint8_t *)&pic[0]->v[cpos0], (uint8_t *)&pic[1]->v[cpos1], sc0, sc1, size/2, size/2);
+      if (use_simd && size >= 8) {
+        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->u[cpos0], &pic[1]->u[cpos1], sc0, sc1, size/2, size/2);
+        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->v[cpos0], &pic[1]->v[cpos1], sc0, sc1, size/2, size/2);
       } else {
         p0=&pic[0]->u[cpos0];
         p1=&pic[1]->u[cpos1];
@@ -491,8 +491,8 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
         int sum=0;
         SAMPLE* r0=&picdata[0]->y[ys[0]*s0+xs[0]];
         SAMPLE* r1=&picdata[1]->y[ys[1]*s1+xs[1]];
-        if (use_simd && sizeof(SAMPLE) == 1) {
-          sum = sad_calc_simd_unaligned((uint8_t *)r0, (uint8_t *)r1, s0, s1, 8, 8);
+        if (use_simd) {
+          sum = TEMPLATE(sad_calc_simd_unaligned)(r0, r1, s0, s1, 8, 8);
         } else {
           for (int i=0; i<8; i++) {
             for (int j=0; j<8; j++) {
@@ -536,9 +536,9 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
         SAMPLE* r1U=&picdata[1]->u[ys[1]*s1C+xs[1]];
         SAMPLE* r0V=&picdata[0]->v[ys[0]*s0C+xs[0]];
         SAMPLE* r1V=&picdata[1]->v[ys[1]*s1C+xs[1]];
-        if (use_simd && sizeof(SAMPLE) == 1) {
-          sumU = sad_calc_simd_unaligned((uint8_t *)r0U, (uint8_t *)r1U, s0C, s1C, 8, 8);
-          sumV = sad_calc_simd_unaligned((uint8_t *)r0V, (uint8_t *)r1V, s0C, s1C, 8, 8);
+        if (use_simd) {
+          sumU = TEMPLATE(sad_calc_simd_unaligned)(r0U, r1U, s0C, s1C, 8, 8);
+          sumV = TEMPLATE(sad_calc_simd_unaligned)(r0V, r1V, s0C, s1C, 8, 8);
         } else {
           for (int i=0; i<8; i++) {
             for (int j=0; j<8; j++) {
@@ -941,9 +941,9 @@ void TEMPLATE(interpolate_frames)(yuv_frame_t* new_frame, yuv_frame_t* ref0, yuv
   in_down[0][1]=ref1;
 
   for (int l=0; l<max_levels-1; ++l) {
-    if (use_simd && sizeof(SAMPLE) == 1) {
-      scale_frame_down2x2_simd(in_down[l][0], in_down[l+1][0]);
-      scale_frame_down2x2_simd(in_down[l][1], in_down[l+1][1]);
+    if (use_simd) {
+      TEMPLATE(scale_frame_down2x2_simd)(in_down[l][0], in_down[l+1][0]);
+      TEMPLATE(scale_frame_down2x2_simd)(in_down[l][1], in_down[l+1][1]);
     } else {
       scale_frame_down2x2(in_down[l][0], in_down[l+1][0]);
       scale_frame_down2x2(in_down[l][1], in_down[l+1][1]);

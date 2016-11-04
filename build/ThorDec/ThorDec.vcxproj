@@ -24,6 +24,7 @@
     <ClCompile Include="..\..\common\common_frame.c" />
     <ClCompile Include="..\..\common\common_frame_hbd.c" />
     <ClCompile Include="..\..\common\common_kernels.c" />
+    <ClCompile Include="..\..\common\common_kernels_hbd.c" />
     <ClCompile Include="..\..\common\common_tables.c" />
     <ClCompile Include="..\..\common\inter_prediction.c" />
     <ClCompile Include="..\..\common\inter_prediction_hbd.c" />

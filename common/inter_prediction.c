@@ -110,8 +110,12 @@ static void get_inter_prediction_chroma(SAMPLE *pblock, SAMPLE *ref, int width, 
     return;
   }
 
-  if (use_simd && sizeof(SAMPLE) == 1 && width > 2)
-    get_inter_prediction_chroma_simd(width, height, hor_frac, ver_frac, (uint8_t *)pblock, pstride, (uint8_t *)ref + ver_int*stride + hor_int, stride);
+#ifndef HBD
+  if (use_simd && width > 2)
+    get_inter_prediction_chroma_simd_lbd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride);
+#else
+  if (0) {} // TODO: HBD SIMD
+#endif
   else {
     /* Horizontal filtering */
     for(i=-1;i<height+2;i++){
@@ -161,9 +165,13 @@ void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width,
     return;
   }
 
-  if (use_simd && sizeof(SAMPLE) == 1)
-    get_inter_prediction_luma_simd(width, height, hor_frac, ver_frac, (uint8_t *)pblock, pstride, (uint8_t *)ref + ver_int*stride + hor_int, stride, bipred);
+#ifndef HBD
+  if (use_simd)
+    get_inter_prediction_luma_simd_lbd(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred);
   /* Special lowpass filter at center position */
+#else
+  if (0) {} // TODO: HBD SIMD
+#endif
   else if (ver_frac == 2 && hor_frac == 2 && bipred < 2) {
     for(i=0;i<height;i++){
       for (j=0;j<width;j++){

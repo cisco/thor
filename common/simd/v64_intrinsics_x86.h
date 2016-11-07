@@ -72,6 +72,7 @@ SIMD_INLINE uint64_t v64_u64(v64 x) {
 }
 
 
+SIMD_INLINE uint32_t u32_zero() { return 0; }
 
 SIMD_INLINE uint32_t u32_load_aligned(const void *p) {
   return *((uint32_t*)p);

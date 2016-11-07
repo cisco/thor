@@ -959,7 +959,7 @@ unsigned int TEMPLATE(sad_calc_fastquarter_simd)(const SAMPLE *po, const SAMPLE 
 }
 
 #ifndef HBD
-int calc_cbp_simd(int16_t *block, int size, int threshold) {
+int calc_cbp_simd(int32_t *block, int size, int threshold) {
   int cbp = 0;
   if (size ==8 ) {
     v256 thr = v256_dup_32(threshold);

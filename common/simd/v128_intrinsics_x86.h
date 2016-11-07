@@ -441,6 +441,14 @@ SIMD_INLINE v128 v128_mullo_s32(v128 a, v128 b) {
 #endif
 }
 
+SIMD_INLINE int64_t v128_dotp_s32(v128 a, v128 b) {
+  v128 r = v128_mullo_s32(a, b);
+  return (int64_t)_mm_cvtsi128_si32(r) +
+    (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(r, 4)) +
+    (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(r, 8)) +
+    (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(r, 12));
+}
+
 SIMD_INLINE v128 v128_madd_s16(v128 a, v128 b) {
   return _mm_madd_epi16(a, b);
 }
@@ -619,19 +627,17 @@ SIMD_INLINE sad128_internal_u16 v128_sad_u16_init() {
   return v128_zero();
 }
 
-/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum().
-   The result for more than 16 v128_sad_u16() for 12 bit input calls is undefined. */
+/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum(). */
 SIMD_INLINE sad128_internal_u16 v128_sad_u16(sad128_internal_u16 s, v128 a, v128 b) {
-  return v128_add_16(s, v128_abs_s16(v128_sub_16(a, b)));
+  return v128_add_32(s, v128_padd_s16(v128_abs_s16(v128_sub_16(a, b))));
 }
 
 SIMD_INLINE uint32_t v128_sad_u16_sum(sad128_internal_u16 s) {
-  v128 t = v128_padd_s16(s);
-    return
-      v128_low_u32(t) +
-      v128_low_u32(v128_shr_n_byte(t, 4)) +
-      v128_low_u32(v128_shr_n_byte(t, 8)) +
-      v128_low_u32(v128_shr_n_byte(t, 12));
+  return
+    v128_low_u32(s) +
+    v128_low_u32(v128_shr_n_byte(s, 4)) +
+    v128_low_u32(v128_shr_n_byte(s, 8)) +
+    v128_low_u32(v128_shr_n_byte(s, 12));
 }
 
 typedef v128 ssd128_internal_u16;

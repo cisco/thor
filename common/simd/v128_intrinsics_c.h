@@ -152,6 +152,12 @@ SIMD_INLINE int64_t c_v128_dotp_s16(c_v128 a, c_v128 b) {
   return c_v64_dotp_s16(a.v64[1], b.v64[1]) + c_v64_dotp_s16(a.v64[0], b.v64[0]);
 }
 
+SIMD_INLINE int64_t c_v128_dotp_s32(c_v128 a, c_v128 b) {
+  return
+    (int64_t)(a.s32[3] * b.s32[3]) + (int64_t)(a.s32[2] * b.s32[2]) +
+    (int64_t)(a.s32[1] * b.s32[1]) + (int64_t)(a.s32[0] * b.s32[0]);
+}
+
 SIMD_INLINE uint64_t c_v128_hadd_u8(c_v128 a) {
   return c_v64_hadd_u8(a.v64[1]) + c_v64_hadd_u8(a.v64[0]);
 }
@@ -754,8 +760,7 @@ SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16_init() {
   return 0;
 }
 
-/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum().
-   The result for more than 16 v128_sad_u16() for 12 bit input calls is undefined. */
+/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum(). */
 SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16(c_sad128_internal_u16 s, c_v128 a, c_v128 b) {
   int c;
   for (c = 0; c < 8; c++)

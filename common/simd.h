@@ -78,7 +78,7 @@ SIMD_INLINE void thor_free(void *p)
   free(((void**)p)[-1]);
 }
 
-#elif __GNUC__
+#elif defined(__GNUC__) && !defined(__clang__)
 #include <alloca.h>
 
 SIMD_INLINE unsigned int log2i(uint32_t x)

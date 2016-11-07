@@ -47,6 +47,7 @@ SIMD_INLINE uint64_t v64_u64(v64 x) { return c_v64_u64(x); }
 SIMD_INLINE v64 v64_from_16(uint16_t a, uint16_t b, uint16_t c, uint16_t d) { return c_v64_from_16(a, b, c, d); }
 
 
+SIMD_INLINE uint32_t u32_zero() { return c_u32_zero(); }
 SIMD_INLINE uint32_t u32_load_unaligned(const void *p) { return c_u32_load_unaligned(p); }
 SIMD_INLINE uint32_t u32_load_aligned(const void *p) { return c_u32_load_aligned(p); }
 SIMD_INLINE void u32_store_unaligned(void *p, uint32_t a) { c_u32_store_unaligned(p, a); }

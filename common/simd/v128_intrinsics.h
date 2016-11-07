@@ -74,6 +74,7 @@ SIMD_INLINE ssd128_internal_u16 v128_ssd_u16_init() { return c_v128_ssd_u16_init
 SIMD_INLINE ssd128_internal_u16 v128_ssd_u16(ssd128_internal_u16 s, v128 a, v128 b) { return c_v128_ssd_u16(s, a, b); }
 SIMD_INLINE uint32_t v128_ssd_u16_sum(ssd128_internal_u16 s) { return c_v128_ssd_u16_sum(s); }
 SIMD_INLINE int64_t v128_dotp_s16(v128 a, v128 b) { return c_v128_dotp_s16(a, b); }
+SIMD_INLINE int64_t v128_dotp_s32(v128 a, v128 b) { return c_v128_dotp_s32(a, b); }
 SIMD_INLINE uint64_t v128_hadd_u8(v128 a) { return c_v128_hadd_u8(a); }
 
 

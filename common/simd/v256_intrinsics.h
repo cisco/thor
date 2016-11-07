@@ -107,6 +107,9 @@ SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
 SIMD_INLINE int64_t v256_dotp_s16(v256 a, v256 b) {
   return c_v256_dotp_s16(a, b);
 }
+SIMD_INLINE int64_t v256_dotp_s32(v256 a, v256 b) {
+  return c_v256_dotp_s32(a, b);
+}
 SIMD_INLINE uint64_t v256_hadd_u8(v256 a) { return c_v256_hadd_u8(a); }
 
 SIMD_INLINE v256 v256_or(v256 a, v256 b) { return c_v256_or(a, b); }

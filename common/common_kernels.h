@@ -30,8 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdint.h>
 void TEMPLATE(block_avg_simd)(SAMPLE *p,SAMPLE *r0, SAMPLE *r1, int sp, int s0, int s1, int width, int height);
 int TEMPLATE(sad_calc_simd_unaligned)(SAMPLE *a, SAMPLE *b, int astride, int bstride, int width, int height);
-void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride, int bipred);
-void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride);
+void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride, int bipred, int bitdepth);
+void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride, int bitdepth);
 void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast, int bitdepth);
 void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int bitdepth);
 void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);

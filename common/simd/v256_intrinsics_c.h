@@ -149,6 +149,11 @@ SIMD_INLINE int64_t c_v256_dotp_s16(c_v256 a, c_v256 b) {
          c_v128_dotp_s16(a.v128[0], b.v128[0]);
 }
 
+SIMD_INLINE int64_t c_v256_dotp_s32(c_v256 a, c_v256 b) {
+  return c_v128_dotp_s32(a.v128[1], b.v128[1]) +
+         c_v128_dotp_s32(a.v128[0], b.v128[0]);
+}
+
 SIMD_INLINE uint64_t c_v256_hadd_u8(c_v256 a) {
   return c_v128_hadd_u8(a.v128[1]) + c_v128_hadd_u8(a.v128[0]);
 }

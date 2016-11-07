@@ -104,6 +104,8 @@ SIMD_INLINE c_v64 c_v64_from_16(uint16_t a, uint16_t b, uint16_t c, uint16_t d) 
 
 
 
+SIMD_INLINE uint32_t c_u32_zero() { return 0; }
+
 SIMD_INLINE uint32_t c_u32_load_unaligned(const void *p) {
   uint32_t t;
   uint8_t *pp = (uint8_t*)p;

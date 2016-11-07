@@ -59,7 +59,7 @@ s/v128_mullo_s16/v256_mullo_s32/g
 s/v128_mulhi_s16/v256_mulhi_s32/g
 s/v128_mullo_s32/v256_mullo_s64/g
 s/v128_madd_s16/v256_madd_s32/g
-s/v128_madd_us8/v256_madd_us16/g
+s/v128_madd_us8/v256_madd_s16/g
 s/v128_avg_u8/v256_avg_u16/g
 s/v128_rdavg_u8/v256_rdavg_u16/g
 s/v128_avg_u16/v256_avg_u32/g
@@ -240,5 +240,23 @@ s/u32_load_unaligned/v64_load_unaligned/g
 s/u32_load_aligned/v64_load_aligned/g
 s/u32_store_unaligned/v64_store_unaligned/g
 s/u32_store_aligned/v64_store_aligned/g
+s/u32_zero/v64_zero/g
 s/uint32_t/v64/g
+' $dst
+
+sed -i '
+s/uint16_t/uint32_t/g
+s/int16_t/int32_t/g
+' $dst
+
+sed -i '
+s/quote64_/v64_/g
+s/quote128_/v128_/g
+s/quote256_/v256_/g
+' $dst
+
+sed -i '
+s/quote64 /v64 /g
+s/quote128 /v128 /g
+s/quote256 /v256 /g
 ' $dst

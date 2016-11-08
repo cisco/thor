@@ -2198,7 +2198,7 @@ static int check_early_skip_sub_blockC (encoder_info_t *encoder_info, SAMPLE *or
   int16_t *coeff = thor_alloc(2*MAX_TR_SIZE*MAX_TR_SIZE, 32);
 
   get_residual(block, pblock, orig, size, size, orig_stride);
-  cbp = (use_simd ? calc_cbp_simd : calc_cbp)(block, size, threshold);
+  cbp = (use_simd ? calc_cbp_simd : calc_cbp)(block, size, threshold << (encoder_info->params->bitdepth - 8));
   thor_free(block);
   thor_free(coeff);
   return cbp;

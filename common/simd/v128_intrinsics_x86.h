@@ -234,7 +234,11 @@ SIMD_INLINE v128 v128_unziphi_8(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_unziplo_8(v128 a, v128 b) {
 #if defined (__SSSE3__)
+#ifdef __x86_64__
   v128 order = _mm_cvtsi64_si128(0x0e0c0a0806040200LL);
+#else
+  v128 order = _mm_set_epi32(0, 0, 0x0e0c0a08, 0x06040200);
+#endif
   return _mm_unpacklo_epi64(_mm_shuffle_epi8(b, order), _mm_shuffle_epi8(a, order));
 #else
   return v128_unziphi_8(_mm_slli_si128(a, 1), _mm_slli_si128(b, 1));
@@ -247,7 +251,11 @@ SIMD_INLINE v128 v128_unziphi_16(v128 a, v128 b) {
 
 SIMD_INLINE v128 v128_unziplo_16(v128 a, v128 b) {
 #if defined (__SSSE3__)
+#ifdef __x86_64__
   v128 order = _mm_cvtsi64_si128(0x0d0c090805040100LL);
+#else
+  v128 order = _mm_set_epi32(0, 0, 0x0d0c0908, 0x05040100);
+#endif
   return _mm_unpacklo_epi64(_mm_shuffle_epi8(b, order), _mm_shuffle_epi8(a, order));
 #else
   return v128_unziphi_16(_mm_slli_si128(a, 2), _mm_slli_si128(b, 2));
@@ -340,7 +348,7 @@ SIMD_INLINE v128 v128_shuffle_8(v128 x, v128 pattern) {
 
 SIMD_INLINE int64_t v128_dotp_s16(v128 a, v128 b) {
   v128 r = _mm_madd_epi16(a, b);
-#if defined (__SSE4_1__)
+#if defined (__SSE4_1__) && defined(__x86_64__)
   v128 c = _mm_add_epi64(_mm_cvtepi32_epi64(r), _mm_cvtepi32_epi64(_mm_srli_si128(r, 8)));
   return _mm_cvtsi128_si64(_mm_add_epi64(c, _mm_srli_si128(c, 8)));
 #else
@@ -454,7 +462,7 @@ SIMD_INLINE v128 v128_madd_s16(v128 a, v128 b) {
 }
 
 SIMD_INLINE v128 v128_madd_us8(v128 a, v128 b) {
-#if defined (__SSE3__)
+#if defined (__SSSE3__)
   return _mm_maddubs_epi16(a, b);
 #else
   return _mm_packs_epi32(_mm_madd_epi16(_mm_unpacklo_epi8(a, _mm_setzero_si128()),
@@ -548,21 +556,19 @@ SIMD_INLINE v128 v128_cmpeq_16(v128 a, v128 b) {
 
 
 SIMD_INLINE v128 v128_shl_8(v128 a, unsigned int c) {
-  __m128i x = _mm_cvtsi32_si128(c);
-  return _mm_packus_epi16(_mm_srli_epi16(_mm_sll_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), x), 8),
-                          _mm_srli_epi16(_mm_sll_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), x), 8));
+  return _mm_and_si128(_mm_set1_epi8((uint8_t)(0xff << c)),
+                       _mm_sll_epi16(a, _mm_cvtsi32_si128(c)));
 }
 
 SIMD_INLINE v128 v128_shr_u8(v128 a, unsigned int c) {
-  __m128i x = _mm_cvtsi32_si128(c + 8);
-  return _mm_packus_epi16(_mm_srl_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), x),
-                          _mm_srl_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), x));
+  return _mm_and_si128(_mm_set1_epi8(0xff >> c),
+                       _mm_srl_epi16(a, _mm_cvtsi32_si128(c)));
 }
 
 SIMD_INLINE v128 v128_shr_s8(v128 a, unsigned int c) {
   __m128i x = _mm_cvtsi32_si128(c + 8);
-  return _mm_packs_epi16(_mm_sra_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), x),
-                         _mm_sra_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), x));
+  return _mm_packs_epi16(_mm_sra_epi16(_mm_unpacklo_epi8(a, a), x),
+                         _mm_sra_epi16(_mm_unpackhi_epi8(a, a), x));
 }
 
 SIMD_INLINE v128 v128_shl_16(v128 a, unsigned int c) {
@@ -608,9 +614,9 @@ SIMD_INLINE v128 v128_shr_s64(v128 a, unsigned int c) {
    to enforce that. */
 #define v128_shl_n_byte(a, c) _mm_slli_si128(a, c)
 #define v128_shr_n_byte(a, c) _mm_srli_si128(a, c)
-#define v128_shl_n_8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_slli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c), 8), _mm_srli_epi16(_mm_slli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c), 8))
-#define v128_shr_n_u8(a, c) _mm_packus_epi16(_mm_srli_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8), _mm_srli_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8))
-#define v128_shr_n_s8(a, c) _mm_packs_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(_mm_setzero_si128(), a), c + 8), _mm_srai_epi16(_mm_unpackhi_epi8(_mm_setzero_si128(), a), c + 8))
+#define v128_shl_n_8(a, c) _mm_and_si128(_mm_set1_epi8((uint8_t)(0xff << (c))), _mm_slli_epi16(a, c))
+#define v128_shr_n_u8(a, c) _mm_and_si128(_mm_set1_epi8(0xff >> (c)), _mm_srli_epi16(a, c))
+#define v128_shr_n_s8(a, c) _mm_packs_epi16(_mm_srai_epi16(_mm_unpacklo_epi8(a, a), (c) + 8), _mm_srai_epi16(_mm_unpackhi_epi8(a, a), (c) + 8))
 #define v128_shl_n_16(a, c) _mm_slli_epi16(a, c)
 #define v128_shr_n_u16(a, c) _mm_srli_epi16(a, c)
 #define v128_shr_n_s16(a, c) _mm_srai_epi16(a, c)

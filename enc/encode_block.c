@@ -2467,6 +2467,8 @@ int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int ypos,int x
       /* Store deblock information for this block to frame array */
       copy_deblock_data(encoder_info,block_info);
 
+      thor_free(block_info);
+      thor_free(block_param);
       thor_free(org_block);
       thor_free(rec_block);
       thor_free(rec_block_best);

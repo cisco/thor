@@ -139,16 +139,16 @@ int main(int argc, char** argv)
     decoder_info.bit_count.sequence_header += (stream.bitcnt - bit_start);
 
     for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-      TEMPLATE(create_yuv_frame)(&rec[r],width,height,decoder_info.subsample == 420,0,0,decoder_info.bitdepth,decoder_info.input_bitdepth);
+      TEMPLATE(create_yuv_frame)(&rec[r],width,height,decoder_info.subsample,0,0,decoder_info.bitdepth,decoder_info.input_bitdepth);
     }
     for (r=0;r<MAX_REF_FRAMES;r++){
-      TEMPLATE(create_yuv_frame)(&ref[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
+      TEMPLATE(create_yuv_frame)(&ref[r],width,height,decoder_info.subsample,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
       decoder_info.ref[r] = &ref[r];
     }
     if (decoder_info.interp_ref) {
       for (r=0;r<MAX_SKIP_FRAMES;r++){
         decoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-        TEMPLATE(create_yuv_frame)(decoder_info.interp_frames[r],width,height,decoder_info.subsample == 420,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
+        TEMPLATE(create_yuv_frame)(decoder_info.interp_frames[r],width,height,decoder_info.subsample,PADDING_Y,PADDING_Y,decoder_info.bitdepth,decoder_info.input_bitdepth);
       }
     }
 

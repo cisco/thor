@@ -431,11 +431,12 @@ void TEMPLATE(deblock_frame_uv)(yuv_frame_t  *rec, deblock_data_t *deblock_data,
 }
 
 
-void TEMPLATE(create_yuv_frame)(yuv_frame_t  *frame, int width, int height, int sub, int pad_hor, int pad_ver, int bitdepth, int input_bitdepth)
+void TEMPLATE(create_yuv_frame)(yuv_frame_t  *frame, int width, int height, int subsample, int pad_hor, int pad_ver, int bitdepth, int input_bitdepth)
 {
   int align;
 
-  frame->sub = sub;
+  int sub = frame->sub = subsample == 420;
+  frame->subsample = subsample;
   frame->width = width;
   frame->height = height;
   frame->pad_hor_y = pad_hor;
@@ -473,6 +474,7 @@ void TEMPLATE(close_yuv_frame)(yuv_frame_t  *frame)
 void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
 {
   int sub = frame->sub;
+  int wsub = sub || frame->subsample == 422;
   int width = frame->width;
   int height = frame->height;
   int frame_bitdepth = sizeof(SAMPLE) << 3;
@@ -494,8 +496,13 @@ void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
   }
 
   for (int i=0; i<height>>sub; ++i) {
-    if (fread(&frame->u[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>sub, infile) != width>>sub)
+    if (fread(&frame->u[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>wsub, infile) != width>>wsub)
       fatalerror("Error reading U from file");
+    if (frame->subsample == 422) {
+      SAMPLE *u = frame->u + i*frame->stride_c;
+      for (int j = width-1; j >= 0; j--)
+        u[j] = u[j >> 1];
+    }
 
     if (frame->input_bitdepth != frame->bitdepth || (frame_bitdepth == 16 && frame->bitdepth == 8)) {
       for (int j = (width>>sub)-1; j >= 0; j--) {
@@ -509,8 +516,13 @@ void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
   }
 
   for (int i=0; i<height>>sub; ++i) {
-    if (fread(&frame->v[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>sub, infile) != width>>sub)
+    if (fread(&frame->v[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>wsub, infile) != width>>wsub)
       fatalerror("Error reading V from file");
+    if (frame->subsample == 422) {
+      SAMPLE *v = frame->v + i*frame->stride_c;
+      for (int j = width-1; j >= 0; j--)
+        v[j] = v[j >> 1];
+    }
 
     if (frame->input_bitdepth != frame->bitdepth || (frame_bitdepth == 16 && frame->bitdepth == 8)) {
       for (int j = (width>>sub)-1; j >= 0; j--) {
@@ -527,6 +539,7 @@ void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
 void TEMPLATE(write_yuv_frame)(yuv_frame_t *frame, FILE *outfile)
 {
   int sub = frame->sub;
+  int wsub = sub || frame->subsample == 422;
   int width = frame->width;
   int height = frame->height;
   int round = frame->bitdepth > frame->input_bitdepth ? 1 << (frame->bitdepth - frame->input_bitdepth - 1) : 0;
@@ -535,73 +548,90 @@ void TEMPLATE(write_yuv_frame)(yuv_frame_t *frame, FILE *outfile)
   uint8_t *buf16 = thor_alloc(width * 2, 32);
 
   for (int i=0; i<height; ++i) {
+    void *out = 0;
     if (frame->input_bitdepth == 8) {
       if (frame_bitdepth > 8) {
         for (int j = 0; j < width; j++)
           buf8[j] = saturate((frame->y[i*frame->stride_y + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
-        if (fwrite(buf8, 1, width, outfile) != width)
-          fatalerror("Error writing Y to file");
+        out = buf8;
       } else
-        if (fwrite(&frame->y[i*frame->stride_y], 1, width, outfile) != width)
-          fatalerror("Error writing Y to file");
+        out = &frame->y[i*frame->stride_y];
     } else {
       if (frame->input_bitdepth == frame->bitdepth) {
-        if (fwrite(&frame->y[i*frame->stride_y], 2, width, outfile) != width)
-          fatalerror("Error writing Y to file");
+        out = &frame->y[i*frame->stride_y];
       } else {
         for (int j = 0; j < width; j++)
           buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->y[i*frame->stride_y + j] << (frame->input_bitdepth - frame->bitdepth) :
             saturate((frame->y[i*frame->stride_y + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
-        if (fwrite(buf16, 2, width, outfile) != width)
-          fatalerror("Error writing Y to file");
+        out = buf16;
       }
     }
+    if (fwrite(out, 1 + (frame->input_bitdepth != 8), width, outfile) != width)
+      fatalerror("Error writing Y to file");
   }
   for (int i=0; i<height>>sub; ++i) {
+    void *out = 0;
     if (frame->input_bitdepth == 8) {
       if (frame_bitdepth > 8) {
         for (int j = 0; j < width>>sub; j++)
           buf8[j] = saturate((frame->u[i*frame->stride_c + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
-        if (fwrite(buf8, 1, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing U to file");
+        out = buf8;
       } else
-        if (fwrite(&frame->u[i*frame->stride_c], 1, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing U to file");
+        out = &frame->u[i*frame->stride_c];
+      if (frame->subsample == 422) {
+        for (int j = 0; j < width>>sub; j+=2)
+          buf8[j >> 1] = (((uint8_t*)out)[j] + ((uint8_t*)out)[j+1] + 1) >> 1;
+        out = buf8;
+      }
     } else {
       if (frame->input_bitdepth == frame->bitdepth) {
-        if (fwrite(&frame->u[i*frame->stride_c], 2, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing U to file");
+        out = &frame->u[i*frame->stride_c];
       } else {
         for (int j = 0; j < width>>sub; j++)
           buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->u[i*frame->stride_c + j] << (frame->input_bitdepth - frame->bitdepth) :
             saturate((frame->u[i*frame->stride_c + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
-        if (fwrite(buf16, 2, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing U to file");
+        out = buf16;
+      }
+      if (frame->subsample == 422) {
+        for (int j = 0; j < width>>sub; j+=2)
+          buf16[j >> 1] = (((uint16_t*)out)[j] + ((uint16_t*)out)[j+1] + 1) >> 1;
+        out = buf16;
       }
     }
+    if (fwrite(out, 1 + (frame->input_bitdepth != 8), width>>wsub, outfile) != width>>wsub)
+      fatalerror("Error writing U to file");
   }
   for (int i=0; i<height>>sub; ++i) {
+    void *out = 0;
     if (frame->input_bitdepth == 8) {
       if (frame_bitdepth > 8) {
         for (int j = 0; j < width>>sub; j++)
           buf8[j] = saturate((frame->v[i*frame->stride_c + j] + round) >> (frame->bitdepth-8), frame->input_bitdepth);
-        if (fwrite(buf8, 1, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing V to file");
+        out = buf8;
       } else
-        if (fwrite(&frame->v[i*frame->stride_c], 1, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing V to file");
+        out = &frame->v[i*frame->stride_c];
+      if (frame->subsample == 422) {
+        for (int j = 0; j < width>>sub; j+=2)
+          buf8[j >> 1] = (((uint8_t*)out)[j] + ((uint8_t*)out)[j+1] + 1) >> 1;
+        out = buf8;
+      }
     } else {
       if (frame->input_bitdepth == frame->bitdepth) {
-        if (fwrite(&frame->v[i*frame->stride_c], 2, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing V to file");
+        out = &frame->v[i*frame->stride_c];
       } else {
         for (int j = 0; j < width>>sub; j++)
           buf16[j] = frame->input_bitdepth > frame->bitdepth ? frame->v[i*frame->stride_c + j] << (frame->input_bitdepth - frame->bitdepth) :
             saturate((frame->v[i*frame->stride_c + j] + round) >> (frame->bitdepth-frame->input_bitdepth), frame->input_bitdepth);
-        if (fwrite(buf16, 2, width>>sub, outfile) != width>>sub)
-          fatalerror("Error writing V to file");
+        out = buf16;
+      }
+      if (frame->subsample == 422) {
+        for (int j = 0; j < width>>sub; j+=2)
+          buf16[j >> 1] = (((uint16_t*)out)[j] + ((uint16_t*)out)[j+1] + 1) >> 1;
+        out = buf16;
       }
     }
+    if (fwrite(out, 1 + (frame->input_bitdepth != 8), width>>wsub, outfile) != width>>wsub)
+      fatalerror("Error writing V to file");
   }
 
   thor_free(buf8);

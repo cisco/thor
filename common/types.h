@@ -62,6 +62,7 @@ typedef struct
     int area_y;
     int area_c;
     int sub;
+    int subsample;
     int frame_num;
     int bitdepth;
     int input_bitdepth;

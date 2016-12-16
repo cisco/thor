@@ -64,6 +64,8 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
     decoder_info->qmtx_offset = get_flc(6, stream) - 32;
   }
   decoder_info->subsample = get_flc(1, stream) ? 420 : 444;
+  if (decoder_info->subsample == 444 && !get_flc(1, stream))
+    decoder_info->subsample = 422;
   decoder_info->num_reorder_pics = get_flc(4, stream);
   decoder_info->cfl_intra = get_flc(1, stream);
   decoder_info->cfl_inter = get_flc(1, stream);

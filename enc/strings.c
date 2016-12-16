@@ -528,8 +528,8 @@ void check_parameters(enc_params *params)
     fatalerror("interp_ref=2 only supported with dyadic coding\n");
   }
 
-  if (params->subsample != 420 && params->subsample != 444) {
-    fatalerror("Illegal value for subsample.  Only 420 and 444 supported.\n");
+  if (params->subsample != 420 && params->subsample != 444 && params->subsample != 422) {
+    fatalerror("Illegal value for subsample.  Only 444, 422 and 420 supported.\n");
   }
 
   if (params->bitdepth != 8 && params->bitdepth != 10 && params->bitdepth != 12) {

@@ -240,7 +240,7 @@ static void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos
   int bipred = decoder_info->bipred;
 
   int qpY = decoder_info->frame_info.qpb;
-  int qpC = chroma_qp[qpY];
+  int qpC = sub ? chroma_qp[qpY] : qpY;
 
   /* Intermediate block variables */
   SAMPLE *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);

@@ -234,7 +234,7 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
 
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int sub = encoder_info->params->subsample != 444;
+      int sub = encoder_info->params->subsample == 420;
       int xposY = l*sb_size;
       int yposY = k*sb_size;
       for (int ref_idx = 0; ref_idx <= frame_info->num_ref - 1; ref_idx++){
@@ -296,7 +296,7 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
   if (encoder_info->params->deblocking){
     //TODO: Use QP per SB or average QP
     TEMPLATE(deblock_frame_y)(encoder_info->rec, encoder_info->deblock_data, width, height, qp, encoder_info->params->bitdepth);
-    int qpc = chroma_qp[qp];
+    int qpc = encoder_info->params->subsample != 444 ? chroma_qp[qp] : qp;
     TEMPLATE(deblock_frame_uv)(encoder_info->rec, encoder_info->deblock_data, width, height, qpc, encoder_info->params->bitdepth);
   }
 

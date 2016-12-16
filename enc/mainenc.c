@@ -163,22 +163,22 @@ int main(int argc, char **argv)
   height = params->height;
   width = params->width;
   ysize = height * width;
-  csize = ysize >> 2*(params->subsample == 420);
+  csize = (ysize >> 2*(params->subsample != 444)) << (params->subsample == 422);
   frame_size = (ysize + 2*csize) * (1 + (params->input_bitdepth > 8));
   encoder_info.params = params;
 
   /* Create frames*/
-  TEMPLATE(create_yuv_frame)(&orig,width,height,params->subsample == 420,0,0,params->bitdepth,params->input_bitdepth);
+  TEMPLATE(create_yuv_frame)(&orig,width,height,params->subsample,0,0,params->bitdepth,params->input_bitdepth);
   for (r=0;r<MAX_REORDER_BUFFER+1;r++){
-    TEMPLATE(create_yuv_frame)(&rec[r],width,height,params->subsample == 420,0,0,params->bitdepth,params->input_bitdepth);
+    TEMPLATE(create_yuv_frame)(&rec[r],width,height,params->subsample,0,0,params->bitdepth,params->input_bitdepth);
   }
   for (r=0;r<MAX_REF_FRAMES;r++){ //TODO: Use Long-term frame instead of a large sliding window
-    TEMPLATE(create_yuv_frame)(&ref[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
+    TEMPLATE(create_yuv_frame)(&ref[r],width,height,params->subsample,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
   }
   if (params->interp_ref) {
     for (r=0;r<MAX_SKIP_FRAMES;r++){
       encoder_info.interp_frames[r] = malloc(sizeof(yuv_frame_t));
-      TEMPLATE(create_yuv_frame)(encoder_info.interp_frames[r],width,height,params->subsample == 420,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
+      TEMPLATE(create_yuv_frame)(encoder_info.interp_frames[r],width,height,params->subsample,PADDING_Y,PADDING_Y,params->bitdepth,params->input_bitdepth);
     }
   }
 

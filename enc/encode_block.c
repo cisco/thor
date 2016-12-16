@@ -1357,7 +1357,7 @@ static int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_in
   frame_type_t frame_type = encoder_info->frame_info.frame_type;
   int enable_bipred = encoder_info->params->enable_bipred;
   int qpY = block_info->qp;
-  int qpC = chroma_qp[qpY];
+  int qpC = block_info->sub ? chroma_qp[qpY] : qpY;
 
   /* Intermediate block variables */
   int re_use = (block_info->final_encode & 1) && !(encoder_info->params->enable_tb_split);
@@ -2213,7 +2213,7 @@ static int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *blo
   int significant_flag = 0;
   int size0 = min(size,EARLY_SKIP_BLOCK_SIZE);
   int qpY = block_info->qp;
-  int qpC = chroma_qp[qpY];
+  int qpC = block_info->sub ? chroma_qp[qpY] : qpY;
 
   SAMPLE *pblock_y = thor_alloc(MAX_SB_SIZE*MAX_SB_SIZE*sizeof(SAMPLE), 32);
   SAMPLE *pblock_u = thor_alloc((MAX_SB_SIZE*MAX_SB_SIZE >> 2*block_info->sub)*sizeof(SAMPLE), 32);

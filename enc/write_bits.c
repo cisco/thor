@@ -63,6 +63,8 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
   if (params->qmtx)
     put_flc(6, params->qmtx_offset + 32, stream);
   put_flc(1, params->subsample == 420, stream);
+  if (params->subsample != 420)
+    put_flc(1, params->subsample == 444, stream);
   put_flc(4, params->num_reorder_pics, stream);
   put_flc(1, params->cfl_intra, stream);
   put_flc(1, params->cfl_inter, stream);

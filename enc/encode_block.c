@@ -2539,11 +2539,11 @@ int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int ypos,int x
 }
 
 
-void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift)
+ void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size)
 {
   uint32_t s0 = 0, s1 = 0;
-  for (int y = y0; y < y0+8; y++) {
-    for (int x = x0; x < x0+8; x++) {
+  for (int y = y0; y < y0+size; y++) {
+    for (int x = x0; x < x0+size; x++) {
       int O = org[y*so + x];
       int X = rec[(y+0)*stride + x+0];
       int A = rec[max(0, y-1)*stride + x];
@@ -2562,11 +2562,11 @@ void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, i
   *sum1 += s1 >> (shift*2);
 }
 
-void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift)
+ void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift, unsigned int size)
 {
   uint32_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
-  for (int y = y0; y < y0+8; y++) {
-    for (int x = x0; x < x0+8; x++) {
+  for (int y = y0; y < y0+size; y++) {
+    for (int x = x0; x < x0+size; x++) {
       int O = org[y*so + x];
       int X = rec[y*stride + x];
       int A = rec[max(0, y-1)*stride + x];

@@ -40,7 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 extern int chroma_qp[52];
 extern double squared_lambda_QP[52];
 
-static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift) {
+static int clpf_decision(int k, int l, const yuv_frame_t *rec, const yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size) {
   int sum0 = 0, sum1 = 0;
   for (int m = 0; m < h; m++) {
     for (int n = 0; n < w; n++) {
@@ -48,10 +48,10 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
       int ypos = (k<<fb_size_log2) + m*block_size;
       int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-        if (use_simd)
-          TEMPLATE(detect_clpf_simd)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift);
+        if (use_simd && size == 8)
+          TEMPLATE(detect_clpf_simd)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift, size);
         else
-          TEMPLATE(detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift);
+          TEMPLATE(detect_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, &sum0, &sum1, strength, shift, size);
       }
     }
   }
@@ -62,18 +62,19 @@ static int clpf_decision(int k, int l, yuv_frame_t *rec, yuv_frame_t *org, const
 // Calculate the square error of all filter settings.  Result:
 // res[0][0]   : unfiltered
 // res[0][1-3] : strength=1,2,4, no signals
+// (Only for luma:)
 // res[1][0]   : (bit count, fb size = 128)
 // res[1][1-3] : strength=1,2,4, fb size = 128
 // res[2][0]   : (bit count, fb size = 64)
 // res[2][1-3] : strength=1,2,4, fb size = 64
 // res[3][0]   : (bit count, fb size = 32)
 // res[3][1-3] : strength=1,2,4, fb size = 32
-static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, unsigned int block_size, unsigned int fb_size_log2, int w, int h, int64_t res[4][4], int bitdepth) {
+static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, unsigned int block_size, unsigned int fb_size_log2, int w, int h, int64_t res[4][4], int bitdepth, plane_t plane) {
   int filtered = 0;
   int sum[4];
   int bslog = log2i(block_size);
   sum[0] = sum[1] = sum[2] = sum[3] = 0;
-  if (fb_size_log2 > log2i(MAX_SB_SIZE) - 3) {
+  if (plane == PLANE_Y && fb_size_log2 > log2i(MAX_SB_SIZE) - 3) {
     fb_size_log2--;
     int w1 = min(1<<(fb_size_log2-bslog), w);
     int h1 = min(1<<(fb_size_log2-bslog), h);
@@ -84,12 +85,12 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
     int64_t oldfiltered = res[i][0];
     res[i][0] = 0;
 
-    filtered = clpf_rdo(y, x, rec, org, deblock_data, block_size, fb_size_log2, w1, h1, res, bitdepth);
+    filtered = clpf_rdo(y, x, rec, org, deblock_data, block_size, fb_size_log2, w1, h1, res, bitdepth, plane);
     if (1<<(fb_size_log2-bslog) < w)
-      filtered |= clpf_rdo(y, x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h1, res, bitdepth);
+      filtered |= clpf_rdo(y, x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h1, res, bitdepth, plane);
     if (1<<(fb_size_log2-bslog) < h) {
-      filtered |= clpf_rdo(y+(1<<fb_size_log2), x, rec, org, deblock_data, block_size, fb_size_log2, w1, h2, res, bitdepth);
-      filtered |= clpf_rdo(y+(1<<fb_size_log2), x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h2, res, bitdepth);
+      filtered |= clpf_rdo(y+(1<<fb_size_log2), x, rec, org, deblock_data, block_size, fb_size_log2, w1, h2, res, bitdepth, plane);
+      filtered |= clpf_rdo(y+(1<<fb_size_log2), x+(1<<fb_size_log2), rec, org, deblock_data, block_size, fb_size_log2, w2, h2, res, bitdepth, plane);
     }
 
     res[i][1] = min(sum1 + res[i][0], res[i][1]);
@@ -99,22 +100,30 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
     return filtered;
   }
 
+  SAMPLE *rec_buffer = plane != PLANE_Y ? (plane == PLANE_U ? rec->u : rec->v) : rec->y;
+  SAMPLE *org_buffer = plane != PLANE_Y ? (plane == PLANE_U ? org->u : org->v) : org->y;
+  int rec_width = plane != PLANE_Y ? (rec->width >> rec->sub) : rec->width;
+  int rec_height = plane != PLANE_Y ? (rec->height >> rec->sub) : rec->height;
+  int rec_stride = plane != PLANE_Y ? rec->stride_c : rec->stride_y;
+  int org_stride = plane != PLANE_Y ? org->stride_c : org->stride_y;
+
   for (int m = 0; m < h; m++) {
     for (int n = 0; n < w; n++) {
       int xpos = x + n*block_size;
       int ypos = y + m*block_size;
-      int index = (ypos / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + (xpos / MIN_PB_SIZE);
+      int sub = plane != PLANE_Y && org->sub;
+      int index = ((ypos << sub) / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + ((xpos << sub) / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-        if (use_simd)
-          TEMPLATE(detect_multi_clpf_simd)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum, bitdepth - 8);
+        if (use_simd && block_size == 8)
+          TEMPLATE(detect_multi_clpf_simd)(rec_buffer, org_buffer, xpos, ypos, rec_width, rec_height, org_stride, rec_stride, sum, bitdepth - 8, block_size);
         else
-          TEMPLATE(detect_multi_clpf)(rec->y, org->y, xpos, ypos, rec->width, rec->height, org->stride_y, rec->stride_y, sum, bitdepth - 8);
+          TEMPLATE(detect_multi_clpf)(rec_buffer, org_buffer, xpos, ypos, rec_width, rec_height, org_stride, rec_stride, sum, bitdepth - 8, block_size);
         filtered = 1;
       }
     }
   }
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < (plane == PLANE_Y ? 4 : 1); i++) {
     res[i][0] += sum[0];
     res[i][1] += sum[1];
     res[i][2] += sum[2];
@@ -123,25 +132,35 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
   return filtered;
 }
 
-static void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, const frame_info_t *frame_info, int *best_strength, int *best_bs, int bitdepth) {
+static void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, const frame_info_t *frame_info, int *best_strength, int *best_bs, int bitdepth, plane_t plane) {
 
   int64_t sums[4][4];
-  int width = rec->width, height = rec->height;
-  const int bs = 8;
+  int width = plane != PLANE_Y ? rec->width >> rec->sub : rec->width;
+  int height = plane != PLANE_Y ? rec->height >> rec->sub : rec->height;
+  const int bs = 8; // Accurate enough for subsampled chroma
   memset(sums, 0, sizeof(sums));
   int fb_size_log2 = log2i(MAX_SB_SIZE);
 
-  for (int k = 0; k < (height+(1<<fb_size_log2)-bs)>>fb_size_log2; k++) {
-    for (int l = 0; l < (width+(1<<fb_size_log2)-bs)>>fb_size_log2; l++) {
-      int h = min(height, (k+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
-      int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
-      h += !h << fb_size_log2;
-      w += !w << fb_size_log2;
-      clpf_rdo((k<<fb_size_log2), (l<<fb_size_log2), rec, org, deblock_data, bs, fb_size_log2, w/bs, h/bs, sums, bitdepth);
+  if (plane != PLANE_Y)
+    clpf_rdo(0, 0, rec, org, deblock_data, bs, fb_size_log2, width/bs, height/bs, sums, bitdepth, plane);
+  else
+    for (int k = 0; k < (height+(1<<fb_size_log2)-bs)>>fb_size_log2; k++) {
+      for (int l = 0; l < (width+(1<<fb_size_log2)-bs)>>fb_size_log2; l++) {
+        int h = min(height, (k+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
+        int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
+        h += !h << fb_size_log2;
+        w += !w << fb_size_log2;
+        clpf_rdo((k<<fb_size_log2), (l<<fb_size_log2), rec, org, deblock_data, bs, fb_size_log2, w/bs, h/bs, sums, bitdepth, plane);
+      }
     }
-  }
+
   for (int j = 0; j < 4; j++) {
-    int cost = (int)((frame_info->lambda * sums[j][0] + 0.5));
+    int cost = (int)((frame_info->lambda * sums[j][0] + 6));
+    if (plane != PLANE_Y) {
+      // Be somewhat conservative in chroma
+      sums[j][2] += sums[j][2] >> 7;
+      sums[j][3] += sums[j][3] >> 7;
+    }
     for (int i = 0; i < 4; i++) {
       int i_max = min(frame_info->max_clpf_strength, 3);
       if (i > i_max) sums[j][i] = 1 << 30;
@@ -150,12 +169,15 @@ static void clpf_test_frame(yuv_frame_t *rec, yuv_frame_t *org, const deblock_da
   }
 
   int64_t best = (int64_t)1 << 62;
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      if ((!i || j) && sums[i][j] < best)
-        best = sums[i][j];
+  for (int j = 0; j < (plane == PLANE_Y ? 4 : 1); j++)
+    for (int i = 0; i < 4; i++) {
+      if ((i || !j) && sums[j][i] < best) {
+        best = sums[j][i];
+      }
+    }
   best &= 15;
-  *best_bs = (best > 3) * (5 + (best < 12) + (best < 8));
+  if (best_bs)
+    *best_bs = (best > 3) * (5 + (best < 12) + (best < 8));
   *best_strength = best ? 1<<((best-1) & 3) : 0;  
 }
 
@@ -282,27 +304,30 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
     if (qp <= 16) // CLPF will have no effect if the quality is very high
       put_flc(2, 0, stream);
     else {
-      int enable_sb_flag = 1;
+      int enable_fb_flag = 1;
       int fb_size_log2;
-      int strength;
+      int strength_y, strength_u, strength_v;
       // Find the best strength for the entire frame
-      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength, &fb_size_log2, encoder_info->params->bitdepth);
+      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength_y, &fb_size_log2, encoder_info->params->bitdepth, PLANE_Y);
+      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength_u, 0, encoder_info->params->bitdepth, PLANE_U);
+      clpf_test_frame(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, &strength_v, 0, encoder_info->params->bitdepth, PLANE_V);
       if (!fb_size_log2) { // Disable sb signal
-        enable_sb_flag = 0;
+        enable_fb_flag = 0;
         fb_size_log2 = log2i(MAX_SB_SIZE);
-     }
-      if (!strength)  // Better to disable for the whole frame?
-        put_flc(2, 0, stream);
-      else {
-        // Apply the filter using the chosen strength
-        yuv_frame_t tmp = *encoder_info->rec;
-        put_flc(2, strength - (strength == 4), stream);
-        put_flc(2, (fb_size_log2-log2i(MAX_SB_SIZE)+3)*enable_sb_flag, stream);
-        TEMPLATE(clpf_frame)(encoder_info->tmp, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_sb_flag, strength, fb_size_log2, encoder_info->params->bitdepth, clpf_decision);
-        *encoder_info->rec = *encoder_info->tmp;
-        *encoder_info->tmp = tmp;
-        encoder_info->rec->frame_num = tmp.frame_num;
       }
+
+      put_flc(2, strength_y - (strength_y == 4), stream);
+      put_flc(2, strength_u - (strength_u == 4), stream);
+      put_flc(2, strength_v - (strength_v == 4), stream);
+      // Apply the filter using the chosen strengths
+      if (strength_y) {
+        put_flc(2, (fb_size_log2 - 4)*enable_fb_flag, stream);
+        TEMPLATE(clpf_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, enable_fb_flag, strength_y, fb_size_log2, encoder_info->params->bitdepth, PLANE_Y, clpf_decision);
+      }
+      if (strength_u)
+        TEMPLATE(clpf_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, strength_u, 4, encoder_info->params->bitdepth, PLANE_U, NULL);
+      if (strength_v)
+        TEMPLATE(clpf_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, strength_v, 4, encoder_info->params->bitdepth, PLANE_V, NULL);
     }
   }
 

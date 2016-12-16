@@ -34,18 +34,18 @@ void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, i
 void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff, SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip, int istride, int bitdepth);
 void transform_simd(const int16_t *block, int16_t *coeff, int size, int fast, int bitdepth);
 void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int bitdepth);
-void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
-void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int width, int height, unsigned int strength);
+void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength);
+void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength);
 void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout);
 
-SIMD_INLINE void TEMPLATE(clpf_block_simd)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
+SIMD_INLINE void TEMPLATE(clpf_block_simd)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
   if (sizex == 4 && sizey == 4) // chroma 420
-    TEMPLATE(clpf_block4)(src, dst, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src, dst, sstride, dstride, x0, y0, width, height, strength);
   else if (sizex == 4) { // chroma 422
-    TEMPLATE(clpf_block4)(src, dst, stride, x0, y0, width, height, strength);
-    TEMPLATE(clpf_block4)(src + 4*stride, dst + 4*stride, stride, x0, y0, width, height, strength);
-  } else // luma 444 or luma 420
-    TEMPLATE(clpf_block8)(src, dst, stride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src, dst, sstride, dstride, x0, y0, width, height, strength);
+    TEMPLATE(clpf_block4)(src + 4*sstride, dst + 4*dstride, sstride, dstride, x0, y0, width, height, strength);
+  } else // 444 or luma 420
+    TEMPLATE(clpf_block8)(src, dst, sstride, dstride, x0, y0, width, height, strength);
 }
 
 #endif

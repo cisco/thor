@@ -166,293 +166,126 @@ static ALIGN(16) uint64_t dshuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09L
 static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
 #endif
 
-void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, int shift)
+SIMD_INLINE void calc_diff(v256 o, v256 *a, v256 *b, v256 *c, v256 *d, v256 *e, v256 *f) {
+#ifdef HBD
+  *a = v256_sub_16(*a, o);
+  *b = v256_sub_16(*b, o);
+  *c = v256_sub_16(*c, o);
+  *d = v256_sub_16(*d, o);
+  *e = v256_sub_16(*e, o);
+  *f = v256_sub_16(*f, o);
+#else
+  // The difference will be 9 bit, offset by 128 so we can use saturated
+  // sub to avoid going to 16 bit temporarily before "strength" clipping.
+  v256 c128 = v256_dup_16(128);
+  v256 x = v256_add_16(c128, o);
+  *a = v256_ssub_s16(v256_add_16(c128, *a), x);
+  *b = v256_ssub_s16(v256_add_16(c128, *b), x);
+  *c = v256_ssub_s16(v256_add_16(c128, *c), x);
+  *d = v256_ssub_s16(v256_add_16(c128, *d), x);
+  *e = v256_ssub_s16(v256_add_16(c128, *e), x);
+  *f = v256_ssub_s16(v256_add_16(c128, *f), x);
+#endif
+}
+
+SIMD_INLINE v256 delta_kernel(v256 o, v256 a, v256 b, v256 c, v256 d, v256 e, v256 f, v256 sp, v256 sm) {
+  v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(c, sp), sm),
+                        v256_max_s16(v256_min_s16(d, sp), sm));
+  v256 delta = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, sp), sm),
+                                                           v256_max_s16(v256_min_s16(f, sp), sm)), 2),
+                                     v256_add_16(v256_max_s16(v256_min_s16(b, sp), sm),
+                                                v256_max_s16(v256_min_s16(e, sp), sm))),
+                          v256_add_16(v256_add_16(tmp, tmp), tmp));
+  return v256_add_16(o, v256_shr_s16(v256_add_16(v256_dup_16(8), v256_add_16(delta, v256_cmplt_s16(delta, v256_zero()))), 4));
+}
+
+SIMD_INLINE v256 calc_delta(v256 o, v256 a, v256 b, v256 c, v256 d, v256 e, v256 f, v256 sp, v256 sm) {
+  calc_diff(o, &a, &b, &c, &d, &e, &f);
+  return delta_kernel(o, a, b, c, d, e, f, sp, sm);
+}
+
+SIMD_INLINE void clip_sides(v256 *b, v256 *c, v256 *d, v256 *e, int left, int right) {
+  if (!left) {  // Left clipping
+    *b = v256_pshuffle_8(*b, v256_load_aligned(bshuff));
+    *c = v256_pshuffle_8(*c, v256_load_aligned(cshuff));
+  }
+  if (!right) {  // Right clipping
+    *d = v256_pshuffle_8(*d, v256_load_aligned(dshuff));
+    *e = v256_pshuffle_8(*e, v256_load_aligned(eshuff));
+  }
+}
+
+SIMD_INLINE void read_two_lines(const SAMPLE *rec, const SAMPLE *org, int stride, int x0, int y0, int bottom, int right, int y, v256 *o, v256 *r, v256 *a, v256 *b, v256 *c, v256 *d, v256 *e, v256 *f) {
+  const v128 k1 = v128_load_aligned(org);
+  const v128 k2 = v128_load_aligned(org + stride);
+  const v128 l1 = v128_load_aligned(rec);
+  const v128 l2 = v128_load_aligned(rec + stride);
+  *o = v256_from_v128(k1, k2);
+  *r = v256_from_v128(l1, l2);
+  *a = v256_from_v128(v128_load_aligned(rec - (y != -y0) * stride), l1);
+  *f = v256_from_v128(l2, v128_load_aligned(rec + ((y != bottom) + 1) * stride));
+  *b = v256_from_v128(v128_load_unaligned(rec - 2 * !!x0), v128_load_unaligned(rec - 2 * !!x0 + stride));
+  *c = v256_from_v128(v128_load_unaligned(rec - !!x0), v128_load_unaligned(rec - !!x0 + stride));
+  *d = v256_from_v128(v128_load_unaligned(rec + !!right), v128_load_unaligned(rec + !!right + stride));
+  *e = v256_from_v128(v128_load_unaligned(rec + 2 * !!right), v128_load_unaligned(rec + 2 * !!right + stride));
+  clip_sides(b, c, d, e, x0, right);
+}
+
+void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size)
 {
+  const v256 sp = v256_dup_16(strength);
+  const v256 sm = v256_dup_16(-(int)strength);
+  const int right = width - 8 - x0;
+  const int bottom = height - 2 - y0;
   ssd256_internal_u16 ssd0 = v256_ssd_u16_init();
   ssd256_internal_u16 ssd1 = v256_ssd_u16_init();
-  v256 c128 = v256_dup_16(128); // Only necessary for the LBD version
-  v256 sp = v256_dup_16(strength);
-  v256 sm = v256_dup_16(-(int)strength);
-  int bottom = height-2-y0;
+  int y;
 
-  rec += x0 + y0*stride;
-  org += x0 + y0*so;
+  rec += x0 + y0 * stride;
+  org += x0 + y0 * stride;
 
-  if (!x0) { // Clip left
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_pshuffle_8(x, v256_load_aligned(bshuff));
-      v256 c = v256_pshuffle_8(x, v256_load_aligned(cshuff));
-      v256 d = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 1),
-					      v128_load_unaligned(rec + 1 + stride)));
-      v256 e = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 2),
-					      v128_load_unaligned(rec + 2 + stride)));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(c, x), sp), sm),
-			    v256_max_s16(v256_min_s16(v256_ssub_s16(d, x), sp), sm));
-      v256 delta = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(a, x), sp), sm),
-							       v256_max_s16(v256_min_s16(v256_ssub_s16(f, x), sp), sm)), 2),
-					 v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(b, x), sp), sm),
-						    v256_max_s16(v256_min_s16(v256_ssub_s16(e, x), sp), sm))),
-			      v256_add_16(v256_add_16(tmp, tmp), tmp));
-
-      delta = v256_shr_s16(v256_add_16(v256_dup_16(8), v256_add_16(delta, v256_cmplt_s16(delta, v256_zero()))), 4);
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
-  } else if (!(width-x0-8)) { // Clip right
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 2),
-					      v128_load_unaligned(rec - 2 + stride)));
-      v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 1),
-					      v128_load_unaligned(rec - 1 + stride)));
-      v256 d = v256_pshuffle_8(x, v256_load_aligned(dshuff));
-      v256 e = v256_pshuffle_8(x, v256_load_aligned(eshuff));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(c, x), sp), sm),
-			    v256_max_s16(v256_min_s16(v256_ssub_s16(d, x), sp), sm));
-      v256 delta = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(a, x), sp), sm),
-							       v256_max_s16(v256_min_s16(v256_ssub_s16(f, x), sp), sm)), 2),
-					 v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(b, x), sp), sm),
-						    v256_max_s16(v256_min_s16(v256_ssub_s16(e, x), sp), sm))),
-			      v256_add_16(v256_add_16(tmp, tmp), tmp));
-      delta = v256_shr_s16(v256_add_16(v256_dup_16(8), v256_add_16(delta, v256_cmplt_s16(delta, v256_zero()))), 4);
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
-  } else { // No left/right clipping
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 2),
-					      v128_load_unaligned(rec - 2 + stride)));
-      v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 1),
-					      v128_load_unaligned(rec - 1 + stride)));
-      v256 d = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 1),
-					      v128_load_unaligned(rec + 1 + stride)));
-      v256 e = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 2),
-					      v128_load_unaligned(rec + 2 + stride)));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(c, x), sp), sm),
-			    v256_max_s16(v256_min_s16(v256_ssub_s16(d, x), sp), sm));
-      v256 delta = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(a, x), sp), sm),
-							       v256_max_s16(v256_min_s16(v256_ssub_s16(f, x), sp), sm)), 2),
-					 v256_add_16(v256_max_s16(v256_min_s16(v256_ssub_s16(b, x), sp), sm),
-						    v256_max_s16(v256_min_s16(v256_ssub_s16(e, x), sp), sm))),
-			      v256_add_16(v256_add_16(tmp, tmp), tmp));
-      delta = v256_shr_s16(v256_add_16(v256_dup_16(8), v256_add_16(delta, v256_cmplt_s16(delta, v256_zero()))), 4);
-
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
+  for (y = 0; y < 8; y += 2) {
+    v256 a, b, c, d, e, f, o, r;
+    read_two_lines(rec, org, stride, x0, y0, bottom, right, y, &o, &r, &a, &b, &c, &d, &e, &f);
+    ssd0 = v256_ssd_u16(ssd0, o, r);
+    ssd1 = v256_ssd_u16(ssd1, o, calc_delta(r, a, b, c, d, e, f, sp, sm));
+    rec += stride * 2;
+    org += stride * 2;
   }
   *sum0 += v256_ssd_u16_sum(ssd0) >> (shift*2);
   *sum1 += v256_ssd_u16_sum(ssd1) >> (shift*2);
 }
 
+// Test multiple filter strengths at once.
+SIMD_INLINE void calc_delta_multi(v256 r, v256 o, v256 a, v256 b, v256 c,
+                                  v256 d, v256 e, v256 f, ssd256_internal_u16 *ssd1,
+                                  ssd256_internal_u16 *ssd2, ssd256_internal_u16 *ssd3, unsigned int shift) {
+  calc_diff(r, &a, &b, &c, &d, &e, &f);
+  *ssd1 = v256_ssd_u16(*ssd1, o, delta_kernel(r, a, b, c, d, e, f, v256_dup_16(1 << shift), v256_dup_16(-1 << shift)));
+  *ssd2 = v256_ssd_u16(*ssd2, o, delta_kernel(r, a, b, c, d, e, f, v256_dup_16(2 << shift), v256_dup_16(-2 << shift)));
+  *ssd3 = v256_ssd_u16(*ssd3, o, delta_kernel(r, a, b, c, d, e, f, v256_dup_16(4 << shift), v256_dup_16(-4 << shift)));
+}
 
-// Test multiple filter strengths at once.  Use a simpler filter (4 tap, every second line).
-void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, int shift)
+void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift, unsigned int size)
 {
-  v256 c128 = v256_dup_16(128); // Only necessary for the LBD version
-  v256 cp1 = v256_dup_16(1 << shift);
-  v256 cm1 = v256_dup_16(-1 << shift);
-  v256 cp2 = v256_dup_16(2 << shift);
-  v256 cm2 = v256_dup_16(-2 << shift);
-  v256 cp4 = v256_dup_16(4 << shift);
-  v256 cm4 = v256_dup_16(-4 << shift);
-  v256 c8 = v256_dup_16(8);
-  int bottom = height-2-y0;
+  const int bottom = height - 2 - y0;
+  const int right = width - 8 - x0;
   ssd256_internal_u16 ssd0 = v256_ssd_u16_init();
   ssd256_internal_u16 ssd1 = v256_ssd_u16_init();
   ssd256_internal_u16 ssd2 = v256_ssd_u16_init();
   ssd256_internal_u16 ssd3 = v256_ssd_u16_init();
+  int y;
 
-  rec += x0 + y0*stride;
-  org += x0 + y0*so;
+  rec += x0 + y0 * stride;
+  org += x0 + y0 * stride;
 
-  if (!x0) { // Clip left
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_pshuffle_8(x, v256_load_aligned(bshuff));
-      v256 c = v256_pshuffle_8(x, v256_load_aligned(cshuff));
-      v256 d = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 1),
-					      v128_load_unaligned(rec + 1 + stride)));
-      v256 e = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 2),
-					      v128_load_unaligned(rec + 2 + stride)));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v256_ssub_s16(a, x);
-      b = v256_ssub_s16(b, x);
-      c = v256_ssub_s16(c, x);
-      d = v256_ssub_s16(d, x);
-      e = v256_ssub_s16(e, x);
-      f = v256_ssub_s16(f, x);
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp1), cm1), v256_max_s16(v256_min_s16(d, cp1), cm1));
-      v256 delta1 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp1), cm1),
-                                                                v256_max_s16(v256_min_s16(f, cp1), cm1)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp1), cm1),
-                                                     v256_max_s16(v256_min_s16(e, cp1), cm1))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp2), cm2), v256_max_s16(v256_min_s16(d, cp2), cm2));
-      v256 delta2 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp2), cm2),
-                                                                v256_max_s16(v256_min_s16(f, cp2), cm2)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp2), cm2),
-                                                     v256_max_s16(v256_min_s16(e, cp2), cm2))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp4), cm4), v256_max_s16(v256_min_s16(d, cp4), cm4));
-      v256 delta3 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp4), cm4),
-                                                                v256_max_s16(v256_min_s16(f, cp4), cm4)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp4), cm4),
-                                                     v256_max_s16(v256_min_s16(e, cp4), cm4))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta1, v256_cmplt_s16(delta1, v256_zero()))), 4)));
-      ssd2 = v256_ssd_u16(ssd2, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta2, v256_cmplt_s16(delta2, v256_zero()))), 4)));
-      ssd3 = v256_ssd_u16(ssd3, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta3, v256_cmplt_s16(delta3, v256_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
-  } else if (!(width-x0-8)) { // Clip right
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 2),
-					      v128_load_unaligned(rec - 2 + stride)));
-      v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 1),
-					      v128_load_unaligned(rec - 1 + stride)));
-      v256 d = v256_pshuffle_8(x, v256_load_aligned(dshuff));
-      v256 e = v256_pshuffle_8(x, v256_load_aligned(eshuff));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v256_ssub_s16(a, x);
-      b = v256_ssub_s16(b, x);
-      c = v256_ssub_s16(c, x);
-      d = v256_ssub_s16(d, x);
-      e = v256_ssub_s16(e, x);
-      f = v256_ssub_s16(f, x);
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp1), cm1), v256_max_s16(v256_min_s16(d, cp1), cm1));
-      v256 delta1 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp1), cm1),
-                                                                v256_max_s16(v256_min_s16(f, cp1), cm1)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp1), cm1),
-                                                     v256_max_s16(v256_min_s16(e, cp1), cm1))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp2), cm2), v256_max_s16(v256_min_s16(d, cp2), cm2));
-      v256 delta2 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp2), cm2),
-                                                                v256_max_s16(v256_min_s16(f, cp2), cm2)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp2), cm2),
-                                                     v256_max_s16(v256_min_s16(e, cp2), cm2))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp4), cm4), v256_max_s16(v256_min_s16(d, cp4), cm4));
-      v256 delta3 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp4), cm4),
-                                                                v256_max_s16(v256_min_s16(f, cp4), cm4)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp4), cm4),
-                                                     v256_max_s16(v256_min_s16(e, cp4), cm4))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta1, v256_cmplt_s16(delta1, v256_zero()))), 4)));
-      ssd2 = v256_ssd_u16(ssd2, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta2, v256_cmplt_s16(delta2, v256_zero()))), 4)));
-      ssd3 = v256_ssd_u16(ssd3, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta3, v256_cmplt_s16(delta3, v256_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
-  } else { // No left/right clipping
-    for (int y = 0; y < 8; y += 2) {
-      v128 k1 = v128_load_aligned(org);
-      v128 k2 = v128_load_aligned(org+so);
-      v128 l1 = v128_load_aligned(rec);
-      v128 l2 = v128_load_aligned(rec+stride);
-      v256 o = v256_from_v128(k1, k2);
-      v256 q = v256_from_v128(l1, l2);
-      v256 x = v256_add_16(c128, q);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(rec - (y != -y0)*stride), l1));
-      v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 2),
-					      v128_load_unaligned(rec - 2 + stride)));
-      v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec - 1),
-					      v128_load_unaligned(rec - 1 + stride)));
-      v256 d = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 1),
-					      v128_load_unaligned(rec + 1 + stride)));
-      v256 e = v256_add_16(c128, v256_from_v128(v128_load_unaligned(rec + 2),
-					      v128_load_unaligned(rec + 2 + stride)));
-      v256 f = v256_add_16(c128, v256_from_v128(l2, v128_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v256_ssub_s16(a, x);
-      b = v256_ssub_s16(b, x);
-      c = v256_ssub_s16(c, x);
-      d = v256_ssub_s16(d, x);
-      e = v256_ssub_s16(e, x);
-      f = v256_ssub_s16(f, x);
-      v256 tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp1), cm1), v256_max_s16(v256_min_s16(d, cp1), cm1));
-      v256 delta1 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp1), cm1),
-                                                                v256_max_s16(v256_min_s16(f, cp1), cm1)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp1), cm1),
-                                                     v256_max_s16(v256_min_s16(e, cp1), cm1))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp2), cm2), v256_max_s16(v256_min_s16(d, cp2), cm2));
-      v256 delta2 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp2), cm2),
-                                                                v256_max_s16(v256_min_s16(f, cp2), cm2)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp2), cm2),
-                                                     v256_max_s16(v256_min_s16(e, cp2), cm2))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-      tmp = v256_add_16(v256_max_s16(v256_min_s16(c, cp4), cm4), v256_max_s16(v256_min_s16(d, cp4), cm4));
-      v256 delta3 = v256_add_16(v256_add_16(v256_shl_16(v256_add_16(v256_max_s16(v256_min_s16(a, cp4), cm4),
-                                                                v256_max_s16(v256_min_s16(f, cp4), cm4)), 2),
-                                          v256_add_16(v256_max_s16(v256_min_s16(b, cp4), cm4),
-                                                     v256_max_s16(v256_min_s16(e, cp4), cm4))),
-                               v256_add_16(v256_add_16(tmp, tmp), tmp));
-
-      ssd0 = v256_ssd_u16(ssd0, o, q);
-      ssd1 = v256_ssd_u16(ssd1, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta1, v256_cmplt_s16(delta1, v256_zero()))), 4)));
-      ssd2 = v256_ssd_u16(ssd2, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta2, v256_cmplt_s16(delta2, v256_zero()))), 4)));
-      ssd3 = v256_ssd_u16(ssd3, o, v256_add_16(q, v256_shr_s16(v256_add_16(c8, v256_add_16(delta3, v256_cmplt_s16(delta3, v256_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
+  for (y = 0; y < 8; y += 2) {
+    v256 a, b, c, d, e, f, o, r;
+    read_two_lines(rec, org, stride, x0, y0, bottom, right, y, &o, &r, &a, &b, &c, &d, &e, &f);
+    ssd0 = v256_ssd_u16(ssd0, o, r);
+    calc_delta_multi(r, o, a, b, c, d, e, f, &ssd1, &ssd2, &ssd3, shift);
+    rec += 2 * stride;
+    org += 2 * stride;
   }
   sum[0] += v256_ssd_u16_sum(ssd0) >> (shift*2);
   sum[1] += v256_ssd_u16_sum(ssd1) >> (shift*2);

@@ -166,293 +166,126 @@ static ALIGN(16) uint64_t dshuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09L
 static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
 #endif
 
-void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, int shift)
+SIMD_INLINE void calc_diff(v128 o, v128 *a, v128 *b, v128 *c, v128 *d, v128 *e, v128 *f) {
+#ifdef HBD
+  *a = v128_sub_8(*a, o);
+  *b = v128_sub_8(*b, o);
+  *c = v128_sub_8(*c, o);
+  *d = v128_sub_8(*d, o);
+  *e = v128_sub_8(*e, o);
+  *f = v128_sub_8(*f, o);
+#else
+  // The difference will be 9 bit, offset by 128 so we can use saturated
+  // sub to avoid going to 16 bit temporarily before "strength" clipping.
+  v128 c128 = v128_dup_8(128);
+  v128 x = v128_add_8(c128, o);
+  *a = v128_ssub_s8(v128_add_8(c128, *a), x);
+  *b = v128_ssub_s8(v128_add_8(c128, *b), x);
+  *c = v128_ssub_s8(v128_add_8(c128, *c), x);
+  *d = v128_ssub_s8(v128_add_8(c128, *d), x);
+  *e = v128_ssub_s8(v128_add_8(c128, *e), x);
+  *f = v128_ssub_s8(v128_add_8(c128, *f), x);
+#endif
+}
+
+SIMD_INLINE v128 delta_kernel(v128 o, v128 a, v128 b, v128 c, v128 d, v128 e, v128 f, v128 sp, v128 sm) {
+  v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(c, sp), sm),
+                        v128_max_s8(v128_min_s8(d, sp), sm));
+  v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, sp), sm),
+                                                           v128_max_s8(v128_min_s8(f, sp), sm)), 2),
+                                     v128_add_8(v128_max_s8(v128_min_s8(b, sp), sm),
+                                                v128_max_s8(v128_min_s8(e, sp), sm))),
+                          v128_add_8(v128_add_8(tmp, tmp), tmp));
+  return v128_add_8(o, v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4));
+}
+
+SIMD_INLINE v128 calc_delta(v128 o, v128 a, v128 b, v128 c, v128 d, v128 e, v128 f, v128 sp, v128 sm) {
+  calc_diff(o, &a, &b, &c, &d, &e, &f);
+  return delta_kernel(o, a, b, c, d, e, f, sp, sm);
+}
+
+SIMD_INLINE void clip_sides(v128 *b, v128 *c, v128 *d, v128 *e, int left, int right) {
+  if (!left) {  // Left clipping
+    *b = v128_shuffle_8(*b, v128_load_aligned(bshuff));
+    *c = v128_shuffle_8(*c, v128_load_aligned(cshuff));
+  }
+  if (!right) {  // Right clipping
+    *d = v128_shuffle_8(*d, v128_load_aligned(dshuff));
+    *e = v128_shuffle_8(*e, v128_load_aligned(eshuff));
+  }
+}
+
+SIMD_INLINE void read_two_lines(const SAMPLE *rec, const SAMPLE *org, int stride, int x0, int y0, int bottom, int right, int y, v128 *o, v128 *r, v128 *a, v128 *b, v128 *c, v128 *d, v128 *e, v128 *f) {
+  const v64 k1 = v64_load_aligned(org);
+  const v64 k2 = v64_load_aligned(org + stride);
+  const v64 l1 = v64_load_aligned(rec);
+  const v64 l2 = v64_load_aligned(rec + stride);
+  *o = v128_from_v64(k1, k2);
+  *r = v128_from_v64(l1, l2);
+  *a = v128_from_v64(v64_load_aligned(rec - (y != -y0) * stride), l1);
+  *f = v128_from_v64(l2, v64_load_aligned(rec + ((y != bottom) + 1) * stride));
+  *b = v128_from_v64(v64_load_unaligned(rec - 2 * !!x0), v64_load_unaligned(rec - 2 * !!x0 + stride));
+  *c = v128_from_v64(v64_load_unaligned(rec - !!x0), v64_load_unaligned(rec - !!x0 + stride));
+  *d = v128_from_v64(v64_load_unaligned(rec + !!right), v64_load_unaligned(rec + !!right + stride));
+  *e = v128_from_v64(v64_load_unaligned(rec + 2 * !!right), v64_load_unaligned(rec + 2 * !!right + stride));
+  clip_sides(b, c, d, e, x0, right);
+}
+
+void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size)
 {
+  const v128 sp = v128_dup_8(strength);
+  const v128 sm = v128_dup_8(-(int)strength);
+  const int right = width - 8 - x0;
+  const int bottom = height - 2 - y0;
   ssd128_internal ssd0 = v128_ssd_u8_init();
   ssd128_internal ssd1 = v128_ssd_u8_init();
-  v128 c128 = v128_dup_8(128); // Only necessary for the LBD version
-  v128 sp = v128_dup_8(strength);
-  v128 sm = v128_dup_8(-(int)strength);
-  int bottom = height-2-y0;
+  int y;
 
-  rec += x0 + y0*stride;
-  org += x0 + y0*so;
+  rec += x0 + y0 * stride;
+  org += x0 + y0 * stride;
 
-  if (!x0) { // Clip left
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
-      v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
-					      v64_load_unaligned(rec + 1 + stride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
-					      v64_load_unaligned(rec + 2 + stride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-
-      delta = v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4);
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
-  } else if (!(width-x0-8)) { // Clip right
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 2),
-					      v64_load_unaligned(rec - 2 + stride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
-					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_shuffle_8(x, v128_load_aligned(dshuff));
-      v128 e = v128_shuffle_8(x, v128_load_aligned(eshuff));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-      delta = v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4);
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
-  } else { // No left/right clipping
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 2),
-					      v64_load_unaligned(rec - 2 + stride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
-					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
-					      v64_load_unaligned(rec + 1 + stride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
-					      v64_load_unaligned(rec + 2 + stride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-      delta = v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4);
-
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, delta));
-      rec += stride*2;
-      org += so*2;
-    }
+  for (y = 0; y < 8; y += 2) {
+    v128 a, b, c, d, e, f, o, r;
+    read_two_lines(rec, org, stride, x0, y0, bottom, right, y, &o, &r, &a, &b, &c, &d, &e, &f);
+    ssd0 = v128_ssd_u8(ssd0, o, r);
+    ssd1 = v128_ssd_u8(ssd1, o, calc_delta(r, a, b, c, d, e, f, sp, sm));
+    rec += stride * 2;
+    org += stride * 2;
   }
   *sum0 += v128_ssd_u8_sum(ssd0) >> (shift*2);
   *sum1 += v128_ssd_u8_sum(ssd1) >> (shift*2);
 }
 
+// Test multiple filter strengths at once.
+SIMD_INLINE void calc_delta_multi(v128 r, v128 o, v128 a, v128 b, v128 c,
+                                  v128 d, v128 e, v128 f, ssd128_internal *ssd1,
+                                  ssd128_internal *ssd2, ssd128_internal *ssd3, unsigned int shift) {
+  calc_diff(r, &a, &b, &c, &d, &e, &f);
+  *ssd1 = v128_ssd_u8(*ssd1, o, delta_kernel(r, a, b, c, d, e, f, v128_dup_8(1 << shift), v128_dup_8(-1 << shift)));
+  *ssd2 = v128_ssd_u8(*ssd2, o, delta_kernel(r, a, b, c, d, e, f, v128_dup_8(2 << shift), v128_dup_8(-2 << shift)));
+  *ssd3 = v128_ssd_u8(*ssd3, o, delta_kernel(r, a, b, c, d, e, f, v128_dup_8(4 << shift), v128_dup_8(-4 << shift)));
+}
 
-// Test multiple filter strengths at once.  Use a simpler filter (4 tap, every second line).
-void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, int shift)
+void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift, unsigned int size)
 {
-  v128 c128 = v128_dup_8(128); // Only necessary for the LBD version
-  v128 cp1 = v128_dup_8(1 << shift);
-  v128 cm1 = v128_dup_8(-1 << shift);
-  v128 cp2 = v128_dup_8(2 << shift);
-  v128 cm2 = v128_dup_8(-2 << shift);
-  v128 cp4 = v128_dup_8(4 << shift);
-  v128 cm4 = v128_dup_8(-4 << shift);
-  v128 c8 = v128_dup_8(8);
-  int bottom = height-2-y0;
+  const int bottom = height - 2 - y0;
+  const int right = width - 8 - x0;
   ssd128_internal ssd0 = v128_ssd_u8_init();
   ssd128_internal ssd1 = v128_ssd_u8_init();
   ssd128_internal ssd2 = v128_ssd_u8_init();
   ssd128_internal ssd3 = v128_ssd_u8_init();
+  int y;
 
-  rec += x0 + y0*stride;
-  org += x0 + y0*so;
+  rec += x0 + y0 * stride;
+  org += x0 + y0 * stride;
 
-  if (!x0) { // Clip left
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
-      v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
-					      v64_load_unaligned(rec + 1 + stride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
-					      v64_load_unaligned(rec + 2 + stride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v128_ssub_s8(a, x);
-      b = v128_ssub_s8(b, x);
-      c = v128_ssub_s8(c, x);
-      d = v128_ssub_s8(d, x);
-      e = v128_ssub_s8(e, x);
-      f = v128_ssub_s8(f, x);
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp1), cm1), v128_max_s8(v128_min_s8(d, cp1), cm1));
-      v128 delta1 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp1), cm1),
-                                                                v128_max_s8(v128_min_s8(f, cp1), cm1)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp1), cm1),
-                                                     v128_max_s8(v128_min_s8(e, cp1), cm1))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp2), cm2), v128_max_s8(v128_min_s8(d, cp2), cm2));
-      v128 delta2 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp2), cm2),
-                                                                v128_max_s8(v128_min_s8(f, cp2), cm2)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp2), cm2),
-                                                     v128_max_s8(v128_min_s8(e, cp2), cm2))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp4), cm4), v128_max_s8(v128_min_s8(d, cp4), cm4));
-      v128 delta3 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp4), cm4),
-                                                                v128_max_s8(v128_min_s8(f, cp4), cm4)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp4), cm4),
-                                                     v128_max_s8(v128_min_s8(e, cp4), cm4))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta1, v128_cmplt_s8(delta1, v128_zero()))), 4)));
-      ssd2 = v128_ssd_u8(ssd2, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta2, v128_cmplt_s8(delta2, v128_zero()))), 4)));
-      ssd3 = v128_ssd_u8(ssd3, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta3, v128_cmplt_s8(delta3, v128_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
-  } else if (!(width-x0-8)) { // Clip right
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 2),
-					      v64_load_unaligned(rec - 2 + stride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
-					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_shuffle_8(x, v128_load_aligned(dshuff));
-      v128 e = v128_shuffle_8(x, v128_load_aligned(eshuff));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v128_ssub_s8(a, x);
-      b = v128_ssub_s8(b, x);
-      c = v128_ssub_s8(c, x);
-      d = v128_ssub_s8(d, x);
-      e = v128_ssub_s8(e, x);
-      f = v128_ssub_s8(f, x);
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp1), cm1), v128_max_s8(v128_min_s8(d, cp1), cm1));
-      v128 delta1 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp1), cm1),
-                                                                v128_max_s8(v128_min_s8(f, cp1), cm1)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp1), cm1),
-                                                     v128_max_s8(v128_min_s8(e, cp1), cm1))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp2), cm2), v128_max_s8(v128_min_s8(d, cp2), cm2));
-      v128 delta2 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp2), cm2),
-                                                                v128_max_s8(v128_min_s8(f, cp2), cm2)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp2), cm2),
-                                                     v128_max_s8(v128_min_s8(e, cp2), cm2))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp4), cm4), v128_max_s8(v128_min_s8(d, cp4), cm4));
-      v128 delta3 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp4), cm4),
-                                                                v128_max_s8(v128_min_s8(f, cp4), cm4)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp4), cm4),
-                                                     v128_max_s8(v128_min_s8(e, cp4), cm4))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta1, v128_cmplt_s8(delta1, v128_zero()))), 4)));
-      ssd2 = v128_ssd_u8(ssd2, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta2, v128_cmplt_s8(delta2, v128_zero()))), 4)));
-      ssd3 = v128_ssd_u8(ssd3, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta3, v128_cmplt_s8(delta3, v128_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
-  } else { // No left/right clipping
-    for (int y = 0; y < 8; y += 2) {
-      v64 k1 = v64_load_aligned(org);
-      v64 k2 = v64_load_aligned(org+so);
-      v64 l1 = v64_load_aligned(rec);
-      v64 l2 = v64_load_aligned(rec+stride);
-      v128 o = v128_from_v64(k1, k2);
-      v128 q = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, q);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(rec - (y != -y0)*stride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 2),
-					      v64_load_unaligned(rec - 2 + stride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec - 1),
-					      v64_load_unaligned(rec - 1 + stride)));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 1),
-					      v64_load_unaligned(rec + 1 + stride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(rec + 2),
-					      v64_load_unaligned(rec + 2 + stride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(rec + ((y!=bottom)+1)*stride)));
-
-      a = v128_ssub_s8(a, x);
-      b = v128_ssub_s8(b, x);
-      c = v128_ssub_s8(c, x);
-      d = v128_ssub_s8(d, x);
-      e = v128_ssub_s8(e, x);
-      f = v128_ssub_s8(f, x);
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp1), cm1), v128_max_s8(v128_min_s8(d, cp1), cm1));
-      v128 delta1 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp1), cm1),
-                                                                v128_max_s8(v128_min_s8(f, cp1), cm1)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp1), cm1),
-                                                     v128_max_s8(v128_min_s8(e, cp1), cm1))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp2), cm2), v128_max_s8(v128_min_s8(d, cp2), cm2));
-      v128 delta2 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp2), cm2),
-                                                                v128_max_s8(v128_min_s8(f, cp2), cm2)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp2), cm2),
-                                                     v128_max_s8(v128_min_s8(e, cp2), cm2))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-      tmp = v128_add_8(v128_max_s8(v128_min_s8(c, cp4), cm4), v128_max_s8(v128_min_s8(d, cp4), cm4));
-      v128 delta3 = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(a, cp4), cm4),
-                                                                v128_max_s8(v128_min_s8(f, cp4), cm4)), 2),
-                                          v128_add_8(v128_max_s8(v128_min_s8(b, cp4), cm4),
-                                                     v128_max_s8(v128_min_s8(e, cp4), cm4))),
-                               v128_add_8(v128_add_8(tmp, tmp), tmp));
-
-      ssd0 = v128_ssd_u8(ssd0, o, q);
-      ssd1 = v128_ssd_u8(ssd1, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta1, v128_cmplt_s8(delta1, v128_zero()))), 4)));
-      ssd2 = v128_ssd_u8(ssd2, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta2, v128_cmplt_s8(delta2, v128_zero()))), 4)));
-      ssd3 = v128_ssd_u8(ssd3, o, v128_add_8(q, v128_shr_s8(v128_add_8(c8, v128_add_8(delta3, v128_cmplt_s8(delta3, v128_zero()))), 4)));
-      rec += 2*stride;
-      org += 2*so;
-    }
+  for (y = 0; y < 8; y += 2) {
+    v128 a, b, c, d, e, f, o, r;
+    read_two_lines(rec, org, stride, x0, y0, bottom, right, y, &o, &r, &a, &b, &c, &d, &e, &f);
+    ssd0 = v128_ssd_u8(ssd0, o, r);
+    calc_delta_multi(r, o, a, b, c, d, e, f, &ssd1, &ssd2, &ssd3, shift);
+    rec += 2 * stride;
+    org += 2 * stride;
   }
   sum[0] += v128_ssd_u8_sum(ssd0) >> (shift*2);
   sum[1] += v128_ssd_u8_sum(ssd1) >> (shift*2);

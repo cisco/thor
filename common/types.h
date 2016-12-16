@@ -83,6 +83,12 @@ typedef enum {
 } frame_type_t;
 
 typedef enum {
+    PLANE_Y,
+    PLANE_U,
+    PLANE_V
+} plane_t;
+
+typedef enum {
     MODE_SKIP = 0,
     MODE_INTRA,
     MODE_INTER,

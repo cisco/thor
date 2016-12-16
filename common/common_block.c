@@ -111,19 +111,19 @@ int TEMPLATE(clpf_sample)(int X, int A, int B, int C, int D, int E, int F, int b
   return (8 + delta - (delta < 0)) >> 4;
 }
 
-void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int stride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
+void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
   for (int y = y0; y < y0+sizey; y++){
     for (int x = x0; x < x0+sizex; x++) {
-      int X = src[y*stride + x];
-      int A = src[max(0, y-1)*stride + x];
-      int B = src[y*stride + max(0, x-2)];
-      int C = src[y*stride + max(0, x-1)];
-      int D = src[y*stride + min(width-1, x+1)];
-      int E = src[y*stride + min(width-1, x+2)];
-      int F = src[min(height-1, y+1)*stride + x];
+      int X = src[y*sstride + x];
+      int A = src[max(0, y-1)*sstride + x];
+      int B = src[y*sstride + max(0, x-2)];
+      int C = src[y*sstride + max(0, x-1)];
+      int D = src[y*sstride + min(width-1, x+1)];
+      int E = src[y*sstride + min(width-1, x+2)];
+      int F = src[min(height-1, y+1)*sstride + x];
       int delta;
       delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
-      dst[y*stride + x] = X + delta;
+      dst[y*dstride + x] = X + delta;
     }
   }
 }

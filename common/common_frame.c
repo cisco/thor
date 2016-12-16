@@ -714,93 +714,148 @@ void TEMPLATE(create_reference_frame)(yuv_frame_t  *ref,yuv_frame_t  *rec)
   TEMPLATE(pad_yuv_frame)(ref);
 }
 
-void TEMPLATE(clpf_frame)(yuv_frame_t *dst, yuv_frame_t *rec, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth,
-                          int(*decision)(int, int, yuv_frame_t *, yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int)) {
+void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_fb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, unsigned int plane,
+                          int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int)) {
 
   /* Constrained low-pass filter (CLPF) */
-  int width = rec->width;
-  int height = rec->height;
-  int xpos, ypos, index;
-  int stride_y = rec->stride_y;
-  int stride_c = rec->stride_c;
-  const int bs = 8;
+  int c, k, l, m, n;
+  const int sub = plane != PLANE_Y && frame->sub;
+  const int bs = sub ? 4 : 8;
+  const int bslog = log2i(bs);
+  int width = frame->width >> sub;
+  int height = frame->height >> sub;
+  int xpos, ypos;
+  const int sstride = plane != PLANE_Y ? frame->stride_c : frame->stride_y;
+  int dstride = bs;
+  const int num_fb_hor = (width + (1 << fb_size_log2) - 1) >> fb_size_log2;
+  const int num_fb_ver = (height + (1 << fb_size_log2) - 1) >> fb_size_log2;
+  SAMPLE *cache = NULL;
+  SAMPLE **cache_ptr = NULL;
+  SAMPLE **cache_dst = NULL;
+  int cache_idx = 0;
+  const int cache_size = num_fb_hor << (2 * fb_size_log2);
+  const int cache_blocks = cache_size / (bs * bs);
+  SAMPLE *src_buffer = plane != PLANE_Y ? (plane == PLANE_U ? frame->u : frame->v) : frame->y;
+  SAMPLE *dst_buffer;
 
-  int num_sb_hor = (width+(1<<fb_size_log2)-bs)>>fb_size_log2;
-  int num_sb_ver = (height+(1<<fb_size_log2)-bs)>>fb_size_log2;
+  // Make buffer space for in-place filtering
+  cache = thor_alloc(cache_size * sizeof(SAMPLE), 32);
+  dst_buffer = cache;
+  cache_ptr = thor_alloc(cache_blocks * sizeof(*cache_ptr), 32);
+  cache_dst = thor_alloc(cache_blocks * sizeof(*cache_dst), 32);
+  memset(cache_ptr, 0, cache_blocks * sizeof(*cache_dst));
 
   strength <<= bitdepth - 8;
-
-  for (int k = 0; k < num_sb_ver; k++) {
-    for (int l = 0; l < num_sb_hor; l++) {
+  // Iterate over all filter blocks
+  for (k = 0; k < num_fb_ver; k++) {
+    for (l = 0; l < num_fb_hor; l++) {
+      int h, w;
       int allskip = 1;
-      for (int m = 0; allskip && m < (1<<fb_size_log2)/bs; m++) {
-        for (int n = 0; allskip && n < (1<<fb_size_log2)/bs; n++) {
-          xpos = (l<<fb_size_log2) + n*bs;
-          ypos = (k<<fb_size_log2) + m*bs;
+      const int xoff = l << fb_size_log2;
+      const int yoff = k << fb_size_log2;
+      for (m = 0; allskip && m < (1 << fb_size_log2) / bs; m++) {
+        for (n = 0; allskip && n < (1 << fb_size_log2) / bs; n++) {
+          xpos = xoff + n * bs;
+          ypos = yoff + m * bs;
           if (xpos < width && ypos < height) {
-            index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
+            int index = ((ypos<<sub)/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + ((xpos<<sub)/MIN_PB_SIZE);
             allskip &= deblock_data[index].mode == MODE_SKIP;
           }
         }
       }
-      int h = min(height, (k+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
-      int w = min(width, (l+1)<<fb_size_log2) & ((1<<fb_size_log2)-1);
+
+      // Calculate the actual filter block size near frame edges
+      h = min(height, (k + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
+      w = min(width, (l + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
       h += !h << fb_size_log2;
       w += !w << fb_size_log2;
-      if (!allskip && (!enable_sb_flag || decision(k, l, rec, org, deblock_data, bs, w/bs, h/bs, stream, strength, fb_size_log2, bitdepth-8))) {
-        for (int m = 0; m < h/bs; m++) {
-          for (int n = 0; n < w/bs; n++) {
-            xpos = (l<<fb_size_log2) + n*bs;
-            ypos = (k<<fb_size_log2) + m*bs;
-            index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
-            int filter = deblock_data[index].mode != MODE_SKIP;
+      if (!allskip &&  // Do not filter the block if all is skip encoded
+          (!enable_fb_flag ||
+           // Only called if fb_flag enabled (luma only)
+           decision(k, l, frame, org, deblock_data, bs, w / bs, h / bs, stream, strength,
+                    fb_size_log2, bitdepth-8, bs))) {
+        // Iterate over all smaller blocks inside the filter block
+        for (m = 0; m < ((h + bs - 1) >> bslog); m++) {
+          for (n = 0; n < ((w + bs - 1) >> bslog); n++) {
+            int sizex, sizey;
+            xpos = xoff + n * bs;
+            ypos = yoff + m * bs;
+            sizex = min(width - xpos, bs);
+            sizey = min(height - ypos, bs);
+            int index = ((ypos<<sub)/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + ((xpos<<sub)/MIN_PB_SIZE);
+            if (deblock_data[index].mode != MODE_SKIP) {
+              // Temporary buffering needed for in-place filtering
+              if (cache_ptr[cache_idx]) {
+                // Copy filtered block back into the frame
+                if (sizeof(SAMPLE) == 2) {
+                  if (sizex == 8) {
+                    for (c = 0; c < sizey; c++) {
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride + 4) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs + 4);
+                    }
+                  } else if (sizex == 4) {
+                    for (c = 0; c < sizey; c++)
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                  } else {
+                    for (c = 0; c < sizey; c++)
+                      memcpy(cache_dst[cache_idx] + c * sstride, cache_ptr[cache_idx] + c * bs * 2,
+                             sizex);
+                  }
+                } else {
+                  if (sizex == 8)
+                    for (c = 0; c < sizey; c++)
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                  else if (sizex == 4)
+                    for (c = 0; c < sizey; c++)
+                      *(uint32_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint32_t *)(cache_ptr[cache_idx] + c * bs);
+                  else
+                    for (c = 0; c < sizey; c++)
+                      memcpy(cache_dst[cache_idx] + c * sstride,
+                             cache_ptr[cache_idx] + c * bs, sizex);
+                }
+              }
+              cache_ptr[cache_idx] = cache + cache_idx * bs * bs;
+              dst_buffer = cache_ptr[cache_idx] - ypos * bs - xpos;
+              cache_dst[cache_idx] = src_buffer + ypos * sstride + xpos;
+              if (++cache_idx >= cache_blocks) cache_idx = 0;
 
-            if (filter) {
-              if (use_simd) {
-                TEMPLATE(clpf_block_simd)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
-                TEMPLATE(clpf_block_simd)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-                TEMPLATE(clpf_block_simd)(rec->v, dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-              } else {
-                TEMPLATE(clpf_block)(rec->y, dst->y, stride_y, xpos, ypos, bs, bs, width, height, strength);
-                TEMPLATE(clpf_block)(rec->u, dst->u, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-                TEMPLATE(clpf_block)(rec->v, dst->v, stride_c, xpos >> rec->sub, ypos >> rec->sub, bs >> rec->sub, bs >> rec->sub, width >> rec->sub, height >> rec->sub, strength);
-              }
-            } else { // Copy
-              for (int c = 0; c < bs; c++)
-                for (int d = 0; d < bs; d += 8 / sizeof(SAMPLE))
-                  *(uint64_t*)(dst->y + (ypos + c)*stride_y + xpos + d) =
-                    *(uint64_t*)(rec->y + (ypos + c)*stride_y + xpos + d);
-              if (rec->sub) {
-                for (int c = 0; c < (bs >> rec->sub); c++)
-                  for (int d = 0; d < bs; d += 4 / sizeof(SAMPLE)) {
-                    *(uint32_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d) =
-                      *(uint32_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + (xpos >> 1) + d);
-                    *(uint32_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d) =
-                      *(uint32_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + (xpos >> 1) + d);
-                  }
-              } else {
-                for (int c = 0; c < (bs >> rec->sub); c++)
-                  for (int d = 0; d < bs; d += 8 / sizeof(SAMPLE)) {
-                    *(uint64_t*)(dst->u + ((ypos >> dst->sub) + c)*stride_c + xpos + d) =
-                      *(uint64_t*)(rec->u + ((ypos >> rec->sub) + c)*stride_c + xpos + d);
-                    *(uint64_t*)(dst->v + ((ypos >> dst->sub) + c)*stride_c + xpos + d) =
-                      *(uint64_t*)(rec->v + ((ypos >> dst->sub) + c)*stride_c + xpos + d);
-                  }
-              }
+              // Apply the filter
+              TEMPLATE(clpf_block)(src_buffer, dst_buffer, sstride, dstride, xpos,
+                                   ypos, sizex, sizey, width, height, strength);
             }
           }
-        }
-      } else { // Copy
-        for (int m = 0; m < h; m++)
-          memcpy(dst->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2),
-                 rec->y + ((k<<fb_size_log2)+m)*stride_y + (l<<fb_size_log2), w*sizeof(SAMPLE));
-        for (int m = 0; m < h >> dst->sub; m++) {
-          memcpy(dst->u + (((k<<fb_size_log2) >> dst->sub)+m)*stride_c + ((l<<fb_size_log2) >> dst->sub),
-                 rec->u + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), (w >> rec->sub)*sizeof(SAMPLE));
-          memcpy(dst->v + (((k<<fb_size_log2) >> dst->sub)+m)*stride_c + ((l<<fb_size_log2) >> dst->sub),
-                 rec->v + (((k<<fb_size_log2) >> rec->sub)+m)*stride_c + ((l<<fb_size_log2) >> rec->sub), (w >> rec->sub)*sizeof(SAMPLE));
         }
       }
     }
   }
+
+  // Copy remaining blocks into the frame
+  for (cache_idx = 0; cache_idx < cache_blocks && cache_ptr[cache_idx];
+       cache_idx++) {
+    if (sizeof(SAMPLE) == 2) {
+      for (c = 0; c < bs; c++) {
+        *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+            *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+        if (bs == 8)
+          *(uint64_t *)(cache_dst[cache_idx] + c * sstride + 4) =
+              *(uint64_t *)(cache_ptr[cache_idx] + c * bs + 4);
+      }
+    } else {
+      for (c = 0; c < bs; c++)
+        if (bs == 4)
+          *(uint32_t *)(cache_dst[cache_idx] + c * sstride) =
+              *(uint32_t *)(cache_ptr[cache_idx] + c * bs);
+        else
+          *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+              *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+    }
+  }
+  thor_free(cache);
+  thor_free(cache_ptr);
+  thor_free(cache_dst);
 }

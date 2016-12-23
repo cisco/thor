@@ -563,8 +563,13 @@ SIMD_INLINE v256 v256_shr_u64(v256 a, unsigned int c) {
 }
 
 SIMD_INLINE v256 v256_shr_s64(v256 a, unsigned int c) {
+#if defined(__AVX512F__)
   return _mm256_sra_epi64(a, _mm_cvtsi32_si128(c));
+#else
+  return v256_from_v128(v128_shr_s64(v256_high_v128(a), c), v128_shr_s64(v256_low_v128(a), c));
+#endif
 }
+
 
 typedef v256 ssd256_internal_u16;
 

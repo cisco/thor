@@ -123,7 +123,7 @@ static const int simd_check = 1;
 #if defined(__ARM_NEON__) && defined(ALIGN)
 static const int simd_available = 1;
 #include "simd/v256_intrinsics_arm.h"
-#elif (defined(__SSE2__) || _M_IX86_FP==2) && defined(ALIGN)
+#elif (defined(__SSE2__) || _M_IX86_FP==2 || defined(_M_AMD64) || defined(_M_X64)) && defined(ALIGN)
 static const int simd_available = 1;
 #include "simd/v256_intrinsics_x86.h"
 #else

@@ -117,7 +117,7 @@ SIMD_INLINE v128 v128_dup_32(uint32_t x) {
 }
 
 SIMD_INLINE v128 v128_dup_64(uint64_t x) {
-  return _mm_set1_epi64((__m64)x);
+  return v128_from_64(x, x);
 }
 
 

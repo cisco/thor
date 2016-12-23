@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #if defined(__ARM_NEON__)
 #include "v128_intrinsics_arm.h"
-#elif defined(__SSE2__)
+#elif (defined(__SSE2__) || _M_IX86_FP == 2 || defined(_M_AMD64) || defined(_M_X64))
 #include "v128_intrinsics_x86.h"
 #else
 #include "v128_intrinsics.h"

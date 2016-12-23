@@ -174,6 +174,9 @@
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>..\..\common</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_MBCS;VS_2015;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>
+      </AdditionalOptions>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

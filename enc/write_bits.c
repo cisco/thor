@@ -62,12 +62,14 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
   put_flc(1, params->qmtx, stream);
   if (params->qmtx)
     put_flc(6, params->qmtx_offset + 32, stream);
-  put_flc(1, params->subsample == 420, stream);
-  if (params->subsample != 420)
-    put_flc(1, params->subsample == 444, stream);
+  // 0: 400  1: 420  2: 422  3: 444
+  put_flc(2, ((params->subsample & 4) == 4) + (params->subsample & 2) +
+          ((params->subsample & 8) == 8) * 2, stream);
   put_flc(4, params->num_reorder_pics, stream);
-  put_flc(1, params->cfl_intra, stream);
-  put_flc(1, params->cfl_inter, stream);
+  if (params->subsample != 400) {
+    put_flc(1, params->cfl_intra, stream);
+    put_flc(1, params->cfl_inter, stream);
+  }
   put_flc(1, params->bitdepth != 8, stream);
   if (params->bitdepth != 8)
     put_flc(1, params->bitdepth == 12, stream);
@@ -470,28 +472,34 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
   }
 
   if (mode != MODE_SKIP){
-    int off = mode == MODE_MERGE ? 1 : 2;
     int max_num_tb_part = block_info->max_num_tb_part;
-    if (max_num_tb_part > 1 && tb_split) {
-      code = off;
-    }
-    else {
-      cbp = cbp_y + (cbp_u << 1) + (cbp_v << 2);
-      code = cbp_table[cbp];
-      if (mode == MODE_MERGE) {
-        if (code == 1)
-          code = 7;
-        else if (code>1)
-          code = code - 1;
+    if (encoder_info->params->subsample == 400) {
+      put_flc(1, cbp_y || tb_split, stream);
+      if (max_num_tb_part > 1 && (cbp_y || tb_split))
+        // 0: cbp=split=0, 10: cbp=1,split=0, 11: split=1
+        put_flc(1, tb_split, stream);
+    } else {
+      int off = mode == MODE_MERGE ? 1 : 2;
+      if (max_num_tb_part > 1 && tb_split) {
+        code = off;
       }
       else {
-        if (block_info->block_context->cbp == 0 && code < 2)
-          code = 1 - code;
+        cbp = cbp_y + (cbp_u << 1) + (cbp_v << 2);
+        code = cbp_table[cbp];
+        if (mode == MODE_MERGE) {
+          if (code == 1)
+            code = 7;
+          else if (code>1)
+            code = code - 1;
+        }
+        else {
+          if (block_info->block_context->cbp == 0 && code < 2)
+            code = 1 - code;
+        }
+        if (max_num_tb_part > 1 && code >= off) code++;
       }
-      if (max_num_tb_part > 1 && code >= off) code++;
+      put_vlc(0,code,stream);
     }
-
-    put_vlc(0,code,stream);
 
     if (tb_split==0){
       if (cbp_y){
@@ -548,7 +556,8 @@ int write_block(stream_t *stream,encoder_info_t *encoder_info, block_info_t *blo
           }
         }
         cbp = cbp_u + 2*cbp_v;
-        put_vlc(13, cbp, stream);
+        if (encoder_info->params->subsample != 400)
+          put_vlc(13, cbp, stream);
         if (cbp_u){
           write_coeff(stream,coeffq_u,size_uv,coeff_type|1);
         }

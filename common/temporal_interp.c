@@ -158,8 +158,8 @@ static void scale_frame_down2x2(yuv_frame_t* sin, yuv_frame_t* sout)
     }
 
   }
-  ho /= 2;
-  wo /= 2;
+  ho >>= sin->sub;
+  wo >>= sin->sub;
   for (int i=0; i<ho; ++i) {
 
     for (j=0; j<wo; ++j) {
@@ -409,25 +409,26 @@ static uint32_t sad_cost(int xstart, int ystart, yuv_frame_t* pic[2], mv_t mv[2]
       }
     }
 #if TEMP_INTERP_USE_CHROMA
+    int csize = size >> &pic[0]->sub;
     if (bcost < best_cost) {
       uint32_t ccost=0;
       int cpos0=(ys[0]/2)*sc0+(xs[0]/2);
       int cpos1=(ys[1]/2)*sc1+(xs[1]/2);
       if (use_simd && size >= 8) {
-        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->u[cpos0], &pic[1]->u[cpos1], sc0, sc1, size/2, size/2);
-        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->v[cpos0], &pic[1]->v[cpos1], sc0, sc1, size/2, size/2);
+        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->u[cpos0], &pic[1]->u[cpos1], sc0, sc1, csize, csize);
+        ccost += TEMPLATE(sad_calc_simd_unaligned)(&pic[0]->v[cpos0], &pic[1]->v[cpos1], sc0, sc1, csize, csize);
       } else {
         p0=&pic[0]->u[cpos0];
         p1=&pic[1]->u[cpos1];
-        for (int i=0; i<size/2; ++i) {
-          for (int j=0; j<size/2; ++j) {
+        for (int i=0; i<csize; ++i) {
+          for (int j=0; j<csize; ++j) {
             ccost += abs(p1[i*sc1+j]-p0[i*sc0+j]);
           }
         }
         p0=&pic[0]->v[cpos0];
         p1=&pic[1]->v[cpos1];
-        for (int i=0; i<size/2; ++i) {
-          for (int j=0; j<size/2; ++j) {
+        for (int i=0; i<csize; ++i) {
+          for (int j=0; j<csize; ++j) {
             ccost += abs(p1[i*sc1+j]-p0[i*sc0+j]);
           }
         }
@@ -513,16 +514,17 @@ static void skip_test(mv_data_t* mv_data, yuv_frame_t* picdata[2], int xp, int y
   }
 #if TEMP_INTERP_USE_CHROMA
   if (skip) {
+    int sub = &picdata[0]->sub;
     int thrC=thr/4;
     int s0C=picdata[0]->stride_c;
     int s1C=picdata[1]->stride_c;
-    xstart /= 2;
-    ystart /= 2;
-    size /= 2;
-    mv0.x /= 2;
-    mv0.y /= 2;
-    mv1.x /= 2;
-    mv1.y /= 2;
+    xstart >>= sub;
+    ystart >>= sub;
+    size >>= sub;
+    mv0.x >>= sub;
+    mv0.y >>= sub;
+    mv1.x >>= sub;
+    mv1.y >>= sub;
 
     for (int p=ystart; p<ystart+size && skip; p+=8) {
       for (int q=xstart; q<xstart+size && skip; q+=8) {
@@ -892,6 +894,9 @@ static void interpolate_frame(mv_data_t* mv_data, yuv_frame_t* indata0, yuv_fram
   int padc=pad >> indata0->sub;
 
   interpolate_comp(mv_data, pic[0]->y, pic[0]->stride_y, pic[1]->y, pic[1]->stride_y, outdata->y, outdata->stride_y, wP, hP, pad, 0);
+
+  if (indata0->subsample == 400)
+    return;
 
   // U
   interpolate_comp(mv_data, pic[0]->u, pic[0]->stride_c, pic[1]->u, pic[1]->stride_c, outdata->u, outdata->stride_c, wPc, hPc, padc, indata0->sub);

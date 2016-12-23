@@ -407,8 +407,13 @@ enc_params *parse_config_params(int argc, char **argv)
             while (pos < len && buf[pos] != '\n' && buf[pos++] != ' ');
             break;
           case 'C':
-            params->subsample = strtol(buf+pos, &end, 10);
-            pos = (int)(end-buf);
+            if (!strncmp(buf+pos, "mono", 4)) {
+              params->subsample = 400;
+              pos += 4;
+            } else {
+              params->subsample = strtol(buf+pos, &end, 10);
+              pos = (int)(end-buf);
+            }
             if (buf[pos] == 'p') {
               params->input_bitdepth = strtol(buf + ++pos, &end, 10);
               if (params->input_bitdepth > 8)
@@ -528,8 +533,9 @@ void check_parameters(enc_params *params)
     fatalerror("interp_ref=2 only supported with dyadic coding\n");
   }
 
-  if (params->subsample != 420 && params->subsample != 444 && params->subsample != 422) {
-    fatalerror("Illegal value for subsample.  Only 444, 422 and 420 supported.\n");
+  if (params->subsample != 420 && params->subsample != 444 &&
+      params->subsample != 422 && params->subsample != 400) {
+    fatalerror("Illegal value for subsample.  Only 444, 422, 420 and 400 supported.\n");
   }
 
   if (params->bitdepth != 8 && params->bitdepth != 10 && params->bitdepth != 12) {

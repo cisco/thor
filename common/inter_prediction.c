@@ -233,6 +233,8 @@ void TEMPLATE(get_inter_prediction_yuv)(yuv_frame_t *ref, SAMPLE *pblock_y, SAMP
     mv = mv_arr[index];
     TEMPLATE(clip_mv)(&mv, yposY, xposY, width, height, bwidth, bheight, sign);
     TEMPLATE(get_inter_prediction_luma)(pblock_y + offsetpY, ref_y + offsetrY, bwidth, bheight, rstride_y, pstride, &mv, sign, enable_bipred, width, height, xposY, yposY, bitdepth); //get_inter_prediction_yuv()
+    if (ref->subsample == 400)
+      continue;
     if (ref->sub) {
       get_inter_prediction_chroma(pblock_u + offsetpC, ref_u + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, bitdepth);
       get_inter_prediction_chroma(pblock_v + offsetpC, ref_v + offsetrC, bwidth >> ref->sub, bheight >> ref->sub, rstride_c, pstride >> ref->sub, &mv, sign, width >> ref->sub, height >> ref->sub, xposC, yposC, bitdepth);
@@ -257,6 +259,7 @@ void TEMPLATE(average_blocks_all)(SAMPLE *rec_y, SAMPLE *rec_u, SAMPLE *rec_v, S
       rec_y[i*sizeY + j] = (SAMPLE)(((int)pblock0_y[i*sizeY + j] + (int)pblock1_y[i*sizeY + j]) >> 1);
     }
   }
+
   for (i = 0; i < bheight >> sub; i++) {
     for (j = 0; j < bwidth >> sub; j++) {
       rec_u[i*sizeC + j] = (SAMPLE)(((int)pblock0_u[i*sizeC + j] + (int)pblock1_u[i*sizeC + j]) >> 1);
@@ -418,6 +421,8 @@ void TEMPLATE(get_inter_prediction_temp)(int width, int height, yuv_frame_t *ref
       for (i = 0; i < MIN_PB_SIZE; i++) {
         memcpy(pblock_y + (m + i)*size + n, pblock2_y + i*MIN_PB_SIZE, MIN_PB_SIZE*sizeof(SAMPLE));
       }
+      if (ref0->subsample == 400)
+        continue;
       for (i = 0; i < MIN_PB_SIZE / 2; i++) {
         memcpy(pblock_u + (m / 2 + i)*size / 2 + n / 2, pblock2_u + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(SAMPLE) / 2);
         memcpy(pblock_v + (m / 2 + i)*size / 2 + n / 2, pblock2_v + i*MIN_PB_SIZE / 2, MIN_PB_SIZE*sizeof(SAMPLE) / 2);

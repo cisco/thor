@@ -155,9 +155,13 @@ int main(int argc, char** argv)
     decoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
     if (y4m_output) {
-      fprintf(outfile,
-              "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d",
-              width, height, 30, 1, 1, decoder_info.subsample);
+        fprintf(outfile,
+                "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C",
+                width, height, 30, 1, 1);
+      if (decoder_info.subsample == 400)
+        fprintf(outfile, "mono");
+      else
+        fprintf(outfile, "%d", decoder_info.subsample);
       if (decoder_info.input_bitdepth > 8)
         fprintf(outfile, "p%d XYSCSS=%dp%d", decoder_info.input_bitdepth, decoder_info.subsample, decoder_info.input_bitdepth);
       fprintf(outfile, "\x0a");

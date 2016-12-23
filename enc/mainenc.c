@@ -148,8 +148,13 @@ int main(int argc, char **argv)
 
   if (y4m_output) {
     fprintf(reconfile,
-            "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C%d",
-            params->width, params->height, (int)params->frame_rate, params->aspectnum, params->aspectden, params->subsample);
+            "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C",
+            params->width, params->height, (int)params->frame_rate, params->aspectnum, params->aspectden);
+    if (params->subsample == 400)
+      fprintf(reconfile, "mono");
+    else
+      fprintf(reconfile, "%d", params->subsample);
+
     if (params->input_bitdepth > 8)
       fprintf(reconfile, "p%d XYSCSS=%dp%d", params->input_bitdepth, params->subsample, params->input_bitdepth);
     fprintf(reconfile, "\x0a");
@@ -163,7 +168,7 @@ int main(int argc, char **argv)
   height = params->height;
   width = params->width;
   ysize = height * width;
-  csize = (ysize >> 2*(params->subsample != 444)) << (params->subsample == 422);
+  csize = ((ysize >> 2*(params->subsample != 444)) << (params->subsample == 422)) * (params->subsample != 400);
   frame_size = (ysize + 2*csize) * (1 + (params->input_bitdepth > 8));
   encoder_info.params = params;
 

@@ -299,7 +299,8 @@ static void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos
     //int downleft_available = get_downleft_available(ypos, xpos, size, height, 1 << decoder_info->log2_sb_size);
     int tb_split = block_info.block_param.tb_split;
     decode_and_reconstruct_block_intra(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,upright_available,downleft_available,intra_mode,yposY,xposY,width,0,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][1] : NULL);
-    decode_and_reconstruct_block_intra_uv(rec_u,rec_v,rec->stride_c,sizeC,qpC,pblock_u,pblock_v,coeff_u,coeff_v,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL, decoder_info->cfl_intra ? pblock_y : 0, rec_y, rec->stride_y, sub);
+    if (decoder_info->subsample != 400)
+      decode_and_reconstruct_block_intra_uv(rec_u,rec_v,rec->stride_c,sizeC,qpC,pblock_u,pblock_v,coeff_u,coeff_v,tb_split && sizeC > 4,upright_available,downleft_available,intra_mode,yposC,xposC,width>>sub,1,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][1] : NULL, decoder_info->cfl_intra ? pblock_y : 0, rec_y, rec->stride_y, sub);
   }
   else
   {
@@ -429,7 +430,8 @@ static void decode_block(decoder_info_t *decoder_info,int size,int ypos,int xpos
     /* Dequantize, invere tranform and reconstruct */
     int ql = decoder_info->qmtx ? qp_to_qlevel(qpY,decoder_info->qmtx_offset) : 0;
     decode_and_reconstruct_block_inter(rec_y,rec->stride_y,sizeY,qpY,pblock_y,coeff_y,tb_split,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][0][0] : NULL);
-    if (decoder_info->cfl_inter)  // Use reconstructed luma to improve chroma prediction
+    // Use reconstructed luma to improve chroma prediction
+    if (decoder_info->cfl_inter && decoder_info->subsample != 400)
       TEMPLATE(improve_uv_prediction)(pblock_y, pblock_u, pblock_v, rec_y, sizeY, sizeY, rec->stride_y, sub, decoder_info->bitdepth);
     decode_and_reconstruct_block_inter(rec_u,rec->stride_c,sizeC,qpC,pblock_u,coeff_u,tb_split&&sizeC>4,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][1][0] : NULL);
     decode_and_reconstruct_block_inter(rec_v,rec->stride_c,sizeC,qpC,pblock_v,coeff_v,tb_split&&sizeC>4,decoder_info->bitdepth,decoder_info->qmtx ? decoder_info->iwmatrix[ql][2][0] : NULL);

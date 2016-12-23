@@ -120,7 +120,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
   //Generate new interpolated frame
   for (k=0;k<num_sb_ver;k++){
     for (l=0;l<num_sb_hor;l++){
-      int sub = decoder_info->subsample == 420;
+      int sub = decoder_info->subsample == 400 ? 31 : decoder_info->subsample == 420;
       int xposY = l*sb_size;
       int yposY = k*sb_size;
       TEMPLATE(process_block_dec)(decoder_info, sb_size, yposY, xposY, sub);
@@ -141,8 +141,10 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
 
   if (decoder_info->deblocking){
     TEMPLATE(deblock_frame_y)(decoder_info->rec, decoder_info->deblock_data, width, height, qp, decoder_info->bitdepth);
-    int qpc = decoder_info->subsample != 444 ? chroma_qp[qp] : qp;
-    TEMPLATE(deblock_frame_uv)(decoder_info->rec, decoder_info->deblock_data, width, height, qpc, decoder_info->bitdepth);
+    if (decoder_info->subsample != 400) {
+      int qpc = decoder_info->subsample != 444 ? chroma_qp[qp] : qp;
+      TEMPLATE(deblock_frame_uv)(decoder_info->rec, decoder_info->deblock_data, width, height, qpc, decoder_info->bitdepth);
+    }
   }
 
   if (decoder_info->clpf) {

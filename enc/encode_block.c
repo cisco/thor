@@ -1418,9 +1418,12 @@ static int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_in
     int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
     cbp.y = encode_and_reconstruct_block_intra(encoder_info, org_y,sizeY,yrec,rec->stride_y,yposY,xposY,sizeY,qpY,pblock_y,coeffq_y,rec_y,((frame_type==I_FRAME)<<1)|0,
 					       tb_split,width,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][0][1],encoder_info->iwmatrix[ql][0][1]);
-    cbp.u = cbp.v = encode_and_reconstruct_block_intra_uv(encoder_info, org_u,org_v,sizeC,urec,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,pblock_v,coeffq_u,coeffq_v,rec_u,rec_v,((frame_type==I_FRAME)<<1)|1,
+    if (encoder_info->params->subsample != 400)
+      cbp.u = cbp.v = encode_and_reconstruct_block_intra_uv(encoder_info, org_u,org_v,sizeC,urec,vrec,rec->stride_c,yposC,xposC,sizeC,qpC,pblock_u,pblock_v,coeffq_u,coeffq_v,rec_u,rec_v,((frame_type==I_FRAME)<<1)|1,
                                                           tb_split && sizeC > 4,width>>block_info->sub,intra_mode,upright_available,downleft_available,encoder_info->wmatrix[ql][1][1],encoder_info->iwmatrix[ql][1][1],
                                                           encoder_info->params->cfl_intra ? pblock_y : 0, rec_y, sizeY, block_info->sub);
+    else
+      cbp.u = cbp.v = 0;
     cbp.u >>= 8;
     cbp.v &= 255;
     if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4*MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
@@ -1458,8 +1461,10 @@ static int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_in
 
     if (mode == MODE_SKIP || zero_block) {
       memcpy(rec_y, pblock_y, sizeY*sizeY*sizeof(SAMPLE));
-      memcpy(rec_u, pblock_u, sizeC*sizeC*sizeof(SAMPLE));
-      memcpy(rec_v, pblock_v, sizeC*sizeC*sizeof(SAMPLE));
+      if (encoder_info->params->subsample != 400) {
+        memcpy(rec_u, pblock_u, sizeC*sizeC*sizeof(SAMPLE));
+        memcpy(rec_v, pblock_v, sizeC*sizeC*sizeof(SAMPLE));
+      }
       cbp.y = cbp.u = cbp.v = 0;
     }
     else {
@@ -1468,12 +1473,15 @@ static int encode_block(encoder_info_t *encoder_info, stream_t *stream, block_in
       int ql = qp_to_qlevel(qpY,encoder_info->params->qmtx_offset);
       cbp.y = encode_and_reconstruct_block_inter(encoder_info, org_y, sizeY, sizeY, qpY, pblock_y, coeffq_y, rec_y, ((frame_type == I_FRAME) << 1) | 0, tb_split,
 						 encoder_info->wmatrix[ql][0][0], encoder_info->iwmatrix[ql][0][0]);
-      if (encoder_info->params->cfl_inter)  // Use reconstructed luma to improve chroma prediction
+      if (encoder_info->params->cfl_inter && encoder_info->params->subsample != 400)  // Use reconstructed luma to improve chroma prediction
         TEMPLATE(improve_uv_prediction)(pblock_y, pblock_u, pblock_v, rec_y, sizeY, sizeY, sizeY, block_info->sub, encoder_info->params->bitdepth);
-      cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
+      if (encoder_info->params->subsample != 400) {
+        cbp.u = encode_and_reconstruct_block_inter(encoder_info, org_u, sizeC, sizeC, qpC, pblock_u, coeffq_u, rec_u, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
 						 encoder_info->wmatrix[ql][1][0], encoder_info->iwmatrix[ql][1][0]);
-      cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
-						 encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
+        cbp.v = encode_and_reconstruct_block_inter(encoder_info, org_v, sizeC, sizeC, qpC, pblock_v, coeffq_v, rec_v, ((frame_type == I_FRAME) << 1) | 1, tb_split && sizeC > 4,
+                                               encoder_info->wmatrix[ql][2][0], encoder_info->iwmatrix[ql][2][0]);
+      } else
+        cbp.u = cbp.v = 0;
 
       if (cbp.y) memcpy(block_param->coeff_y, coeffq_y, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t)); //TODO: Pack better when tb_split
       if (cbp.u) memcpy(block_param->coeff_u, coeffq_u, 4 * MAX_QUANT_SIZE*MAX_QUANT_SIZE * sizeof(uint16_t));
@@ -1517,6 +1525,10 @@ static void copy_block_to_frame(yuv_frame_t *frame, yuv_block_t *block, block_po
     pos = (ypos+i) * frame->stride_y + xpos;
     memcpy(&frame->y[pos],&block->y[i*size],bwidth*sizeof(SAMPLE));
   }
+
+  if (frame->subsample == 400)
+    return;
+
   for (int i = 0; i < bheight >> frame->sub; i += 2) {
     pos = ((ypos>>frame->sub)+i) * frame->stride_c + (xpos>>frame->sub);
     pos2 = ((ypos>>frame->sub)+i+1) * frame->stride_c + (xpos>>frame->sub);
@@ -1539,6 +1551,9 @@ static void copy_frame_to_block(yuv_block_t *block, yuv_frame_t *frame, block_po
     pos = (ypos+i) * frame->stride_y + xpos;
     memcpy(&block->y[i*size],&frame->y[pos],bwidth*sizeof(SAMPLE));
   }
+
+  if (frame->subsample == 400)
+    return;
 
   for (int i = 0; i < bheight >> frame->sub; i += 2) {
     pos = ((ypos>>frame->sub)+i) * frame->stride_c + (xpos>>frame->sub);
@@ -2310,6 +2325,8 @@ static int check_early_skip_block(encoder_info_t *encoder_info,block_info_t *blo
         TEMPLATE(get_inter_prediction_yuv)(ref, pblock_y, pblock_u, pblock_v, &tmp_block_pos, block_param->mv_arr0, sign, encoder_info->width, encoder_info->height, enable_bipred, 0, encoder_info->params->bitdepth);
 
         significant_flag = significant_flag || check_early_skip_sub_block(encoder_info, org_block->y + block_offset_y, size, size0, qpY, pblock_y, early_skip_threshold);
+        if (encoder_info->params->subsample == 400)
+          continue;
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->u + block_offset_c, sizec, size0c, qpC, pblock_u, early_skip_threshold);
         significant_flag = significant_flag || check_early_skip_sub_blockC(encoder_info, org_block->v + block_offset_c, sizec, size0c, qpC, pblock_v, early_skip_threshold);
       }

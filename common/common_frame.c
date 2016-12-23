@@ -435,7 +435,7 @@ void TEMPLATE(create_yuv_frame)(yuv_frame_t  *frame, int width, int height, int 
 {
   int align;
 
-  int sub = frame->sub = subsample == 420;
+  int sub = frame->sub = subsample == 400 ? 31 : subsample == 420;
   frame->subsample = subsample;
   frame->width = width;
   frame->height = height;
@@ -450,25 +450,28 @@ void TEMPLATE(create_yuv_frame)(yuv_frame_t  *frame, int width, int height, int 
   frame->area_y = ((height + 2*frame->pad_ver_y) * frame->stride_y + 16 + 15) & ~15;
   frame->area_c = (((height >> sub) + 2*frame->pad_ver_c) * frame->stride_c + 16 + 15) & ~15;
   frame->y = (SAMPLE *)malloc(frame->area_y*sizeof(SAMPLE))+frame->offset_y;
-  frame->u = (SAMPLE *)malloc(2*frame->area_c*sizeof(SAMPLE))+frame->offset_c;
-  frame->v = frame->u + frame->area_c;
-
   align = (16 - ((int)(uintptr_t)frame->y)) & 15;
   frame->offset_y += align;
   frame->y += align;
+  frame->bitdepth = bitdepth;
+  frame->input_bitdepth = input_bitdepth;
 
+  if (frame->subsample == 400)
+    return;
+
+  frame->u = (SAMPLE *)malloc(2*frame->area_c*sizeof(SAMPLE))+frame->offset_c;
+  frame->v = frame->u + frame->area_c;
   align = (16 - ((int)(uintptr_t)frame->u)) & 15;
   frame->offset_c += align;
   frame->u += align;
   frame->v += align;
-  frame->bitdepth = bitdepth;
-  frame->input_bitdepth = input_bitdepth;
 }
 
 void TEMPLATE(close_yuv_frame)(yuv_frame_t  *frame)
 {
   free(frame->y-frame->offset_y);
-  free(frame->u-frame->offset_c);
+  if (frame->subsample != 400)
+    free(frame->u-frame->offset_c);
 }
 
 void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
@@ -494,6 +497,9 @@ void TEMPLATE(read_yuv_frame)(yuv_frame_t *frame, FILE *infile)
       }
     }
   }
+
+  if (frame->subsample == 400)
+    return;
 
   for (int i=0; i<height>>sub; ++i) {
     if (fread(&frame->u[i*frame->stride_c], 1 + (frame->input_bitdepth > 8), width>>wsub, infile) != width>>wsub)
@@ -569,6 +575,10 @@ void TEMPLATE(write_yuv_frame)(yuv_frame_t *frame, FILE *outfile)
     if (fwrite(out, 1 + (frame->input_bitdepth != 8), width, outfile) != width)
       fatalerror("Error writing Y to file");
   }
+
+  if (frame->subsample == 400)
+    return;
+
   for (int i=0; i<height>>sub; ++i) {
     void *out = 0;
     if (frame->input_bitdepth == 8) {
@@ -601,6 +611,10 @@ void TEMPLATE(write_yuv_frame)(yuv_frame_t *frame, FILE *outfile)
     if (fwrite(out, 1 + (frame->input_bitdepth != 8), width>>wsub, outfile) != width>>wsub)
       fatalerror("Error writing U to file");
   }
+
+  if (frame->subsample == 400)
+    return;
+
   for (int i=0; i<height>>sub; ++i) {
     void *out = 0;
     if (frame->input_bitdepth == 8) {
@@ -675,6 +689,9 @@ void TEMPLATE(pad_yuv_frame)(yuv_frame_t * f)
   {
     memcpy(&f->y[i*sy-f->pad_hor_y], &f->y[(h-1)*sy-f->pad_hor_y], (w+2*f->pad_hor_y)*frame_bitdepth / 8);
   }
+
+  if (f->subsample == 400)
+    return;
 
   /* UV */
 

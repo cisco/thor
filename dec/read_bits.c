@@ -63,12 +63,15 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   if (decoder_info->qmtx) {
     decoder_info->qmtx_offset = get_flc(6, stream) - 32;
   }
-  decoder_info->subsample = get_flc(1, stream) ? 420 : 444;
-  if (decoder_info->subsample == 444 && !get_flc(1, stream))
-    decoder_info->subsample = 422;
+  decoder_info->subsample = get_flc(2, stream);
+    decoder_info->subsample = // 0: 400  1: 420  2: 422  3: 444
+    (decoder_info->subsample & 1) * 20 + (decoder_info->subsample & 2) * 22 +
+    ((decoder_info->subsample & 3) == 3) * 2 + 400;
   decoder_info->num_reorder_pics = get_flc(4, stream);
-  decoder_info->cfl_intra = get_flc(1, stream);
-  decoder_info->cfl_inter = get_flc(1, stream);
+  if (decoder_info->subsample != 400) {
+    decoder_info->cfl_intra = get_flc(1, stream);
+    decoder_info->cfl_inter = get_flc(1, stream);
+  }
   decoder_info->bitdepth = get_flc(1, stream) ? 10 : 8;
   if (decoder_info->bitdepth == 10)
     decoder_info->bitdepth += 2 * get_flc(1, stream);
@@ -528,41 +531,54 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   if (mode!=MODE_SKIP){
     int tmp;
     int cbp_table[8] = {1,0,5,2,6,3,7,4};
+    code = 0;
 
-    bit_start = stream->bitcnt;
-    code = get_vlc(0,stream);
-    int off = (mode == MODE_MERGE) ? 1 : 2;
-    if (decoder_info->tb_split_enable) {
-      tb_split = code == off;
-      if (code > off) code -= 1;
-      if (tb_split)
-        decoder_info->bit_count.cbp2_stat[0][stat_frame_type][mode-1][log2i(size)-3][8] += 1;
-    }
-    else{
-      tb_split = 0;
+    if (decoder_info->subsample == 400) {
+      tb_split = cbp.u = cbp.v = 0;
+      cbp.y = get_flc(1,stream);
+      if (decoder_info->tb_split_enable && cbp.y) {
+        // 0: cbp=split=0, 10: cbp=1,split=0, 11: split=1
+        tb_split = get_flc(1,stream);
+        cbp.y &= !tb_split;
+      }
+    } else {
+      bit_start = stream->bitcnt;
+      code = get_vlc(0,stream);
+      int off = (mode == MODE_MERGE) ? 1 : 2;
+      if (decoder_info->tb_split_enable) {
+        tb_split = code == off;
+        if (code > off) code -= 1;
+        if (tb_split)
+          decoder_info->bit_count.cbp2_stat[0][stat_frame_type][mode-1][log2i(size)-3][8] += 1;
+      }
+      else{
+        tb_split = 0;
+      }
     }
     block_info->block_param.tb_split = tb_split;
     decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
 
     if (tb_split == 0){
-      tmp = 0;
-      if (mode==MODE_MERGE){
-        if (code==7)
-          code = 1;
-        else if (code>0)
-          code = code+1;
-      }
-      else {
-        if (decoder_info->block_context->cbp == 0 && code < 2) {
-          code = 1 - code;
+      if (decoder_info->subsample != 400) {
+        tmp = 0;
+        if (mode==MODE_MERGE){
+          if (code==7)
+            code = 1;
+          else if (code>0)
+            code = code+1;
         }
-      }
-      while (tmp < 8 && code != cbp_table[tmp]) tmp++;
-      decoder_info->bit_count.cbp2_stat[max(0,decoder_info->block_context->cbp)][stat_frame_type][mode-1][log2i(size)-3][tmp] += 1;
+        else {
+          if (decoder_info->block_context->cbp == 0 && code < 2) {
+            code = 1 - code;
+          }
+        }
+        while (tmp < 8 && code != cbp_table[tmp]) tmp++;
+        decoder_info->bit_count.cbp2_stat[max(0,decoder_info->block_context->cbp)][stat_frame_type][mode-1][log2i(size)-3][tmp] += 1;
 
-      cbp.y = ((tmp>>0)&1);
-      cbp.u = ((tmp>>1)&1);
-      cbp.v = ((tmp>>2)&1);
+        cbp.y = ((tmp>>0)&1);
+        cbp.u = ((tmp>>1)&1);
+        cbp.v = ((tmp>>2)&1);
+      }
       block_info->cbp = cbp;
 
       if (cbp.y){
@@ -672,10 +688,13 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
         }
 
         bit_start = stream->bitcnt;
-        int tmp;
-        tmp = get_vlc(13, stream);
-        cbp.u = tmp & 1;
-        cbp.v = (tmp >> 1) & 1;
+        if (decoder_info->subsample != 400) {
+          int tmp;
+          tmp = get_vlc(13, stream);
+          cbp.u = tmp & 1;
+          cbp.v = (tmp >> 1) & 1;
+        } else
+          cbp.u = cbp.v = 0;
         decoder_info->bit_count.cbp[stat_frame_type] += (stream->bitcnt - bit_start);
         if (cbp.u){
           bit_start = stream->bitcnt;

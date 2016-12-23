@@ -63,7 +63,12 @@ int TEMPLATE(snr_yuv)(snrvals *psnr,yuv_frame_t *f1,yuv_frame_t *f2,int height,i
     }
     plse = sumsqr / (maxsignal * maxsignal * ydim * xdim);
     psnr->y = -10 * log10(plse);
-    
+
+    if (f1->subsample == 400) {
+      psnr->u = psnr->v = 0;
+      return 0;
+    }
+
     /* Calculate psnr for U */
     sumsqr = 0;
     for (i = 0; i < ydim_chr; i++)

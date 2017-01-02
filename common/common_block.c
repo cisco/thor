@@ -142,7 +142,7 @@ void TEMPLATE(improve_uv_prediction)(SAMPLE *y, SAMPLE *u, SAMPLE *v, SAMPLE *ry
         (ry[i*stride + j] - y[i*n + j]);
 
   // If the luma prediction is good, we change nothing
-  if ((squared_residual >> (log2i(n) + log2i(n))) <= 64)
+  if ((squared_residual >> (log2i(n) + log2i(n))) <= (64 << 2 * (bitdepth - 8)))
     return;
 
   // Compute linear fit between predicted chroma and predicted luma

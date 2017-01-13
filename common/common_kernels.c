@@ -1834,37 +1834,55 @@ void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout)
 #endif
 }
 
-static const ALIGN(32) int16_t coeffs[][8] = {
+static const ALIGN(32) int16_t coeffs_standard[][8] = {
+  {  0,   0,  64,   0,   0,   0,    0,   0 },
   {  1,  -7,  55,  19,  -5,   1,    0,   0 },
-  {  1,  -7,  38,  38,  -7,   1,    0,   0 }
+  {  1,  -7,  38,  38,  -7,   1,    0,   0 },
+  {  1,  -5,  19,  55,  -7,   1,    0,   0 }
 };
+
+
 
 static const ALIGN(32) int16_t coeffs_bipred[][8] = {
+  {  0,   0,  64,   0,   0,   0,    0,   0 },
   {  2, -10,  59,  17,  -5,   1,    0,   0 },
-  {  1,  -8,  39,  39,  -8,   1,    0,   0 }
+  {  1,  -8,  39,  39,  -8,   1,    0,   0 },
+  {  1,  -5,  17,  59, -10,   2,    0,   0 }
 };
 
-static void get_inter_prediction_luma_edge(int width, int height, int xoff, int yoff,
-                                           SAMPLE *restrict qp, int qstride,
-                                           const SAMPLE *restrict ip, int istride, int bitdepth, const int16_t coeffs[][8])
+static const ALIGN(32) int16_t coeffs_chroma[][4] = {
+  {  0, 64,  0,  0 },
+  { -2, 58, 10, -2 },
+  { -4, 54, 16, -2 },
+  { -4, 44, 28, -4 },
+  { -4, 36, 36, -4 },
+  { -4, 28, 44, -4 },
+  { -2, 16, 54, -4 },
+  { -2, 10, 58, -2 }
+};
+
+
+
+static void filter_6tap_edge(int width, int height, int xoff, int yoff,
+                             SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,
+                             int istride, int bitdepth, const int16_t coeffs[][8])
 {
-  int cf = xoff + yoff - 1;
+  int cf = max(xoff, yoff);
   int sx = !yoff;
   int s1 = !xoff * istride;
-  int cs = cf == 2 ? -1 : 1;
-  const int16_t *c = cf == 2 ? &coeffs[0][5] : &coeffs[cf][0];
+  const int16_t *c = coeffs[cf];
   int st1 = s1 + sx;
 
   ip -= istride;
   qp -= qstride;
 
   if (width == 4) {
-    v64 c0 = v64_dup_16(c[cs*0]);
-    v64 c1 = v64_dup_16(c[cs*1]);
-    v64 c2 = v64_dup_16(c[cs*2]);
-    v64 c3 = v64_dup_16(c[cs*3]);
-    v64 c4 = v64_dup_16(c[cs*4]);
-    v64 c5 = v64_dup_16(c[cs*5]);
+    v64 c0 = v64_dup_16(c[0]);
+    v64 c1 = v64_dup_16(c[1]);
+    v64 c2 = v64_dup_16(c[2]);
+    v64 c3 = v64_dup_16(c[3]);
+    v64 c4 = v64_dup_16(c[4]);
+    v64 c5 = v64_dup_16(c[5]);
     v64 cr = v64_dup_16(32);
 
     for (int y = 0; y < height; y++) {
@@ -1888,12 +1906,12 @@ static void get_inter_prediction_luma_edge(int width, int height, int xoff, int 
 #endif
     }
   } else {
-    v128 c0 = v128_dup_16(c[cs*0]);
-    v128 c1 = v128_dup_16(c[cs*1]);
-    v128 c2 = v128_dup_16(c[cs*2]);
-    v128 c3 = v128_dup_16(c[cs*3]);
-    v128 c4 = v128_dup_16(c[cs*4]);
-    v128 c5 = v128_dup_16(c[cs*5]);
+    v128 c0 = v128_dup_16(c[0]);
+    v128 c1 = v128_dup_16(c[1]);
+    v128 c2 = v128_dup_16(c[2]);
+    v128 c3 = v128_dup_16(c[3]);
+    v128 c4 = v128_dup_16(c[4]);
+    v128 c5 = v128_dup_16(c[5]);
     v128 cr = v128_dup_16(32);
 
     ip += width;
@@ -1923,27 +1941,20 @@ static void get_inter_prediction_luma_edge(int width, int height, int xoff, int 
   }
 }
 
-static void get_inter_prediction_luma_inner(int width, int height, int xoff, int yoff,
-                                            SAMPLE *restrict qp, int qstride,
-                                            const SAMPLE *restrict ip, int istride, int bitdepth, const int16_t coeffs[][8])
-{
-  v128 c = v128_load_aligned(coeffs[xoff == 2]);
-
-#ifdef HBD
-  if (xoff > 2) c = quote256_unpack_s16_s32(quote128_shuffle_8(v128_low_v64(v128_unziplo_8(c, c)),
-                                                               quote128_from_64(0x0f0f0f0f01000302LL, 0x0504070609080b0aLL)));
-#else
-  if (xoff > 2) c = v128_shuffle_8(c, v128_from_64(0x0f0f0f0f01000302LL, 0x0504070609080b0aLL));
-#endif
+static void filter_6tap_inner(int width, int height, int xoff, int yoff,
+                              SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,
+                              int istride, int bitdepth, const int16_t coeffs[][8]) {
+  const int16_t *cf = coeffs[yoff];
+  v128 c = v128_load_aligned(coeffs[xoff]);
 
   if (width == 4) {
-    int xtap = coeffs[xoff == 1][xoff == 3 ? 0 : 5]; // Final tap of the phase
-    v128 c0 = v128_dup_16(coeffs[yoff-1][0]);
-    v128 c1 = v128_dup_16(coeffs[yoff-1][1]);
-    v128 c2 = v128_dup_16(coeffs[yoff-1][2]);
-    v128 c3 = v128_dup_16(coeffs[yoff-1][3]);
-    v128 c4 = v128_dup_16(coeffs[yoff-1][4]);
-    v128 c5 = v128_dup_16(coeffs[yoff-1][5]);
+    int xtap = coeffs[xoff][5]; // Final tap
+    v128 c0 = v128_dup_16(cf[0]);
+    v128 c1 = v128_dup_16(cf[1]);
+    v128 c2 = v128_dup_16(cf[2]);
+    v128 c3 = v128_dup_16(cf[3]);
+    v128 c4 = v128_dup_16(cf[4]);
+    v128 c5 = v128_dup_16(cf[5]);
 
     for (int y = 0; y < height; y++) {
       int res;
@@ -1967,12 +1978,12 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
         a5 = v128_shr_n_byte(a5, 2);
       }
 
-      int a08 = ip[6-2*istride]*coeffs[yoff-1][0]*xtap;
-      int a18 = ip[6-1*istride]*coeffs[yoff-1][1]*xtap;
-      int a28 = ip[6-0*istride]*coeffs[yoff-1][2]*xtap;
-      int a38 = ip[6+1*istride]*coeffs[yoff-1][3]*xtap;
-      int a48 = ip[6+2*istride]*coeffs[yoff-1][4]*xtap;
-      int a58 = ip[6+3*istride]*coeffs[yoff-1][5]*xtap;
+      int a08 = ip[6-2*istride]*coeffs[yoff][0]*xtap;
+      int a18 = ip[6-1*istride]*coeffs[yoff][1]*xtap;
+      int a28 = ip[6-0*istride]*coeffs[yoff][2]*xtap;
+      int a38 = ip[6+1*istride]*coeffs[yoff][3]*xtap;
+      int a48 = ip[6+2*istride]*coeffs[yoff][4]*xtap;
+      int a58 = ip[6+3*istride]*coeffs[yoff][5]*xtap;
 
       res = (int)((v128_dotp_s16(c, v128_add_16(v128_add_16(v128_add_16(v128_add_16(v128_add_16(a0, a1), a2), a3), a4), a5)) +
                    + a08 + a18 + a28 + a38 + a48 + a58 + 2048) >> 12);
@@ -1989,9 +2000,9 @@ static void get_inter_prediction_luma_inner(int width, int height, int xoff, int
 #else
     const int shift = 8;
 #endif
-    c1 = v128_dup_16((coeffs[yoff-1][0] << shift) | (SAMPLE)coeffs[yoff-1][1]);
-    c2 = v128_dup_16((coeffs[yoff-1][2] << shift) | (SAMPLE)coeffs[yoff-1][3]);
-    c3 = v128_dup_16((coeffs[yoff-1][4] << shift) | (SAMPLE)coeffs[yoff-1][5]);
+    c1 = v128_dup_16((coeffs[yoff][0] << shift) | (SAMPLE)coeffs[yoff][1]);
+    c2 = v128_dup_16((coeffs[yoff][2] << shift) | (SAMPLE)coeffs[yoff][3]);
+    c3 = v128_dup_16((coeffs[yoff][4] << shift) | (SAMPLE)coeffs[yoff][5]);
 
     for (int y = 0; y < height; y++) {
       int16_t *a = ax + y*(width+8);
@@ -2109,53 +2120,102 @@ void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, i
 {
   if (xoff == 2 && yoff == 2 && bipred < 2)
     get_inter_prediction_luma_centre(width, height, qp, qstride, ip, istride);
-  else {
-    /* Use symmetric property of the filter */
-    if (yoff == 3) {
-      ip += height*istride;
-      qp += (height-1)*qstride;
-      istride = -istride;
-      qstride = -qstride;
-      yoff = 1;
+  else
+    (!xoff || !yoff ? filter_6tap_edge : filter_6tap_inner)
+      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, bipred ? coeffs_bipred : coeffs_standard);
+}
+
+static void filter_4tap_edge(int width, int height, int xoff, int yoff,
+                             SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,
+                             int istride, int bitdepth, const int16_t coeffs[][4])
+{
+  int cf = max(xoff, yoff);
+  int sx = !yoff;
+  int s1 = !xoff * istride;
+  const int16_t *c = &coeffs[cf][0];
+  int st1 = s1 + sx;
+
+  ip -= istride;
+  qp -= qstride;
+
+  if (width == 4) {
+    v64 c0 = v64_dup_16(c[0]);
+    v64 c1 = v64_dup_16(c[1]);
+    v64 c2 = v64_dup_16(c[2]);
+    v64 c3 = v64_dup_16(c[3]);
+    v64 cr = v64_dup_16(32);
+
+    for (int y = 0; y < height; y++) {
+      qp += qstride;
+      ip += istride;
+
+      const SAMPLE *r = ip - s1 - sx;
+      v64 r0 = v64_mullo_s16(c0, v64_unpacklo_u8_s16(v64_load_unaligned(r + st1*0)));
+      v64 r1 = v64_mullo_s16(c1, v64_unpacklo_u8_s16(v64_load_unaligned(r + st1*1)));
+      v64 r2 = v64_mullo_s16(c2, v64_unpacklo_u8_s16(v64_load_unaligned(r + st1*2)));
+      v64 r3 = v64_mullo_s16(c3, v64_unpacklo_u8_s16(v64_load_unaligned(r + st1*3)));
+      v64 rs = v64_add_16(v64_add_16(v64_add_16(v64_add_16(cr, r0), r1), r2), r3);
+#ifdef HBD
+      rs = v64_shr_s16(rs, bitdepth - 10);
+      u32_store_aligned(qp, v64_low_u32(v64_shr_u8(v64_pack_s16_u8(rs, rs), 16 - bitdepth)));
+#else
+      rs = v64_shr_n_s16(rs, 6);
+      u32_store_aligned(qp, v64_low_u32(v64_pack_s16_u8(rs, rs)));
+#endif
     }
-    (!xoff || !yoff ? get_inter_prediction_luma_edge : get_inter_prediction_luma_inner)
-      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, bipred ? coeffs_bipred : coeffs);
+  } else {
+    v128 c0 = v128_dup_16(c[0]);
+    v128 c1 = v128_dup_16(c[1]);
+    v128 c2 = v128_dup_16(c[2]);
+    v128 c3 = v128_dup_16(c[3]);
+    v128 cr = v128_dup_16(32);
+
+    ip += width;
+    for (int y = 0; y < height; y++) {
+      qp += qstride;
+      ip += istride - width;
+
+      for (int x = 0; x < width; x += 8) {
+        const SAMPLE *r = ip - s1 - sx;
+        v128 r0 = v128_mullo_s16(c0, v128_unpack_u8_s16(v64_load_unaligned(r + st1*0)));
+        v128 r1 = v128_mullo_s16(c1, v128_unpack_u8_s16(v64_load_unaligned(r + st1*1)));
+        v128 r2 = v128_mullo_s16(c2, v128_unpack_u8_s16(v64_load_unaligned(r + st1*2)));
+        v128 r3 = v128_mullo_s16(c3, v128_unpack_u8_s16(v64_load_unaligned(r + st1*3)));
+        v128 rs = v128_add_16(v128_add_16(v128_add_16(v128_add_16(cr, r0), r1), r2), r3);
+        ip += 8;
+#ifdef HBD
+        rs = v128_shr_s16(rs, bitdepth - 10);
+        v64_store_aligned(qp + x, v64_shr_u8(v128_low_v64(v128_pack_s16_u8(rs, rs)), 16 - bitdepth));
+#else
+        rs = v128_shr_n_s16(rs, 6);
+        v64_store_aligned(qp + x, v128_low_v64(v128_pack_s16_u8(rs, rs)));
+#endif
+      }
+    }
   }
 }
 
-void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff,
-                                                SAMPLE *restrict qp, int qstride,
-                                                const SAMPLE *restrict ip, int istride, int bitdepth) {
-  static const ALIGN(32) int16_t coeffs[8][4] = {
-    { 0, 64,  0,  0},
-    {-2, 58, 10, -2},
-    {-4, 54, 16, -2},
-    {-4, 44, 28, -4},
-    {-4, 36, 36, -4},
-    {-4, 28, 44, -4},
-    {-2, 16, 54, -4},
-    {-2, 10, 58, -2}
-  };
-
-  const v128 c0 = v128_dup_16(coeffs[yoff][0]);
-  const v128 c1 = v128_dup_16(coeffs[yoff][1]);
-  const v128 c2 = v128_dup_16(coeffs[yoff][2]);
-  const v128 c3 = v128_dup_16(coeffs[yoff][3]);
+static void filter_4tap_inner(int width, int height, int xoff, int yoff,
+                              SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,
+                              int istride, int bitdepth, const int16_t coeffs[][4]) {
+  const int16_t *cf = &coeffs[yoff][0];
+  const v128 c0 = v128_dup_16(cf[0]);
+  const v128 c1 = v128_dup_16(cf[1]);
+  const v128 c2 = v128_dup_16(cf[2]);
+  const v128 c3 = v128_dup_16(cf[3]);
+  v64 filter = v64_load_aligned(coeffs[xoff]);
 #ifdef HBD
   const quote128 round = quote128_dup_32(2048);
 #else
   const v128 round = v128_dup_32(2048);
 #endif
-  const v64 filter = v64_load_aligned(coeffs[xoff]);
-  int i;
 
   if (width == 4) {
     v128 in0 = v128_unpack_u8_s16(v64_load_unaligned(ip - 1*istride - 1));
     v128 in1 = v128_unpack_u8_s16(v64_load_unaligned(ip + 0*istride - 1));
     v128 in2 = v128_unpack_u8_s16(v64_load_unaligned(ip + 1*istride - 1));
-    int i;
 
-    for (i = 0; i < height; i++) {
+    for (int i = 0; i < height; i++) {
       v128 in3 = v128_unpack_u8_s16(v64_load_unaligned(ip + (i+2)*istride - 1));
       v128 out1 = v128_add_16(v128_add_16(v128_add_16(v128_mullo_s16(c0, in0), v128_mullo_s16(c1, in1)), v128_mullo_s16(c2, in2)), v128_mullo_s16(c3, in3));
 
@@ -2179,9 +2239,7 @@ void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff,
       in2 = in3;
     }
   } else {
-    int j;
-
-    for (j = 0; j < width; j += 8) {
+    for (int j = 0; j < width; j += 8) {
       v128 load0 = v128_load_unaligned(ip - 1*istride + j - 1);
       v128 load1 = v128_load_unaligned(ip + 0*istride + j - 1);
       v128 load2 = v128_load_unaligned(ip + 1*istride + j - 1);
@@ -2192,7 +2250,7 @@ void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff,
       v128 in11 = v128_unpackhi_u8_s16(load1);
       v128 in12 = v128_unpackhi_u8_s16(load2);
 
-      for (i = 0; i < height; i++) {
+      for (int i = 0; i < height; i++) {
         v128 load3 = v128_load_unaligned(ip + (i+2)*istride + j - 1);
         v128 in03 = v128_unpacklo_u8_s16(load3);
         v128 in13 = v128_unpackhi_u8_s16(load3);
@@ -2233,4 +2291,11 @@ void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff,
       }
     }
   }
+}
+
+void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff, int yoff,
+                                                SAMPLE *restrict qp, int qstride,
+                                                const SAMPLE *restrict ip, int istride, int bitdepth) {
+  (!xoff || !yoff ? filter_4tap_edge : filter_4tap_inner)
+    (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, coeffs_chroma);
 }

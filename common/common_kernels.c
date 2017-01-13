@@ -1834,34 +1834,9 @@ void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout)
 #endif
 }
 
-static const ALIGN(32) int16_t coeffs_standard[][8] = {
-  {  0,   0,  64,   0,   0,   0,    0,   0 },
-  {  1,  -7,  55,  19,  -5,   1,    0,   0 },
-  {  1,  -7,  38,  38,  -7,   1,    0,   0 },
-  {  1,  -5,  19,  55,  -7,   1,    0,   0 }
-};
-
-
-
-static const ALIGN(32) int16_t coeffs_bipred[][8] = {
-  {  0,   0,  64,   0,   0,   0,    0,   0 },
-  {  2, -10,  59,  17,  -5,   1,    0,   0 },
-  {  1,  -8,  39,  39,  -8,   1,    0,   0 },
-  {  1,  -5,  17,  59, -10,   2,    0,   0 }
-};
-
-static const ALIGN(32) int16_t coeffs_chroma[][4] = {
-  {  0, 64,  0,  0 },
-  { -2, 58, 10, -2 },
-  { -4, 54, 16, -2 },
-  { -4, 44, 28, -4 },
-  { -4, 36, 36, -4 },
-  { -4, 28, 44, -4 },
-  { -2, 16, 54, -4 },
-  { -2, 10, 58, -2 }
-};
-
-
+extern const int16_t coeffs_standard[][8];
+extern const int16_t coeffs_bipred[][8];
+extern const int16_t coeffs_chroma[][4];
 
 static void filter_6tap_edge(int width, int height, int xoff, int yoff,
                              SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,

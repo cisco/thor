@@ -167,7 +167,7 @@ void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width,
     return;
   }
 
-  if (use_simd && 0)
+  if (use_simd)
     TEMPLATE(get_inter_prediction_luma_simd)(width, height, hor_frac, ver_frac, pblock, pstride, ref + ver_int*stride + hor_int, stride, bipred, bitdepth);
   /* Special lowpass filter at center position */
   else if (ver_frac == 2 && hor_frac == 2 && bipred < 2) {

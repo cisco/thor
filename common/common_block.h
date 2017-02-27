@@ -35,7 +35,7 @@ void TEMPLATE(reconstruct_block)(int16_t *block, SAMPLE *pblock, SAMPLE *rec, in
 
 void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
 
-void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength);
+void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, boundary_type bt, unsigned int strength);
 
 int TEMPLATE(clpf_sample)(int X, int A, int B, int C, int D, int E, int F, int b);
 

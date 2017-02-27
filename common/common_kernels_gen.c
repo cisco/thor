@@ -1585,9 +1585,11 @@ void inverse_transform_simd(const int32_t *coeff, int32_t *block, int size, int 
 }
 #endif
 
-void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int right = width-x0-4;
-  int bottom = height-y0-4;
+void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
+  const int bottom = !(bt & TILE_BOTTOM_BOUNDARY);
+  const int right = !(bt & TILE_RIGHT_BOUNDARY);
+  const int left = !(bt & TILE_LEFT_BOUNDARY);
+  const int top = !(bt & TILE_ABOVE_BOUNDARY);
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
 
@@ -1607,35 +1609,35 @@ void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
 #endif
 
-  v64 l0 = v64_load_aligned(src - !!y0*sstride);
+  v64 l0 = v64_load_aligned(src - top*sstride);
   v64 l1 = v64_load_aligned(src);
   v64 l2 = v64_load_aligned(src + sstride);
   v64 l3 = v64_load_aligned(src + 2*sstride);
   v64 l4 = v64_load_aligned(src + 3*sstride);
-  v64 l5 = v64_load_aligned(src + (3+!!bottom)*sstride);
+  v64 l5 = v64_load_aligned(src + (bottom + 3)*sstride);
   v256 c128 = v256_dup_16(128);
   v256 o = v256_from_v64(l1, l2, l3, l4);
   v256 x = v256_add_16(c128, o);
   v256 a = v256_add_16(c128, v256_from_v64(l0, l1, l2, l3));
-  v256 b = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src - 2*!!x0),
-                                         v64_load_unaligned(src + sstride - 2*!!x0),
-                                         v64_load_unaligned(src + 2*sstride - 2*!!x0),
-                                         v64_load_unaligned(src + 3*sstride - 2*!!x0)));
-  v256 c = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src - !!x0),
-                                         v64_load_unaligned(src + sstride - !!x0),
-                                         v64_load_unaligned(src + 2*sstride - !!x0),
-                                         v64_load_unaligned(src + 3*sstride - !!x0)));
-  v256 d = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src + !!right),
-                                         v64_load_unaligned(src + sstride + !!right),
-                                         v64_load_unaligned(src + 2*sstride + !!right),
-                                         v64_load_unaligned(src + 3*sstride + !!right)));
-  v256 e = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src + 2*!!right),
-                                         v64_load_unaligned(src + sstride + 2*!!right),
-                                         v64_load_unaligned(src + 2*sstride + 2*!!right),
-                                         v64_load_unaligned(src + 3*sstride + 2*!!right)));
+  v256 b = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src - 2*left),
+                                         v64_load_unaligned(src + sstride - 2*left),
+                                         v64_load_unaligned(src + 2*sstride - 2*left),
+                                         v64_load_unaligned(src + 3*sstride - 2*left)));
+  v256 c = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src - left),
+                                         v64_load_unaligned(src + sstride - left),
+                                         v64_load_unaligned(src + 2*sstride - left),
+                                         v64_load_unaligned(src + 3*sstride - left)));
+  v256 d = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src + right),
+                                         v64_load_unaligned(src + sstride + right),
+                                         v64_load_unaligned(src + 2*sstride + right),
+                                         v64_load_unaligned(src + 3*sstride + right)));
+  v256 e = v256_add_16(c128, v256_from_v64(v64_load_unaligned(src + 2*right),
+                                         v64_load_unaligned(src + sstride + 2*right),
+                                         v64_load_unaligned(src + 2*sstride + 2*right),
+                                         v64_load_unaligned(src + 3*sstride + 2*right)));
   v256 f = v256_add_16(c128, v256_from_v64(l2, l3, l4, l5));
 
-  if (!x0) {
+  if (!left) {
     b = v256_pshuffle_8(b, v256_load_aligned(bshuff));
     c = v256_pshuffle_8(c, v256_load_aligned(cshuff));
   }
@@ -1661,8 +1663,11 @@ void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   v64_store_aligned(dst + 3*dstride, v256_low_v64(r));
 }
 
-void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int bottom = height-2-y0;
+void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
+  const int bottom = bt & TILE_BOTTOM_BOUNDARY ? 8 - 2 : -1;
+  const int right = (bt & TILE_RIGHT_BOUNDARY);
+  const int left = (bt & TILE_LEFT_BOUNDARY);
+  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
   v256 sp = v256_dup_16(strength);
   v256 sm = v256_dup_16(-(int)strength);
   v256 c8 = v256_dup_16(8);
@@ -1687,13 +1692,13 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
 
-  if (!x0) { // Clip left
+  if (left) { // Clip left
     for (int y = 0; y < 8; y += 2) {
       v128 l1 = v128_load_aligned(src);
       v128 l2 = v128_load_aligned(src+sstride);
       v256 o = v256_from_v128(l1, l2);
       v256 x = v256_add_16(c128, o);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != -y0)*sstride), l1));
+      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != top)*sstride), l1));
       v256 b = v256_pshuffle_8(x, v256_load_aligned(bshuff));
       v256 c = v256_pshuffle_8(x, v256_load_aligned(cshuff));
       v256 d = v256_add_16(c128, v256_from_v128(v128_load_unaligned(src + 1),
@@ -1715,13 +1720,13 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
       src += sstride*2;
       dst += dstride*2;
     }
-  } else if (!(width-x0-8)) { // Clip right
+  } else if (right) { // Clip right
     for (int y = 0; y < 8; y += 2) {
       v128 l1 = v128_load_aligned(src);
       v128 l2 = v128_load_aligned(src+sstride);
       v256 o = v256_from_v128(l1, l2);
       v256 x = v256_add_16(c128, o);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != -y0)*sstride), l1));
+      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != top)*sstride), l1));
       v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(src - 2),
 					      v128_load_unaligned(src - 2 + sstride)));
       v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(src - 1),
@@ -1749,7 +1754,7 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
       v128 l2 = v128_load_aligned(src+sstride);
       v256 o = v256_from_v128(l1, l2);
       v256 x = v256_add_16(c128, o);
-      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != -y0)*sstride), l1));
+      v256 a = v256_add_16(c128, v256_from_v128(v128_load_aligned(src - (y != top)*sstride), l1));
       v256 b = v256_add_16(c128, v256_from_v128(v128_load_unaligned(src - 2),
 					      v128_load_unaligned(src - 2 + sstride)));
       v256 c = v256_add_16(c128, v256_from_v128(v128_load_unaligned(src - 1),

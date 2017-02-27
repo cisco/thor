@@ -871,10 +871,16 @@ void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, cons
               cache_dst[cache_idx] = src_buffer + ypos * sstride + xpos;
               if (++cache_idx >= cache_blocks) cache_idx = 0;
 
+              boundary_type bt =
+                (TILE_LEFT_BOUNDARY & -!xpos) |
+                (TILE_ABOVE_BOUNDARY & -!ypos) |
+                (TILE_RIGHT_BOUNDARY & -(xpos == width - sizex)) |
+                (TILE_BOTTOM_BOUNDARY & -(ypos == height - sizey));
+
               // Apply the filter
               (use_simd ? TEMPLATE(clpf_block_simd) : TEMPLATE(clpf_block))
                 (src_buffer, dst_buffer, sstride, dstride, xpos,
-                 ypos, sizex, sizey, width, height, strength);
+                 ypos, sizex, sizey, bt, strength);
             }
           }
         }

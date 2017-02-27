@@ -111,19 +111,23 @@ int TEMPLATE(clpf_sample)(int X, int A, int B, int C, int D, int E, int F, int b
   return (8 + delta - (delta < 0)) >> 4;
 }
 
-void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, int width, int height, unsigned int strength) {
-  for (int y = y0; y < y0+sizey; y++){
-    for (int x = x0; x < x0+sizex; x++) {
-      int X = src[y*sstride + x];
-      int A = src[max(0, y-1)*sstride + x];
-      int B = src[y*sstride + max(0, x-2)];
-      int C = src[y*sstride + max(0, x-1)];
-      int D = src[y*sstride + min(width-1, x+1)];
-      int E = src[y*sstride + min(width-1, x+2)];
-      int F = src[min(height-1, y+1)*sstride + x];
-      int delta;
-      delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
-      dst[y*dstride + x] = X + delta;
+void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, boundary_type bt, unsigned int strength) {
+  const int xmin = x0 - !(bt & TILE_LEFT_BOUNDARY) * 2;
+  const int ymin = y0 - !(bt & TILE_ABOVE_BOUNDARY) * 2;
+  const int xmax = x0 + sizex + !(bt & TILE_RIGHT_BOUNDARY) * 2 - 1;
+  const int ymax = y0 + sizey + !(bt & TILE_BOTTOM_BOUNDARY) * 2 - 1;
+
+  for (int y = y0; y < y0 + sizey; y++) {
+    for (int x = x0; x < x0 + sizex; x++) {
+      const int X = src[y * sstride + x];
+      const int A = src[max(ymin, y - 1) * sstride + x];
+      const int B = src[y * sstride + max(xmin, x - 2)];
+      const int C = src[y * sstride + max(xmin, x - 1)];
+      const int D = src[y * sstride + min(xmax, x + 1)];
+      const int E = src[y * sstride + min(xmax, x + 2)];
+      const int F = src[min(ymax, y + 1) * sstride + x];
+      const int delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
+      dst[y * dstride + x] = X + delta;
     }
   }
 }

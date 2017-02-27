@@ -1585,9 +1585,11 @@ void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int 
 }
 #endif
 
-void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int right = width-x0-4;
-  int bottom = height-y0-4;
+void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
+  const int bottom = !(bt & TILE_BOTTOM_BOUNDARY);
+  const int right = !(bt & TILE_RIGHT_BOUNDARY);
+  const int left = !(bt & TILE_LEFT_BOUNDARY);
+  const int top = !(bt & TILE_ABOVE_BOUNDARY);
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
 
@@ -1607,35 +1609,35 @@ void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
 #endif
 
-  uint32_t l0 = u32_load_aligned(src - !!y0*sstride);
+  uint32_t l0 = u32_load_aligned(src - top*sstride);
   uint32_t l1 = u32_load_aligned(src);
   uint32_t l2 = u32_load_aligned(src + sstride);
   uint32_t l3 = u32_load_aligned(src + 2*sstride);
   uint32_t l4 = u32_load_aligned(src + 3*sstride);
-  uint32_t l5 = u32_load_aligned(src + (3+!!bottom)*sstride);
+  uint32_t l5 = u32_load_aligned(src + (bottom + 3)*sstride);
   v128 c128 = v128_dup_8(128);
   v128 o = v128_from_32(l1, l2, l3, l4);
   v128 x = v128_add_8(c128, o);
   v128 a = v128_add_8(c128, v128_from_32(l0, l1, l2, l3));
-  v128 b = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - 2*!!x0),
-                                         u32_load_unaligned(src + sstride - 2*!!x0),
-                                         u32_load_unaligned(src + 2*sstride - 2*!!x0),
-                                         u32_load_unaligned(src + 3*sstride - 2*!!x0)));
-  v128 c = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - !!x0),
-                                         u32_load_unaligned(src + sstride - !!x0),
-                                         u32_load_unaligned(src + 2*sstride - !!x0),
-                                         u32_load_unaligned(src + 3*sstride - !!x0)));
-  v128 d = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + !!right),
-                                         u32_load_unaligned(src + sstride + !!right),
-                                         u32_load_unaligned(src + 2*sstride + !!right),
-                                         u32_load_unaligned(src + 3*sstride + !!right)));
-  v128 e = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + 2*!!right),
-                                         u32_load_unaligned(src + sstride + 2*!!right),
-                                         u32_load_unaligned(src + 2*sstride + 2*!!right),
-                                         u32_load_unaligned(src + 3*sstride + 2*!!right)));
+  v128 b = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - 2*left),
+                                         u32_load_unaligned(src + sstride - 2*left),
+                                         u32_load_unaligned(src + 2*sstride - 2*left),
+                                         u32_load_unaligned(src + 3*sstride - 2*left)));
+  v128 c = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - left),
+                                         u32_load_unaligned(src + sstride - left),
+                                         u32_load_unaligned(src + 2*sstride - left),
+                                         u32_load_unaligned(src + 3*sstride - left)));
+  v128 d = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + right),
+                                         u32_load_unaligned(src + sstride + right),
+                                         u32_load_unaligned(src + 2*sstride + right),
+                                         u32_load_unaligned(src + 3*sstride + right)));
+  v128 e = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + 2*right),
+                                         u32_load_unaligned(src + sstride + 2*right),
+                                         u32_load_unaligned(src + 2*sstride + 2*right),
+                                         u32_load_unaligned(src + 3*sstride + 2*right)));
   v128 f = v128_add_8(c128, v128_from_32(l2, l3, l4, l5));
 
-  if (!x0) {
+  if (!left) {
     b = v128_shuffle_8(b, v128_load_aligned(bshuff));
     c = v128_shuffle_8(c, v128_load_aligned(cshuff));
   }
@@ -1661,8 +1663,11 @@ void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   u32_store_aligned(dst + 3*dstride, v128_low_u32(r));
 }
 
-void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int width, int height, unsigned int strength) {
-  int bottom = height-2-y0;
+void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
+  const int bottom = bt & TILE_BOTTOM_BOUNDARY ? 8 - 2 : -1;
+  const int right = (bt & TILE_RIGHT_BOUNDARY);
+  const int left = (bt & TILE_LEFT_BOUNDARY);
+  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
   v128 sp = v128_dup_8(strength);
   v128 sm = v128_dup_8(-(int)strength);
   v128 c8 = v128_dup_8(8);
@@ -1687,13 +1692,13 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
 
-  if (!x0) { // Clip left
+  if (left) { // Clip left
     for (int y = 0; y < 8; y += 2) {
       v64 l1 = v64_load_aligned(src);
       v64 l2 = v64_load_aligned(src+sstride);
       v128 o = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != -y0)*sstride), l1));
+      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
       v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
       v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
       v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src + 1),
@@ -1715,13 +1720,13 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
       src += sstride*2;
       dst += dstride*2;
     }
-  } else if (!(width-x0-8)) { // Clip right
+  } else if (right) { // Clip right
     for (int y = 0; y < 8; y += 2) {
       v64 l1 = v64_load_aligned(src);
       v64 l2 = v64_load_aligned(src+sstride);
       v128 o = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != -y0)*sstride), l1));
+      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
       v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 2),
 					      v64_load_unaligned(src - 2 + sstride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 1),
@@ -1749,7 +1754,7 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
       v64 l2 = v64_load_aligned(src+sstride);
       v128 o = v128_from_v64(l1, l2);
       v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != -y0)*sstride), l1));
+      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
       v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 2),
 					      v64_load_unaligned(src - 2 + sstride)));
       v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 1),

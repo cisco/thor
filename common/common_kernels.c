@@ -1839,9 +1839,30 @@ void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout)
 #endif
 }
 
-extern const int16_t coeffs_standard[][8];
-extern const int16_t coeffs_bipred[][8];
-extern const int16_t coeffs_chroma[][4];
+const ALIGN(32) int16_t TEMPLATE(coeffs_standard)[][8] = {
+  {  0,   0,  64,   0,   0,   0,    0,   0 },
+  {  1,  -7,  55,  19,  -5,   1,    0,   0 },
+  {  1,  -7,  38,  38,  -7,   1,    0,   0 },
+  {  1,  -5,  19,  55,  -7,   1,    0,   0 }
+};
+
+const ALIGN(32) int16_t TEMPLATE(coeffs_bipred)[][8] = {
+  {  0,   0,  64,   0,   0,   0,    0,   0 },
+  {  2, -10,  59,  17,  -5,   1,    0,   0 },
+  {  1,  -8,  39,  39,  -8,   1,    0,   0 },
+  {  1,  -5,  17,  59, -10,   2,    0,   0 }
+};
+
+const ALIGN(32) int16_t TEMPLATE(coeffs_chroma)[][4] = {
+  {  0, 64,  0,  0 },
+  { -2, 58, 10, -2 },
+  { -4, 54, 16, -2 },
+  { -4, 44, 28, -4 },
+  { -4, 36, 36, -4 },
+  { -4, 28, 44, -4 },
+  { -2, 16, 54, -4 },
+  { -2, 10, 58, -2 }
+};
 
 static void filter_6tap_edge(int width, int height, int xoff, int yoff,
                              SAMPLE *restrict qp, int qstride, const SAMPLE *restrict ip,
@@ -2102,7 +2123,7 @@ void TEMPLATE(get_inter_prediction_luma_simd)(int width, int height, int xoff, i
     get_inter_prediction_luma_centre(width, height, qp, qstride, ip, istride);
   else
     (!xoff || !yoff ? filter_6tap_edge : filter_6tap_inner)
-      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, bipred ? coeffs_bipred : coeffs_standard);
+      (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, bipred ? TEMPLATE(coeffs_bipred) : TEMPLATE(coeffs_standard));
 }
 
 static void filter_4tap_edge(int width, int height, int xoff, int yoff,
@@ -2277,5 +2298,5 @@ void TEMPLATE(get_inter_prediction_chroma_simd)(int width, int height, int xoff,
                                                 SAMPLE *restrict qp, int qstride,
                                                 const SAMPLE *restrict ip, int istride, int bitdepth) {
   (!xoff || !yoff ? filter_4tap_edge : filter_4tap_inner)
-    (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, coeffs_chroma);
+    (width, height, xoff, yoff, qp, qstride, ip, istride, bitdepth, TEMPLATE(coeffs_chroma));
 }

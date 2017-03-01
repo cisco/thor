@@ -44,36 +44,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define OFFY (NTAPY/2)
 #define OFFYM1 (OFFY-1)
 
-#ifndef HBD
-const ALIGN(32) int16_t coeffs_standard[][8] = {
-  {  0,   0,  64,   0,   0,   0,    0,   0 },
-  {  1,  -7,  55,  19,  -5,   1,    0,   0 },
-  {  1,  -7,  38,  38,  -7,   1,    0,   0 },
-  {  1,  -5,  19,  55,  -7,   1,    0,   0 }
-};
-
-const ALIGN(32) int16_t coeffs_bipred[][8] = {
-  {  0,   0,  64,   0,   0,   0,    0,   0 },
-  {  2, -10,  59,  17,  -5,   1,    0,   0 },
-  {  1,  -8,  39,  39,  -8,   1,    0,   0 },
-  {  1,  -5,  17,  59, -10,   2,    0,   0 }
-};
-
-const ALIGN(32) int16_t coeffs_chroma[][4] = {
-  {  0, 64,  0,  0 },
-  { -2, 58, 10, -2 },
-  { -4, 54, 16, -2 },
-  { -4, 44, 28, -4 },
-  { -4, 36, 36, -4 },
-  { -4, 28, 44, -4 },
-  { -2, 16, 54, -4 },
-  { -2, 10, 58, -2 }
-};
-#else
-extern const int16_t coeffs_standard[][8];
-extern const int16_t coeffs_bipred[][8];
-extern const int16_t coeffs_chroma[][4];
-#endif
+extern const int16_t coeffs_standard_lbd[][8];
+extern const int16_t coeffs_bipred_lbd[][8];
+extern const int16_t coeffs_chroma_lbd[][4];
 
 void TEMPLATE(clip_mv)(mv_t *mv_cand, int ypos, int xpos, int fwidth, int fheight, int bwidth, int bheight, int sign) {
 
@@ -125,7 +98,7 @@ static void get_inter_prediction_chroma(SAMPLE *pblock, SAMPLE *ref, int width, 
         int sum = 0;
         i_off = i + ver_int;
         j_off = j + hor_int;
-        for (m=0;m<4;m++) sum += coeffs_chroma[hor_frac][m] * ref[i_off * stride + j_off + m - 1];
+        for (m=0;m<4;m++) sum += coeffs_chroma_lbd[hor_frac][m] * ref[i_off * stride + j_off + m - 1];
         tmp[i+1][j] = sum;
       }
     }
@@ -134,7 +107,7 @@ static void get_inter_prediction_chroma(SAMPLE *pblock, SAMPLE *ref, int width, 
     for(i=0;i<height;i++){
       for (j=0;j<width;j++){
         int sum = 0;
-        for (m=0;m<4;m++) sum += coeffs_chroma[ver_frac][m] * tmp[i+m][j];
+        for (m=0;m<4;m++) sum += coeffs_chroma_lbd[ver_frac][m] * tmp[i+m][j];
         pblock[i*pstride+j] = saturate((sum + 2048)>>12,bitdepth);
       }
     }
@@ -185,7 +158,7 @@ void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width,
     }
   } else {
     /* Vertical filtering */
-    const int16_t *filterV = (bipred ? coeffs_bipred : coeffs_standard)[ver_frac];
+    const int16_t *filterV = (bipred ? coeffs_bipred_lbd : coeffs_standard_lbd)[ver_frac];
     for(i=-OFFYM1;i<width+OFFY;i++){
       for (j=0;j<height;j++){
         int sum = 0;
@@ -196,7 +169,7 @@ void TEMPLATE(get_inter_prediction_luma)(SAMPLE *pblock, SAMPLE *ref, int width,
       }
     }
     /* Horizontal filtering */
-    const int16_t *filterH = (bipred ? coeffs_bipred : coeffs_standard)[hor_frac];
+    const int16_t *filterH = (bipred ? coeffs_bipred_lbd : coeffs_standard_lbd)[hor_frac];
     for(i=0;i<width;i++){
       for (j=0;j<height;j++){
         int sum = 0;

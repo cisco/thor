@@ -41,11 +41,11 @@ extern int chroma_qp[52];
 #undef TEMPLATE
 #define TEMPLATE(func) (decoder_info->bitdepth == 8 ? func ## _lbd : func ## _hbd)
 
-static int clpf_true(int k, int l, const yuv_frame_t *r, const yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size) {
+static int clpf_true(int k, int l, const yuv_frame_t *r, const yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size, int qp) {
   return 1;
 }
 
-static int clpf_bit(int k, int l, const yuv_frame_t *r, const yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size) {
+static int clpf_bit(int k, int l, const yuv_frame_t *r, const yuv_frame_t *o, const deblock_data_t *d, int s, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size, int qp) {
   return get_flc(1, (stream_t*)stream);
 }
 
@@ -156,12 +156,12 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       int enable_fb_flag = fb_size_log2 != 4;
       if (fb_size_log2 == 4)
         fb_size_log2 = 7;
-      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_fb_flag, strength_y + (strength_y == 3), fb_size_log2, decoder_info->bitdepth, PLANE_Y, enable_fb_flag ? clpf_bit : clpf_true);
+      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, enable_fb_flag, strength_y + (strength_y == 3), fb_size_log2, decoder_info->bitdepth, PLANE_Y, qp, enable_fb_flag ? clpf_bit : clpf_true);
     }
     if (strength_u)
-      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, strength_u + (strength_u == 3), 4, decoder_info->bitdepth, PLANE_U, clpf_true);
+      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, strength_u + (strength_u == 3), 4, decoder_info->bitdepth, PLANE_U, qp, clpf_true);
     if (strength_v)
-      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, strength_v + (strength_v == 3), 4, decoder_info->bitdepth, PLANE_V, clpf_true);
+      TEMPLATE(clpf_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, strength_v + (strength_v == 3), 4, decoder_info->bitdepth, PLANE_V, qp, clpf_true);
   }
 
   /* Sliding window operation for reference frame buffer by circular buffer */

@@ -1585,199 +1585,261 @@ void inverse_transform_simd(const int16_t *coeff, int16_t *block, int size, int 
 }
 #endif
 
-void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
-  const int bottom = !(bt & TILE_BOTTOM_BOUNDARY);
-  const int right = !(bt & TILE_RIGHT_BOUNDARY);
-  const int left = !(bt & TILE_LEFT_BOUNDARY);
-  const int top = !(bt & TILE_ABOVE_BOUNDARY);
-  dst += x0 + y0*dstride;
-  src += x0 + y0*sstride;
-
+// sign(a - b) * max(0, abs(a - b) - max(0, abs(a - b) -
+// strength + (abs(a - b) >> (dmp - log2(s)))))
+SIMD_INLINE v128 constrain(v128 a, v128 b, unsigned int strength, unsigned int dmp) {
 #ifdef HBD
-  static ALIGN(32) uint64_t bshuff[] = { 0x0302010001000100LL, 0x0b0a090809080908LL,
-                                         0x0302010001000100LL, 0x0b0a090809080908LL };
-  static ALIGN(32) uint64_t cshuff[] = { 0x0504030201000100LL, 0x0d0c0b0a09080908LL,
-                                         0x0504030201000100LL, 0x0d0c0b0a09080908LL };
-  static ALIGN(32) uint64_t dshuff[] = { 0x0706070605040302LL, 0x0f0e0f0e0d0c0b0aLL,
-                                         0x0706070605040302LL, 0x0f0e0f0e0d0c0b0aLL };
-  static ALIGN(32) uint64_t eshuff[] = { 0x0706070607060504LL, 0x0f0e0f0e0f0e0d0cLL,
-                                         0x0706070607060504LL, 0x0f0e0f0e0f0e0d0cLL };
+  const v128 diff = v128_sub_8(v128_max_s8(a, b), v128_min_s8(a, b));
+  const v128 sign = v128_cmpeq_8(v128_min_s8(a, b), a);  // -(a <= b)
+  const v128 zero = v128_zero();
+  const v128 s = v128_max_s8(zero, v128_sub_8(v128_dup_8(strength), v128_shr_u8(diff, dmp - log2i(strength))));
+  return v128_sub_8(v128_xor(sign, v128_max_s8(zero, v128_sub_8(diff, v128_max_s8(zero, v128_sub_8(diff, s))))), sign);
 #else
-  static ALIGN(16) uint64_t bshuff[] = { 0x0504040401000000LL, 0x0d0c0c0c09080808LL };
-  static ALIGN(16) uint64_t cshuff[] = { 0x0605040402010000LL, 0x0e0d0c0c0a090808LL };
-  static ALIGN(16) uint64_t dshuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09LL };
-  static ALIGN(16) uint64_t eshuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
+  const v128 diff = v128_sub_8(v128_max_u8(a, b), v128_min_u8(a, b));
+  const v128 sign = v128_cmpeq_8(v128_min_u8(a, b), a);  // -(a <= b)
+  const v128 s = v128_ssub_u8(v128_dup_8(strength), v128_shr_u8(diff, dmp - log2i(strength)));
+  return v128_sub_8(v128_xor(sign, v128_ssub_u8(diff, v128_ssub_u8(diff, s))), sign);
 #endif
-
-  uint32_t l0 = u32_load_aligned(src - top*sstride);
-  uint32_t l1 = u32_load_aligned(src);
-  uint32_t l2 = u32_load_aligned(src + sstride);
-  uint32_t l3 = u32_load_aligned(src + 2*sstride);
-  uint32_t l4 = u32_load_aligned(src + 3*sstride);
-  uint32_t l5 = u32_load_aligned(src + (bottom + 3)*sstride);
-  v128 c128 = v128_dup_8(128);
-  v128 o = v128_from_32(l1, l2, l3, l4);
-  v128 x = v128_add_8(c128, o);
-  v128 a = v128_add_8(c128, v128_from_32(l0, l1, l2, l3));
-  v128 b = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - 2*left),
-                                         u32_load_unaligned(src + sstride - 2*left),
-                                         u32_load_unaligned(src + 2*sstride - 2*left),
-                                         u32_load_unaligned(src + 3*sstride - 2*left)));
-  v128 c = v128_add_8(c128, v128_from_32(u32_load_unaligned(src - left),
-                                         u32_load_unaligned(src + sstride - left),
-                                         u32_load_unaligned(src + 2*sstride - left),
-                                         u32_load_unaligned(src + 3*sstride - left)));
-  v128 d = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + right),
-                                         u32_load_unaligned(src + sstride + right),
-                                         u32_load_unaligned(src + 2*sstride + right),
-                                         u32_load_unaligned(src + 3*sstride + right)));
-  v128 e = v128_add_8(c128, v128_from_32(u32_load_unaligned(src + 2*right),
-                                         u32_load_unaligned(src + sstride + 2*right),
-                                         u32_load_unaligned(src + 2*sstride + 2*right),
-                                         u32_load_unaligned(src + 3*sstride + 2*right)));
-  v128 f = v128_add_8(c128, v128_from_32(l2, l3, l4, l5));
-
-  if (!left) {
-    b = v128_shuffle_8(b, v128_load_aligned(bshuff));
-    c = v128_shuffle_8(c, v128_load_aligned(cshuff));
-  }
-  if (!right) {
-    d = v128_shuffle_8(d, v128_load_aligned(dshuff));
-    e = v128_shuffle_8(e, v128_load_aligned(eshuff));
-  }
-  v128 sp = v128_dup_8(strength);
-  v128 sm = v128_dup_8(-(int)strength);
-
-  v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-                        v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-  v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-                                                           v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-                                     v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-                          v128_add_8(v128_add_8(tmp, tmp), tmp));
-  delta = v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4);
-  v128 r = v128_add_8(o, delta);
-  u32_store_aligned(dst, v128_low_u32(v128_shr_n_byte(r, 12)));
-  u32_store_aligned(dst + dstride, v128_low_u32(v128_shr_n_byte(r, 8)));
-  u32_store_aligned(dst + 2*dstride, v128_low_u32(v128_shr_n_byte(r, 4)));
-  u32_store_aligned(dst + 3*dstride, v128_low_u32(r));
 }
 
-void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, boundary_type bt, unsigned int strength) {
-  const int bottom = bt & TILE_BOTTOM_BOUNDARY ? 8 - 2 : -1;
-  const int right = (bt & TILE_RIGHT_BOUNDARY);
-  const int left = (bt & TILE_LEFT_BOUNDARY);
-  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
-  v128 sp = v128_dup_8(strength);
-  v128 sm = v128_dup_8(-(int)strength);
-  v128 c8 = v128_dup_8(8);
-  v128 c128 = v128_dup_8(128);
+// delta = 1/16 * constrain(a, x, s) + 3/16 * constrain(b, x, s) +
+//         1/16 * constrain(c, x, s) + 3/16 * constrain(d, x, s) +
+//         3/16 * constrain(e, x, s) + 1/16 * constrain(f, x, s) +
+//         3/16 * constrain(g, x, s) + 1/16 * constrain(h, x, s)
+SIMD_INLINE v128 calc_delta(v128 x, v128 a, v128 b, v128 c, v128 d, v128 e,
+                            v128 f, v128 g, v128 h, unsigned int s,
+                            unsigned int dmp) {
+  const v128 bdeg =
+      v128_add_8(v128_add_8(constrain(b, x, s, dmp), constrain(d, x, s, dmp)),
+                 v128_add_8(constrain(e, x, s, dmp), constrain(g, x, s, dmp)));
+  const v128 delta = v128_add_8(
+      v128_add_8(v128_add_8(constrain(a, x, s, dmp), constrain(c, x, s, dmp)),
+                 v128_add_8(constrain(f, x, s, dmp), constrain(h, x, s, dmp))),
+      v128_add_8(v128_add_8(bdeg, bdeg), bdeg));
+  return v128_add_8(x, v128_shr_s8(v128_add_8(v128_dup_8(8), v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4));
+}
 
-#ifdef HBD
-  static ALIGN(32) uint64_t bshuff[] = { 0x0302010001000100LL, 0x0b0a090807060504LL,
-                                         0x0302010001000100LL, 0x0b0a090807060504LL };
-  static ALIGN(32) uint64_t cshuff[] = { 0x0504030201000100LL, 0x0d0c0b0a09080706LL,
-                                         0x0504030201000100LL, 0x0d0c0b0a09080706LL };
-  static ALIGN(32) uint64_t dshuff[] = { 0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL,
-                                         0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL };
-  static ALIGN(32) uint64_t eshuff[] = { 0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL,
-                                         0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL };
-#else
-  static ALIGN(16) uint64_t bshuff[] = { 0x0504030201000000LL, 0x0d0c0b0a09080808LL };
-  static ALIGN(16) uint64_t cshuff[] = { 0x0605040302010000LL, 0x0e0d0c0b0a090808LL };
-  static ALIGN(16) uint64_t dshuff[] = { 0x0707060504030201LL, 0x0f0f0e0d0c0b0a09LL };
-  static ALIGN(16) uint64_t eshuff[] = { 0x0707070605040302LL, 0x0f0f0f0e0d0c0b0aLL };
-#endif
+void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizey, boundary_type bt, unsigned int strength, unsigned int dmp) {
+  const int right = !(bt & TILE_RIGHT_BOUNDARY);
+  const int bottom = bt & TILE_BOTTOM_BOUNDARY ? sizey - 4 : -1;
+  const int left = !(bt & TILE_LEFT_BOUNDARY);
+  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
 
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
 
-  if (left) { // Clip left
-    for (int y = 0; y < 8; y += 2) {
-      v64 l1 = v64_load_aligned(src);
-      v64 l2 = v64_load_aligned(src+sstride);
-      v128 o = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
-      v128 b = v128_shuffle_8(x, v128_load_aligned(bshuff));
-      v128 c = v128_shuffle_8(x, v128_load_aligned(cshuff));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src + 1),
-					      v64_load_unaligned(src + 1 + sstride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src + 2),
-					      v64_load_unaligned(src + 2 + sstride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(src + ((y!=bottom)+1)*sstride)));
+#ifdef HBD
+  static ALIGN(32) uint64_t c_shuff[] = { 0x0302010001000100LL, 0x0b0a090809080908LL,
+                                          0x0302010001000100LL, 0x0b0a090809080908LL };
+  static ALIGN(32) uint64_t d_shuff[] = { 0x0504030201000100LL, 0x0d0c0b0a09080908LL,
+                                          0x0504030201000100LL, 0x0d0c0b0a09080908LL };
+  static ALIGN(32) uint64_t e_shuff[] = { 0x0706070605040302LL, 0x0f0e0f0e0d0c0b0aLL,
+                                          0x0706070605040302LL, 0x0f0e0f0e0d0c0b0aLL };
+  static ALIGN(32) uint64_t f_shuff[] = { 0x0706070607060504LL, 0x0f0e0f0e0f0e0d0cLL,
+                                          0x0706070607060504LL, 0x0f0e0f0e0f0e0d0cLL };
+#else
+  static ALIGN(16) uint64_t c_shuff[] = { 0x0504040401000000LL, 0x0d0c0c0c09080808LL };
+  static ALIGN(16) uint64_t d_shuff[] = { 0x0605040402010000LL, 0x0e0d0c0c0a090808LL };
+  static ALIGN(16) uint64_t e_shuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09LL };
+  static ALIGN(16) uint64_t f_shuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
+#endif
 
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-      o = v128_add_8(o, v128_shr_s8(v128_add_8(c8, v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4));
-      v64_store_aligned(dst, v128_high_v64(o));
-      v64_store_aligned(dst+dstride, v128_low_v64(o));
-      src += sstride*2;
-      dst += dstride*2;
-    }
-  } else if (right) { // Clip right
-    for (int y = 0; y < 8; y += 2) {
-      v64 l1 = v64_load_aligned(src);
-      v64 l2 = v64_load_aligned(src+sstride);
-      v128 o = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 2),
-					      v64_load_unaligned(src - 2 + sstride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 1),
-					      v64_load_unaligned(src - 1 + sstride)));
-      v128 d = v128_shuffle_8(x, v128_load_aligned(dshuff));
-      v128 e = v128_shuffle_8(x, v128_load_aligned(eshuff));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(src + ((y!=bottom)+1)*sstride)));
+  for (int y = 0; y < sizey; y += 4) {
+    const uint32_t l0 = u32_load_aligned(src - 2 * (y != top) * sstride);
+    const uint32_t l1 = u32_load_aligned(src - (y != top) * sstride);
+    const uint32_t l2 = u32_load_aligned(src);
+    const uint32_t l3 = u32_load_aligned(src + sstride);
+    const uint32_t l4 = u32_load_aligned(src + 2 * sstride);
+    const uint32_t l5 = u32_load_aligned(src + 3 * sstride);
+    const uint32_t l6 = u32_load_aligned(src + ((y != bottom) + 3) * sstride);
+    const uint32_t l7 =
+        u32_load_aligned(src + (2 * (y != bottom) + 3) * sstride);
+    v128 o = v128_from_32(l2, l3, l4, l5);
+    const v128 a = v128_from_32(l0, l1, l2, l3);
+    const v128 b = v128_from_32(l1, l2, l3, l4);
+    const v128 g = v128_from_32(l3, l4, l5, l6);
+    const v128 h = v128_from_32(l4, l5, l6, l7);
+    v128 c, d, e, f;
 
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-      o = v128_add_8(o, v128_shr_s8(v128_add_8(c8, v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4));
-      v64_store_aligned(dst, v128_high_v64(o));
-      v64_store_aligned(dst+dstride, v128_low_v64(o));
-      src += sstride*2;
-      dst += dstride*2;
+    if (left) {
+      c = v128_from_32(u32_load_unaligned(src - 2),
+                       u32_load_unaligned(src + sstride - 2),
+                       u32_load_unaligned(src + 2 * sstride - 2),
+                       u32_load_unaligned(src + 3 * sstride - 2));
+      d = v128_from_32(u32_load_unaligned(src - 1),
+                       u32_load_unaligned(src + sstride - 1),
+                       u32_load_unaligned(src + 2 * sstride - 1),
+                       u32_load_unaligned(src + 3 * sstride - 1));
+    } else {  // Left clipping
+      c = v128_shuffle_8(o, v128_load_aligned(c_shuff));
+      d = v128_shuffle_8(o, v128_load_aligned(d_shuff));
     }
-  } else { // No left/right clipping
-    for (int y = 0; y < 8; y += 2) {
-      v64 l1 = v64_load_aligned(src);
-      v64 l2 = v64_load_aligned(src+sstride);
-      v128 o = v128_from_v64(l1, l2);
-      v128 x = v128_add_8(c128, o);
-      v128 a = v128_add_8(c128, v128_from_v64(v64_load_aligned(src - (y != top)*sstride), l1));
-      v128 b = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 2),
-					      v64_load_unaligned(src - 2 + sstride)));
-      v128 c = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src - 1),
-					      v64_load_unaligned(src - 1 + sstride)));
-      v128 d = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src + 1),
-					      v64_load_unaligned(src + 1 + sstride)));
-      v128 e = v128_add_8(c128, v128_from_v64(v64_load_unaligned(src + 2),
-					      v64_load_unaligned(src + 2 + sstride)));
-      v128 f = v128_add_8(c128, v128_from_v64(l2, v64_load_aligned(src + ((y!=bottom)+1)*sstride)));
+    if (right) {
+      e = v128_from_32(u32_load_unaligned(src + 1),
+                       u32_load_unaligned(src + sstride + 1),
+                       u32_load_unaligned(src + 2 * sstride + 1),
+                       u32_load_unaligned(src + 3 * sstride + 1));
+      f = v128_from_32(u32_load_unaligned(src + 2),
+                       u32_load_unaligned(src + sstride + 2),
+                       u32_load_unaligned(src + 2 * sstride + 2),
+                       u32_load_unaligned(src + 3 * sstride + 2));
+    } else {  // Right clipping
+      e = v128_shuffle_8(o, v128_load_aligned(e_shuff));
+      f = v128_shuffle_8(o, v128_load_aligned(f_shuff));
+    }
 
-      v128 tmp = v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(c, x), sp), sm),
-			    v128_max_s8(v128_min_s8(v128_ssub_s8(d, x), sp), sm));
-      v128 delta = v128_add_8(v128_add_8(v128_shl_8(v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(a, x), sp), sm),
-							       v128_max_s8(v128_min_s8(v128_ssub_s8(f, x), sp), sm)), 2),
-					 v128_add_8(v128_max_s8(v128_min_s8(v128_ssub_s8(b, x), sp), sm),
-						    v128_max_s8(v128_min_s8(v128_ssub_s8(e, x), sp), sm))),
-			      v128_add_8(v128_add_8(tmp, tmp), tmp));
-      o = v128_add_8(o, v128_shr_s8(v128_add_8(c8, v128_add_8(delta, v128_cmplt_s8(delta, v128_zero()))), 4));
-      v64_store_aligned(dst, v128_high_v64(o));
-      v64_store_aligned(dst+dstride, v128_low_v64(o));
-      src += sstride*2;
-      dst += dstride*2;
+    o = calc_delta(o, a, b, c, d, e, f, g, h, strength, dmp);
+    u32_store_aligned(dst, v128_low_u32(v128_shr_n_byte(o, 12)));
+    u32_store_aligned(dst + dstride, v128_low_u32(v128_shr_n_byte(o, 8)));
+    u32_store_aligned(dst + 2 * dstride, v128_low_u32(v128_shr_n_byte(o, 4)));
+    u32_store_aligned(dst + 3 * dstride, v128_low_u32(o));
+
+    dst += 4 * dstride;
+    src += 4 * sstride;
+  }
+}
+
+void TEMPLATE(clpf_block4_noclip)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizey, unsigned int strength, unsigned int dmp) {
+  dst += x0 + y0 * dstride;
+  src += x0 + y0 * sstride;
+
+  for (int y = 0; y < sizey; y += 4) {
+    const uint32_t l0 = u32_load_aligned(src - 2 * sstride);
+    const uint32_t l1 = u32_load_aligned(src - sstride);
+    const uint32_t l2 = u32_load_aligned(src);
+    const uint32_t l3 = u32_load_aligned(src + sstride);
+    const uint32_t l4 = u32_load_aligned(src + 2 * sstride);
+    const uint32_t l5 = u32_load_aligned(src + 3 * sstride);
+    const uint32_t l6 = u32_load_aligned(src + 4 * sstride);
+    const uint32_t l7 = u32_load_aligned(src + 5 * sstride);
+    const v128 a = v128_from_32(l0, l1, l2, l3);
+    const v128 b = v128_from_32(l1, l2, l3, l4);
+    const v128 g = v128_from_32(l3, l4, l5, l6);
+    const v128 h = v128_from_32(l4, l5, l6, l7);
+    const v128 c = v128_from_32(u32_load_unaligned(src - 2),
+                                u32_load_unaligned(src + sstride - 2),
+                                u32_load_unaligned(src + 2 * sstride - 2),
+                                u32_load_unaligned(src + 3 * sstride - 2));
+    const v128 d = v128_from_32(u32_load_unaligned(src - 1),
+                                u32_load_unaligned(src + sstride - 1),
+                                u32_load_unaligned(src + 2 * sstride - 1),
+                                u32_load_unaligned(src + 3 * sstride - 1));
+    const v128 e = v128_from_32(u32_load_unaligned(src + 1),
+                                u32_load_unaligned(src + sstride + 1),
+                                u32_load_unaligned(src + 2 * sstride + 1),
+                                u32_load_unaligned(src + 3 * sstride + 1));
+    const v128 f = v128_from_32(u32_load_unaligned(src + 2),
+                                u32_load_unaligned(src + sstride + 2),
+                                u32_load_unaligned(src + 2 * sstride + 2),
+                                u32_load_unaligned(src + 3 * sstride + 2));
+
+    const v128 o = calc_delta(v128_from_32(l2, l3, l4, l5), a, b, c, d, e, f, g,
+                              h, strength, dmp);
+
+    u32_store_aligned(dst, v128_low_u32(v128_shr_n_byte(o, 12)));
+    u32_store_aligned(dst + dstride, v128_low_u32(v128_shr_n_byte(o, 8)));
+    u32_store_aligned(dst + 2 * dstride, v128_low_u32(v128_shr_n_byte(o, 4)));
+    u32_store_aligned(dst + 3 * dstride, v128_low_u32(o));
+
+    dst += 4 * dstride;
+    src += 4 * sstride;
+  }
+}
+
+void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizey, boundary_type bt, unsigned int strength, unsigned int dmp) {
+  const int bottom = bt & TILE_BOTTOM_BOUNDARY ? sizey - 2 : -1;
+  const int right = !(bt & TILE_RIGHT_BOUNDARY);
+  const int left = !(bt & TILE_LEFT_BOUNDARY);
+  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
+
+#ifdef HBD
+  static ALIGN(32) uint64_t c_shuff[] = { 0x0302010001000100LL, 0x0b0a090807060504LL,
+                                          0x0302010001000100LL, 0x0b0a090807060504LL };
+  static ALIGN(32) uint64_t d_shuff[] = { 0x0504030201000100LL, 0x0d0c0b0a09080706LL,
+                                          0x0504030201000100LL, 0x0d0c0b0a09080706LL };
+  static ALIGN(32) uint64_t e_shuff[] = { 0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL,
+                                          0x0908070605040302LL, 0x0f0e0f0e0d0c0b0aLL };
+  static ALIGN(32) uint64_t f_shuff[] = { 0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL,
+                                          0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0cLL };
+#else
+  static ALIGN(16) uint64_t c_shuff[] = { 0x0504030201000000LL, 0x0d0c0b0a09080808LL };
+  static ALIGN(16) uint64_t d_shuff[] = { 0x0605040302010000LL, 0x0e0d0c0b0a090808LL };
+  static ALIGN(16) uint64_t e_shuff[] = { 0x0707060504030201LL, 0x0f0f0e0d0c0b0a09LL };
+  static ALIGN(16) uint64_t f_shuff[] = { 0x0707070605040302LL, 0x0f0f0f0e0d0c0b0aLL };
+#endif
+
+  dst += x0 + y0 * dstride;
+  src += x0 + y0 * sstride;
+
+  for (int y = 0; y < sizey; y += 2) {
+    const v64 l1 = v64_load_aligned(src);
+    const v64 l2 = v64_load_aligned(src + sstride);
+    const v64 l3 = v64_load_aligned(src - (y != top) * sstride);
+    const v64 l4 = v64_load_aligned(src + ((y != bottom) + 1) * sstride);
+    v128 o = v128_from_v64(l1, l2);
+    const v128 a =
+        v128_from_v64(v64_load_aligned(src - 2 * (y != top) * sstride), l3);
+    const v128 b = v128_from_v64(l3, l1);
+    const v128 g = v128_from_v64(l2, l4);
+    const v128 h = v128_from_v64(
+        l4, v64_load_aligned(src + (2 * (y != bottom) + 1) * sstride));
+    v128 c, d, e, f;
+
+    if (left) {
+      c = v128_from_v64(v64_load_unaligned(src - 2),
+                        v64_load_unaligned(src - 2 + sstride));
+      d = v128_from_v64(v64_load_unaligned(src - 1),
+                        v64_load_unaligned(src - 1 + sstride));
+    } else {  // Left clipping
+      c = v128_shuffle_8(o, v128_load_aligned(c_shuff));
+      d = v128_shuffle_8(o, v128_load_aligned(d_shuff));
     }
+    if (right) {
+      e = v128_from_v64(v64_load_unaligned(src + 1),
+                        v64_load_unaligned(src + 1 + sstride));
+      f = v128_from_v64(v64_load_unaligned(src + 2),
+                        v64_load_unaligned(src + 2 + sstride));
+    } else {  // Right clipping
+      e = v128_shuffle_8(o, v128_load_aligned(e_shuff));
+      f = v128_shuffle_8(o, v128_load_aligned(f_shuff));
+    }
+
+    o = calc_delta(o, a, b, c, d, e, f, g, h, strength, dmp);
+    v64_store_aligned(dst, v128_high_v64(o));
+    v64_store_aligned(dst + dstride, v128_low_v64(o));
+    src += sstride * 2;
+    dst += dstride * 2;
+  }
+}
+
+void TEMPLATE(clpf_block8_noclip)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizey, unsigned int strength, unsigned int dmp) {
+  dst += x0 + y0 * dstride;
+  src += x0 + y0 * sstride;
+
+  for (int y = 0; y < sizey; y += 2) {
+    const v64 l1 = v64_load_aligned(src);
+    const v64 l2 = v64_load_aligned(src + sstride);
+    const v64 l3 = v64_load_aligned(src - sstride);
+    const v64 l4 = v64_load_aligned(src + 2 * sstride);
+    const v128 a = v128_from_v64(v64_load_aligned(src - 2 * sstride), l3);
+    const v128 b = v128_from_v64(l3, l1);
+    const v128 g = v128_from_v64(l2, l4);
+    const v128 h = v128_from_v64(l4, v64_load_aligned(src + 3 * sstride));
+    const v128 c = v128_from_v64(v64_load_unaligned(src - 2),
+                                 v64_load_unaligned(src - 2 + sstride));
+    const v128 d = v128_from_v64(v64_load_unaligned(src - 1),
+                                 v64_load_unaligned(src - 1 + sstride));
+    const v128 e = v128_from_v64(v64_load_unaligned(src + 1),
+                                 v64_load_unaligned(src + 1 + sstride));
+    const v128 f = v128_from_v64(v64_load_unaligned(src + 2),
+                                 v64_load_unaligned(src + 2 + sstride));
+    const v128 o = calc_delta(v128_from_v64(l1, l2), a, b, c, d, e, f, g, h,
+                              strength, dmp);
+
+    v64_store_aligned(dst, v128_high_v64(o));
+    v64_store_aligned(dst + dstride, v128_low_v64(o));
+    src += sstride * 2;
+    dst += dstride * 2;
   }
 }
 

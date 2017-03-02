@@ -2556,21 +2556,23 @@ int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int ypos,int x
 }
 
 
- void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size)
+ void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int ostride,int rstride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size, unsigned int dmp)
 {
   uint32_t s0 = 0, s1 = 0;
   for (int y = y0; y < y0+size; y++) {
     for (int x = x0; x < x0+size; x++) {
-      int O = org[y*so + x];
-      int X = rec[(y+0)*stride + x+0];
-      int A = rec[max(0, y-1)*stride + x];
-      int B = rec[y*stride + max(0, x-2)];
-      int C = rec[y*stride + max(0, x-1)];
-      int D = rec[y*stride + min(width-1, x+1)];
-      int E = rec[y*stride + min(width-1, x+2)];
-      int F = rec[min(height-1, y+1)*stride + x];
-      int delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
-      int Y = X + delta;
+      const int O = org[y * ostride + x];
+      const int X = rec[y * rstride + x];
+      const int A = rec[max(0, y - 2) * rstride + x];
+      const int B = rec[max(0, y - 1) * rstride + x];
+      const int C = rec[y * rstride + max(0, x - 2)];
+      const int D = rec[y * rstride + max(0, x - 1)];
+      const int E = rec[y * rstride + min(width - 1, x + 1)];
+      const int F = rec[y * rstride + min(width - 1, x + 2)];
+      const int G = rec[min(height - 1, y + 1) * rstride + x];
+      const int H = rec[min(height - 1, y + 2) * rstride + x];
+      const int delta = clpf_sample(X, A, B, C, D, E, F, G, H, strength, dmp);
+      const int Y = X + delta;
       s0 += ((O-X)*(O-X));
       s1 += ((O-Y)*(O-Y));
     }
@@ -2579,25 +2581,27 @@ int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int ypos,int x
   *sum1 += s1 >> (shift*2);
 }
 
- void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift, unsigned int size)
+ void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int ostride,int rstride, int *sum, unsigned int shift, unsigned int size, unsigned int dmp)
 {
   uint32_t s0 = 0, s1 = 0, s2 = 0, s3 = 0;
   for (int y = y0; y < y0+size; y++) {
     for (int x = x0; x < x0+size; x++) {
-      int O = org[y*so + x];
-      int X = rec[y*stride + x];
-      int A = rec[max(0, y-1)*stride + x];
-      int B = rec[y*stride + max(0, x-2)];
-      int C = rec[y*stride + max(0, x-1)];
-      int D = rec[y*stride + min(width-1, x+1)];
-      int E = rec[y*stride + min(width-1, x+2)];
-      int F = rec[min(height-1, y+1)*stride + x];
-      int delta1 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 1 << shift);
-      int delta2 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 2 << shift);
-      int delta3 = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, 4 << shift);
-      int F1 = X + delta1;
-      int F2 = X + delta2;
-      int F3 = X + delta3;
+      const int O = org[y * ostride + x];
+      const int X = rec[y * rstride + x];
+      const int A = rec[max(0, y - 2) * rstride + x];
+      const int B = rec[max(0, y - 1) * rstride + x];
+      const int C = rec[y * rstride + max(0, x - 2)];
+      const int D = rec[y * rstride + max(0, x - 1)];
+      const int E = rec[y * rstride + min(width - 1, x + 1)];
+      const int F = rec[y * rstride + min(width - 1, x + 2)];
+      const int G = rec[min(height - 1, y + 1) * rstride + x];
+      const int H = rec[min(height - 1, y + 2) * rstride + x];
+      const int delta1 = clpf_sample(X, A, B, C, D, E, F, G, H, 1 << shift, dmp);
+      const int delta2 = clpf_sample(X, A, B, C, D, E, F, G, H, 2 << shift, dmp);
+      const int delta3 = clpf_sample(X, A, B, C, D, E, F, G, H, 4 << shift, dmp);
+      const int F1 = X + delta1;
+      const int F2 = X + delta2;
+      const int F3 = X + delta3;
       s0 += (O-X)*(O-X);
       s1 += (O-F1)*(O-F1);
       s2 += (O-F2)*(O-F2);

@@ -104,14 +104,24 @@ void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, in
   }
 }
 
-int TEMPLATE(clpf_sample)(int X, int A, int B, int C, int D, int E, int F, int b) {
-  int delta =
-    4*clip(A - X, -b, b) + clip(B - X, -b, b) + 3*clip(C - X, -b, b) +
-    3*clip(D - X, -b, b) + clip(E - X, -b, b) + 4*clip(F - X, -b, b);
-  return (8 + delta - (delta < 0)) >> 4;
+#ifndef HBD
+static int sign(int i) { return i < 0 ? -1 : 1; }
+
+static int constrain(int x, int s, unsigned int damping) {
+  return sign(x) * max(0, abs(x) - max(0, abs(x) - s +
+                                             (abs(x) >> (damping - log2i(s)))));
 }
 
-void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, boundary_type bt, unsigned int strength) {
+int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int G, int H, int s, unsigned int dmp) {
+  int delta = 1 * constrain(A - X, s, dmp) + 3 * constrain(B - X, s, dmp) +
+              1 * constrain(C - X, s, dmp) + 3 * constrain(D - X, s, dmp) +
+              3 * constrain(E - X, s, dmp) + 1 * constrain(F - X, s, dmp) +
+              3 * constrain(G - X, s, dmp) + 1 * constrain(H - X, s, dmp);
+  return (8 + delta - (delta < 0)) >> 4;
+}
+#endif
+
+void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, boundary_type bt, unsigned int strength, unsigned int damping) {
   const int xmin = x0 - !(bt & TILE_LEFT_BOUNDARY) * 2;
   const int ymin = y0 - !(bt & TILE_ABOVE_BOUNDARY) * 2;
   const int xmax = x0 + sizex + !(bt & TILE_RIGHT_BOUNDARY) * 2 - 1;
@@ -120,13 +130,15 @@ void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstri
   for (int y = y0; y < y0 + sizey; y++) {
     for (int x = x0; x < x0 + sizex; x++) {
       const int X = src[y * sstride + x];
-      const int A = src[max(ymin, y - 1) * sstride + x];
-      const int B = src[y * sstride + max(xmin, x - 2)];
-      const int C = src[y * sstride + max(xmin, x - 1)];
-      const int D = src[y * sstride + min(xmax, x + 1)];
-      const int E = src[y * sstride + min(xmax, x + 2)];
-      const int F = src[min(ymax, y + 1) * sstride + x];
-      const int delta = TEMPLATE(clpf_sample)(X, A, B, C, D, E, F, strength);
+      const int A = src[max(ymin, y - 2) * sstride + x];
+      const int B = src[max(ymin, y - 1) * sstride + x];
+      const int C = src[y * sstride + max(xmin, x - 2)];
+      const int D = src[y * sstride + max(xmin, x - 1)];
+      const int E = src[y * sstride + min(xmax, x + 1)];
+      const int F = src[y * sstride + min(xmax, x + 2)];
+      const int G = src[min(ymax, y + 1) * sstride + x];
+      const int H = src[min(ymax, y + 2) * sstride + x];
+      const int delta = clpf_sample(X, A, B, C, D, E, F, G, H, strength, damping);
       dst[y * dstride + x] = X + delta;
     }
   }

@@ -761,8 +761,8 @@ void TEMPLATE(create_reference_frame)(yuv_frame_t  *ref,yuv_frame_t  *rec)
   TEMPLATE(pad_yuv_frame)(ref);
 }
 
-void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_fb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, unsigned int plane,
-                          int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int)) {
+void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_fb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, unsigned int plane, int qp,
+                          int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int, int)) {
 
   /* Constrained low-pass filter (CLPF) */
   int c, k, l, m, n;
@@ -784,6 +784,7 @@ void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, cons
   const int cache_blocks = cache_size / (bs * bs);
   SAMPLE *src_buffer = plane != PLANE_Y ? (plane == PLANE_U ? frame->u : frame->v) : frame->y;
   SAMPLE *dst_buffer;
+  int damping = bitdepth - 4 - (plane != PLANE_Y) + (qp >> 4);
 
   // Make buffer space for in-place filtering
   cache = thor_alloc(cache_size * sizeof(SAMPLE), 32);
@@ -820,7 +821,7 @@ void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, cons
           (!enable_fb_flag ||
            // Only called if fb_flag enabled (luma only)
            decision(k, l, frame, org, deblock_data, bs, w / bs, h / bs, stream, strength,
-                    fb_size_log2, bitdepth-8, bs))) {
+                    fb_size_log2, bitdepth-8, bs, qp))) {
         // Iterate over all smaller blocks inside the filter block
         for (m = 0; m < ((h + bs - 1) >> bslog); m++) {
           for (n = 0; n < ((w + bs - 1) >> bslog); n++) {
@@ -880,7 +881,7 @@ void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, cons
               // Apply the filter
               (use_simd ? TEMPLATE(clpf_block_simd) : TEMPLATE(clpf_block))
                 (src_buffer, dst_buffer, sstride, dstride, xpos,
-                 ypos, sizex, sizey, bt, strength);
+                 ypos, sizex, sizey, bt, strength, damping);
             }
           }
         }

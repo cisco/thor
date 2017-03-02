@@ -43,8 +43,8 @@ void deblock_frame_uv_lbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int w
 void deblock_frame_uv_hbd(yuv_frame_t  *rec, deblock_data_t *deblock_data, int width, int height, uint8_t qp, int bitdepth);
 void create_reference_frame_lbd(yuv_frame_t  *ref,yuv_frame_t  *rec);
 void create_reference_frame_hbd(yuv_frame_t  *ref,yuv_frame_t  *rec);
-void clpf_frame_lbd(yuv_frame_t *frame, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, plane_t plane,
-                    int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int));
-void clpf_frame_hbd(yuv_frame_t *frame, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, plane_t plane,
-                    int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int));
+void clpf_frame_lbd(yuv_frame_t *frame, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, plane_t plane, int qp,
+                    int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int, int));
+void clpf_frame_hbd(yuv_frame_t *frame, yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, plane_t plane, int qp,
+                    int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int, int));
 #endif

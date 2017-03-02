@@ -27,8 +27,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined(_ENCODE_BLOCK_H_)
 #define _ENCODE_BLOCK_H_
 
+#include "mainenc.h"
+
 int TEMPLATE(process_block)(encoder_info_t *encoder_info,int size,int yposY,int xposY, int qp, int sub);
-void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0,int width, int height, int so,int stride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size);
-void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int so,int stride, int *sum, unsigned int shift, unsigned int size);
+void TEMPLATE(detect_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int ostride,int rstride, int *sum0, int *sum1, unsigned int strength, unsigned int shift, unsigned int size, unsigned int dmp);
+void TEMPLATE(detect_multi_clpf)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int ostride,int rstride, int *sum, unsigned int shift, unsigned int size, unsigned int dmp);
 
 #endif

@@ -227,8 +227,8 @@ SIMD_INLINE c_v64 c_v64_sadd_s16(c_v64 a, c_v64 b) {
 
 SIMD_INLINE c_v64 c_v64_add_32(c_v64 a, c_v64 b) {
   c_v64 t;
-  t.u32[0] = a.u32[0] + b.u32[0];
-  t.u32[1] = a.u32[1] + b.u32[1];
+  t.u32[0] = (uint32_t)((uint64_t)a.u32[0] + b.u32[0]);
+  t.u32[1] = (uint32_t)((uint64_t)a.u32[1] + b.u32[1]);
   return t;
 }
 
@@ -277,8 +277,8 @@ SIMD_INLINE c_v64 c_v64_ssub_s16(c_v64 a, c_v64 b) {
 
 SIMD_INLINE c_v64 c_v64_sub_32(c_v64 a, c_v64 b) {
   c_v64 t;
-  t.u32[0] = a.u32[0] - b.u32[0];
-  t.u32[1] = a.u32[1] - b.u32[1];
+  t.u32[0] = (uint32_t)((int64_t)a.u32[0] - b.u32[0]);
+  t.u32[1] = (uint32_t)((int64_t)a.u32[1] - b.u32[1]);
   return t;
 }
 
@@ -651,8 +651,8 @@ SIMD_INLINE c_v64 c_v64_mulhi_s16(c_v64 a, c_v64 b) {
 
 SIMD_INLINE c_v64 c_v64_mullo_s32(c_v64 a, c_v64 b) {
   c_v64 t;
-  t.s32[0] = a.s32[0] * b.s32[0];
-  t.s32[1] = a.s32[1] * b.s32[1];
+  t.s32[0] = (int32_t)((int64_t)a.s32[0] * b.s32[0]);
+  t.s32[1] = (int32_t)((int64_t)a.s32[1] * b.s32[1]);
   return t;
 }
 

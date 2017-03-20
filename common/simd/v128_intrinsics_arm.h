@@ -227,10 +227,6 @@ SIMD_INLINE v128 v128_sub_8(v128 x, v128 y) {
   return vreinterpretq_s64_u8(vsubq_u8(vreinterpretq_u8_s64(x), vreinterpretq_u8_s64(y)));
 }
 
-SIMD_INLINE v128 v128_sub_u8(v128 x, v128 y) {
-  return vreinterpretq_s64_u8(vqsubq_u8(vreinterpretq_u8_s64(x), vreinterpretq_u8_s64(y)));
-}
-
 SIMD_INLINE v128 v128_sub_16(v128 x, v128 y) {
   return vreinterpretq_s64_s16(vsubq_s16(vreinterpretq_s16_s64(x), vreinterpretq_s16_s64(y)));
 }

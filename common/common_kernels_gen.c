@@ -1623,7 +1623,7 @@ void TEMPLATE(clpf_block4)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   const int right = !(bt & TILE_RIGHT_BOUNDARY);
   const int bottom = bt & TILE_BOTTOM_BOUNDARY ? sizey - 4 : -1;
   const int left = !(bt & TILE_LEFT_BOUNDARY);
-  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
+  const int top = bt & TILE_ABOVE_BOUNDARY ? 0 : -1;
 
   dst += x0 + y0*dstride;
   src += x0 + y0*sstride;
@@ -1750,7 +1750,7 @@ void TEMPLATE(clpf_block8)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstr
   const int bottom = bt & TILE_BOTTOM_BOUNDARY ? sizey - 2 : -1;
   const int right = !(bt & TILE_RIGHT_BOUNDARY);
   const int left = !(bt & TILE_LEFT_BOUNDARY);
-  const int top = bt & TILE_ABOVE_BOUNDARY ? y0 : -1;
+  const int top = bt & TILE_ABOVE_BOUNDARY ? 0 : -1;
 
 #ifdef HBD
   static ALIGN(32) uint64_t c_shuff[] = { 0x0302010001000100LL, 0x0b0a090807060504LL,

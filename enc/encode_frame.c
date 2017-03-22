@@ -118,7 +118,7 @@ static int clpf_rdo(int y, int x, yuv_frame_t *rec, yuv_frame_t *org, const debl
       int sub = plane != PLANE_Y && org->sub;
       int index = ((ypos << sub) / MIN_PB_SIZE)*(rec->width / MIN_PB_SIZE) + ((xpos << sub) / MIN_PB_SIZE);
       if (deblock_data[index].mode != MODE_SKIP) {
-        if (use_simd && block_size == 8 && 0)
+        if (use_simd && block_size == 8)
           TEMPLATE(detect_multi_clpf_simd)(rec_buffer, org_buffer, xpos, ypos, rec_width, rec_height, org_stride, rec_stride, sum, bitdepth - 8, block_size, damping);
         else
           TEMPLATE(detect_multi_clpf)(rec_buffer, org_buffer, xpos, ypos, rec_width, rec_height, org_stride, rec_stride, sum, bitdepth - 8, block_size, damping);

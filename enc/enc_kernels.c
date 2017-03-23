@@ -163,8 +163,8 @@ static ALIGN(32) uint64_t f_shuff[] = { 0x0b0a090807060504LL, 0x0f0e0f0e0f0e0d0c
 #else
 static ALIGN(16) uint64_t c_shuff[] = { 0x0504030201000000LL, 0x0d0c0b0a09080808LL };
 static ALIGN(16) uint64_t d_shuff[] = { 0x0605040302010000LL, 0x0e0d0c0b0a090808LL };
-static ALIGN(16) uint64_t e_shuff[] = { 0x0707060503030201LL, 0x0f0f0e0d0b0b0a09LL };
-static ALIGN(16) uint64_t f_shuff[] = { 0x0707070603030302LL, 0x0f0f0f0e0b0b0b0aLL };
+static ALIGN(16) uint64_t e_shuff[] = { 0x0707060504030201LL, 0x0f0f0e0d0c0b0a09LL };
+static ALIGN(16) uint64_t f_shuff[] = { 0x0707070605040302LL, 0x0f0f0f0e0d0c0b0aLL };
 #endif
 
 SIMD_INLINE void calc_diff(v128 o, v128 *a, v128 *b, v128 *c, v128 *d, v128 *e, v128 *f) {

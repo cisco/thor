@@ -166,6 +166,10 @@ SIMD_INLINE v128 v128_ssub_s16(v128 a, v128 b) {
   return _mm_subs_epi16(a, b);
 }
 
+SIMD_INLINE v128 v128_ssub_u16(v128 a, v128 b) {
+  return _mm_subs_epu16(a, b);
+}
+
 SIMD_INLINE v128 v128_sub_32(v128 a, v128 b) {
   return _mm_sub_epi32(a, b);
 }
@@ -182,6 +186,14 @@ SIMD_INLINE v128 v128_abs_s16(v128 a) {
 #endif
 }
 
+SIMD_INLINE v128 v128_abs_s8(v128 a) {
+#if defined(__SSSE3__)
+  return _mm_abs_epi8(a);
+#else
+  v128 sign = _mm_cmplt_epi8(a, _mm_setzero_si128());
+  return _mm_xor_si128(sign, _mm_add_epi8(a, sign));
+#endif
+}
 
 
 SIMD_INLINE v128 v128_ziplo_8(v128 a, v128 b) {

@@ -235,6 +235,11 @@ SIMD_INLINE v128 v128_ssub_s16(v128 x, v128 y) {
   return vreinterpretq_s64_s16(vqsubq_s16(vreinterpretq_s16_s64(x), vreinterpretq_s16_s64(y)));
 }
 
+SIMD_INLINE v128 v128_ssub_u16(v128 x, v128 y) {
+  return vreinterpretq_s64_u16(
+      vqsubq_u16(vreinterpretq_u16_s64(x), vreinterpretq_u16_s64(y)));
+}
+
 SIMD_INLINE v128 v128_ssub_u8(v128 x, v128 y) {
   return vreinterpretq_s64_u8(vqsubq_u8(vreinterpretq_u8_s64(x), vreinterpretq_u8_s64(y)));
 }
@@ -255,6 +260,9 @@ SIMD_INLINE v128 v128_abs_s16(v128 x) {
   return vreinterpretq_s64_s16(vabsq_s16(vreinterpretq_s16_s64(x)));
 }
 
+SIMD_INLINE v128 v128_abs_s8(v128 x) {
+  return vreinterpretq_s64_s8(vabsq_s8(vreinterpretq_s8_s64(x)));
+}
 
 
 SIMD_INLINE v128 v128_mul_s16(v64 a, v64 b) {

@@ -133,11 +133,17 @@ SIMD_INLINE v256 v256_ssub_s16(v256 a, v256 b) {
   return _mm256_subs_epi16(a, b);
 }
 
+SIMD_INLINE v256 v256_ssub_u16(v256 a, v256 b) {
+  return _mm256_subs_epu16(a, b);
+}
+
 SIMD_INLINE v256 v256_sub_32(v256 a, v256 b) { return _mm256_sub_epi32(a, b); }
 
 SIMD_INLINE v256 v256_sub_64(v256 a, v256 b) { return _mm256_sub_epi64(a, b); }
 
 SIMD_INLINE v256 v256_abs_s16(v256 a) { return _mm256_abs_epi16(a); }
+
+SIMD_INLINE v256 v256_abs_s8(v256 a) { return _mm256_abs_epi8(a); }
 
 // AVX doesn't have the direct intrinsics to zip/unzip 8, 16, 32 bit
 // lanes of lower or upper halves of a 256bit vector because the

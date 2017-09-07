@@ -127,8 +127,10 @@ SIMD_INLINE v256 v256_ssub_u8(v256 a, v256 b) { return c_v256_ssub_u8(a, b); }
 SIMD_INLINE v256 v256_ssub_s8(v256 a, v256 b) { return c_v256_ssub_s8(a, b); }
 SIMD_INLINE v256 v256_sub_16(v256 a, v256 b) { return c_v256_sub_16(a, b); }
 SIMD_INLINE v256 v256_ssub_s16(v256 a, v256 b) { return c_v256_ssub_s16(a, b); }
+SIMD_INLINE v256 v256_ssub_u16(v256 a, v256 b) { return c_v256_ssub_u16(a, b); }
 SIMD_INLINE v256 v256_sub_32(v256 a, v256 b) { return c_v256_sub_32(a, b); }
 SIMD_INLINE v256 v256_abs_s16(v256 a) { return c_v256_abs_s16(a); }
+SIMD_INLINE v256 v256_abs_s8(v256 a) { return c_v256_abs_s8(a); }
 
 SIMD_INLINE v256 v256_mul_s16(v128 a, v128 b) { return c_v256_mul_s16(a, b); }
 SIMD_INLINE v256 v256_mullo_s16(v256 a, v256 b) {

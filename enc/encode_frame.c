@@ -191,6 +191,36 @@ static uint64_t joint_strength_search_dual(int *best_lev0, int *best_lev1,
   return best_tot_mse;
 }
 
+static uint64_t dist_8x8(SAMPLE *dst, int dstride, SAMPLE *src,
+                         int sstride, int coeff_shift) {
+  uint64_t svar = 0;
+  uint64_t dvar = 0;
+  uint64_t sum_s = 0;
+  uint64_t sum_d = 0;
+  uint64_t sum_s2 = 0;
+  uint64_t sum_d2 = 0;
+  uint64_t sum_sd = 0;
+  int i, j;
+  for (i = 0; i < 8; i++) {
+    for (j = 0; j < 8; j++) {
+      sum_s += src[i * sstride + j];
+      sum_d += dst[i * dstride + j];
+      sum_s2 += src[i * sstride + j] * src[i * sstride + j];
+      sum_d2 += dst[i * dstride + j] * dst[i * dstride + j];
+      sum_sd += src[i * sstride + j] * dst[i * dstride + j];
+    }
+  }
+  /* Compute the variance -- the calculation cannot go negative. */
+  svar = sum_s2 - ((sum_s * sum_s + 32) >> 6);
+  dvar = sum_d2 - ((sum_d * sum_d + 32) >> 6);
+  return (uint64_t)floor(
+      .5 +
+      (sum_d2 + sum_s2 - 2 * sum_sd) * .5 *
+          (svar + dvar + (400 << 2 * coeff_shift)) /
+          (sqrt((20000 << 4 * coeff_shift) + svar * (double)dvar)));
+}
+
+
 int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
                           int cdef_strengths[8], int cdef_uv_strengths[8], int speed) {
   int width = rec->width;
@@ -310,11 +340,13 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
 
                 // Calc mse.  TODO: Improve metric
                 SAMPLE *org_buffer = (plane != 0 ? (plane == 1 ? org->u : org->v) : org->y) + ypos * sstride + xpos;
-                for (int i = 0; i < sizey; i++)
-                  for (int j = 0; j < sizex; j++)
-                    mse[!!plane][sb_count][gi] +=
-                      (dst[i * sizex + j] - org_buffer[i * sstride + j]) *
-                      (dst[i * sizex + j] - org_buffer[i * sstride + j]);
+                if (plane || sizex != 8 || sizey != 8)
+                  for (int i = 0; i < sizey; i++)
+                    for (int j = 0; j < sizex; j++)
+                       mse[!!plane][sb_count][gi] += (dst[i * sizex + j] - org_buffer[i * sstride + j]) *
+                        (dst[i * sizex + j] - org_buffer[i * sstride + j]);
+                else
+                  mse[!!plane][sb_count][gi] += dist_8x8(dst, sizex, org_buffer, sstride, coeff_shift);
               }
             }
           }

@@ -82,6 +82,204 @@ void TEMPLATE(reconstruct_block)(int16_t *block, SAMPLE *pblock, SAMPLE *rec, in
   }
 }
 
+#if CDEF
+
+/* Detect direction. 0 means 45-degree up-right, 2 is horizontal, and so on.
+   The search minimizes the weighted variance along all the lines in a
+   particular direction, i.e. the squared error between the input and a
+   "predicted" block where each pixel is replaced by the average along a line
+   in a particular direction. Since each direction have the same sum(x^2) term,
+   that term is never computed. See Section 2, step 2, of:
+   http://jmvalin.ca/notes/intra_paint.pdf */
+int TEMPLATE(cdef_find_dir)(const SAMPLE *img, int stride, int32_t *var, int coeff_shift) {
+  int i;
+  int32_t cost[8] = { 0 };
+  int partial[8][15] = { { 0 } };
+  int32_t best_cost = 0;
+  int best_dir = 0;
+  /* Instead of dividing by n between 2 and 8, we multiply by 3*5*7*8/n.
+     The output is then 840 times larger, but we don't care for finding
+     the max. */
+  static const int div_table[] = { 0, 840, 420, 280, 210, 168, 140, 120, 105 };
+  for (i = 0; i < 8; i++) {
+    int j;
+    for (j = 0; j < 8; j++) {
+      int x;
+      /* We subtract 128 here to reduce the maximum range of the squared
+         partial sums. */
+      x = (img[i * stride + j] >> coeff_shift) - 128;
+      partial[0][i + j] += x;
+      partial[1][i + j / 2] += x;
+      partial[2][i] += x;
+      partial[3][3 + i - j / 2] += x;
+      partial[4][7 + i - j] += x;
+      partial[5][3 - i / 2 + j] += x;
+      partial[6][j] += x;
+      partial[7][i / 2 + j] += x;
+    }
+  }
+  for (i = 0; i < 8; i++) {
+    cost[2] += partial[2][i] * partial[2][i];
+    cost[6] += partial[6][i] * partial[6][i];
+  }
+  cost[2] *= div_table[8];
+  cost[6] *= div_table[8];
+  for (i = 0; i < 7; i++) {
+    cost[0] += (partial[0][i] * partial[0][i] +
+                partial[0][14 - i] * partial[0][14 - i]) *
+               div_table[i + 1];
+    cost[4] += (partial[4][i] * partial[4][i] +
+                partial[4][14 - i] * partial[4][14 - i]) *
+               div_table[i + 1];
+  }
+  cost[0] += partial[0][7] * partial[0][7] * div_table[8];
+  cost[4] += partial[4][7] * partial[4][7] * div_table[8];
+  for (i = 1; i < 8; i += 2) {
+    int j;
+    for (j = 0; j < 4 + 1; j++) {
+      cost[i] += partial[i][3 + j] * partial[i][3 + j];
+    }
+    cost[i] *= div_table[8];
+    for (j = 0; j < 4 - 1; j++) {
+      cost[i] += (partial[i][j] * partial[i][j] +
+                  partial[i][10 - j] * partial[i][10 - j]) *
+                 div_table[2 * j + 2];
+    }
+  }
+  for (i = 0; i < 8; i++) {
+    if (cost[i] > best_cost) {
+      best_cost = cost[i];
+      best_dir = i;
+    }
+  }
+  /* Difference between the optimal variance and the variance along the
+     orthogonal direction. Again, the sum(x^2) terms cancel out. */
+  *var = best_cost - cost[(best_dir + 4) & 7];
+  /* We'd normally divide by 840, but dividing by 1024 is close enough
+     for what we're going to do with this. */
+  *var >>= 10;
+  return best_dir;
+}
+#ifndef HBD
+
+#if CDEF_FULL
+const int cdef_directions_x[8][3] = {
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  0,  1,  1 },
+  {  0,  0,  0 },
+  {  0, -1, -1 }
+};
+const int cdef_directions_y[8][3] = {
+  { -1, -2, -3 },
+  {  0, -1, -1 },
+  {  0,  0,  0 },
+  {  0,  1,  1 },
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  1,  2,  3 },
+  {  1,  2,  3 }
+};
+
+const int cdef_pri_taps[2][3] = { { 3, 2, 1 }, { 2, 2, 2 } };
+const int cdef_sec_taps[2][2] = { { 3, 1 }, { 3, 1 } };
+#else
+const int cdef_directions_x[8][2] = {
+  {  1,  2 },
+  {  1,  2 },
+  {  1,  2 },
+  {  1,  2 },
+  {  1,  2 },
+  {  0,  1 },
+  {  0,  0 },
+  {  0, -1 }
+};
+const int cdef_directions_y[8][2] = {
+  { -1, -2 },
+  {  0, -1 },
+  {  0,  0 },
+  {  0,  1 },
+  {  1,  2 },
+  {  1,  2 },
+  {  1,  2 },
+  {  1,  2 }
+};
+
+const int cdef_pri_taps[2][2] = { { 4, 2 }, { 3, 3 } };
+const int cdef_sec_taps[2][2] = { { 2, 1 }, { 2, 1 } };
+#endif
+
+SIMD_INLINE int sign(int i) { return i < 0 ? -1 : 1; }
+
+SIMD_INLINE int constrain(int diff, int threshold, unsigned int damping) {
+  return threshold
+             ? sign(diff) * min(abs(diff), max(0, threshold - (abs(diff) >> (damping - log2i(threshold)))))
+             : 0;
+}
+
+/* Smooth in the direction detected. */
+void cdef_filter_block(uint8_t *dst8, uint16_t *dst16, int dstride,
+                       const uint16_t *in, int sstride, int pri_strength, int sec_strength,
+                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL])
+{
+  int i, j, k;
+  const int *pri_taps = cdef_pri_taps[pri_strength & 1];
+  const int *sec_taps = cdef_sec_taps[pri_strength & 1];
+  for (i = 0; i < bsize; i++) {
+    for (j = 0; j < bsize; j++) {
+      int16_t sum = 0;
+      int16_t y;
+      int16_t x = in[i * sstride + j];
+      int mx = x;
+      int mn = x;
+#if CDEF_FULL
+      for (k = 0; k < 3; k++)
+#else
+      for (k = 0; k < 2; k++)
+#endif
+      {
+        int16_t p0 = in[i * sstride + j + cdef_directions[dir][k]];
+        int16_t p1 = in[i * sstride + j - cdef_directions[dir][k]];
+        sum += pri_taps[k] * constrain(p0 - x, pri_strength, pri_damping);
+        sum += pri_taps[k] * constrain(p1 - x, pri_strength, pri_damping);
+        if (p0 != CDEF_VERY_LARGE) mx = max(p0, mx);
+        if (p1 != CDEF_VERY_LARGE) mx = max(p1, mx);
+        mn = min(p0, mn);
+        mn = min(p1, mn);
+#if CDEF_FULL
+        if (k == 2) continue;
+#endif
+        int16_t s0 = in[i * sstride + j + cdef_directions[(dir + 2) & 7][k]];
+        int16_t s1 = in[i * sstride + j - cdef_directions[(dir + 2) & 7][k]];
+        int16_t s2 = in[i * sstride + j + cdef_directions[(dir + 6) & 7][k]];
+        int16_t s3 = in[i * sstride + j - cdef_directions[(dir + 6) & 7][k]];
+        if (s0 != CDEF_VERY_LARGE) mx = max(s0, mx);
+        if (s1 != CDEF_VERY_LARGE) mx = max(s1, mx);
+        if (s2 != CDEF_VERY_LARGE) mx = max(s2, mx);
+        if (s3 != CDEF_VERY_LARGE) mx = max(s3, mx);
+        mn = min(s0, mn);
+        mn = min(s1, mn);
+        mn = min(s2, mn);
+        mn = min(s3, mn);
+        sum += sec_taps[k] * constrain(s0 - x, sec_strength, sec_damping);
+        sum += sec_taps[k] * constrain(s1 - x, sec_strength, sec_damping);
+        sum += sec_taps[k] * constrain(s2 - x, sec_strength, sec_damping);
+        sum += sec_taps[k] * constrain(s3 - x, sec_strength, sec_damping);
+      }
+      y = clip((int16_t)x + ((8 + sum - (sum < 0)) >> 4), mn, mx);
+      if (dst8)
+        dst8[i * dstride + j] = (uint8_t)y;
+      else
+        dst16[i * dstride + j] = (uint16_t)y;
+    }
+  }
+}
+#endif
+#endif
+
 void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable){
 
   if (ypos >= MIN_BLOCK_SIZE && xpos >= MIN_BLOCK_SIZE && ypos + size < height && xpos + size < width && enable && size <= MAX_TR_SIZE) {
@@ -105,12 +303,14 @@ void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, in
 }
 
 #ifndef HBD
+#if !CDEF
 static int sign(int i) { return i < 0 ? -1 : 1; }
 
 static int constrain(int x, int s, unsigned int damping) {
   return sign(x) * max(0, abs(x) - max(0, abs(x) - s +
                                              (abs(x) >> (damping - log2i(s)))));
 }
+#endif
 
 int clpf_sample(int X, int A, int B, int C, int D, int E, int F, int G, int H, int s, unsigned int dmp) {
   int delta = 1 * constrain(A - X, s, dmp) + 3 * constrain(B - X, s, dmp) +

@@ -207,6 +207,12 @@ int main(int argc, char **argv)
 
   encoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
+#if CDEF
+  int nhfb = (height + CDEF_BLOCKSIZE - 1) >> CDEF_BLOCKSIZE_LOG2;
+  int nvfb = (width + CDEF_BLOCKSIZE - 1) >> CDEF_BLOCKSIZE_LOG2;
+  encoder_info.cdef = malloc(nhfb * nvfb * sizeof(*encoder_info.cdef));
+#endif
+
   alloc_wmatrices(encoder_info.wmatrix, 0);
   alloc_wmatrices(encoder_info.iwmatrix, 1);
 
@@ -685,6 +691,9 @@ int main(int argc, char **argv)
   }
   free(stream.bitstream);
   free(encoder_info.deblock_data);
+#if CDEF
+  free(encoder_info.cdef);
+#endif
 
   if (params->bitrate > 0) {
     delete_rate_control_per_sequence(&rc);

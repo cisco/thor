@@ -154,6 +154,12 @@ int main(int argc, char** argv)
 
     decoder_info.deblock_data = (deblock_data_t *)malloc((height/MIN_PB_SIZE) * (width/MIN_PB_SIZE) * sizeof(deblock_data_t));
 
+#if CDEF
+    int nhfb = (height+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
+    int nvfb = (width+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
+    decoder_info.cdef_enable = 1;
+    decoder_info.cdef = malloc(nhfb * nvfb * sizeof(*decoder_info.cdef));
+#endif
     if (y4m_output) {
         fprintf(outfile,
                 "YUV4MPEG2 W%d H%d F%d:1 Ip A%d:%d C",
@@ -352,6 +358,9 @@ int main(int argc, char** argv)
     }
 
     free(decoder_info.deblock_data);
+#if CDEF
+    free(decoder_info.cdef);
+#endif
     if (infile)
       fclose(infile);
     if (outfile)

@@ -75,6 +75,9 @@ typedef struct
   int interp_ref;
   int max_delta_qp;
   int deblocking;
+#if CDEF
+  int cdef_enable;
+#endif
   int clpf;
   int tb_split_enable;
   int mode;    //TODO: Move to a block structure
@@ -94,6 +97,12 @@ typedef struct
   int bitdepth;
   int input_bitdepth;
   qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
+#if CDEF
+  cdef_strengths *cdef;
+  cdef_preset cdef_presets[8];
+  int cdef_damping[2];
+  int cdef_bits;
+#endif
 } decoder_info_t;
 
 #endif

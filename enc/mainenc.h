@@ -82,6 +82,9 @@ typedef struct
   int encoder_speed;
   int sync;
   int deblocking;
+#if CDEF
+  int cdef;
+#endif
   int clpf;
   int snrcalc;
   int use_block_contexts;
@@ -172,6 +175,14 @@ typedef struct
   int depth;
   qmtx_t *wmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
   qmtx_t *iwmatrix[NUM_QM_LEVELS][3][2][TR_SIZE_RANGE];
+#if CDEF
+  cdef_strengths *cdef;
+  int cdef_damping;
+  int cdef_bits;
+  int cdef_strengths[8];
+  int cdef_uv_strengths[8];
+  stream_pos_t cdef_header_pos;
+#endif
 } encoder_info_t;
 
 #endif

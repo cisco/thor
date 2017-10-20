@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "global.h"
 #include "assert.h"
 #include "common_block.h"
+#include "common_frame.h"
 #include "common_kernels.h"
 
 static const SAMPLE beta_table[52] = {
@@ -760,6 +761,248 @@ void TEMPLATE(create_reference_frame)(yuv_frame_t  *ref,yuv_frame_t  *rec)
 
   TEMPLATE(pad_yuv_frame)(ref);
 }
+
+#if CDEF
+void TEMPLATE(cdef_prepare_input)(int sizex, int sizey, int xpos, int ypos, boundary_type bt, int padding, uint16_t *src16, int stride16, SAMPLE *src_buffer, int sstride) {
+
+  assert(padding == 2 + CDEF_FULL);
+
+  // TODO: optimise
+  if (bt)
+    // Handle borders
+    for (int i = -padding; i < sizey + padding; i++)
+      for (int j = -padding; j < sizex + padding; j++) {
+        src16[j + i * stride16] =
+          ((bt & TILE_ABOVE_BOUNDARY) && i < 0) ||
+          ((bt & TILE_BOTTOM_BOUNDARY) && i >= sizey) ||
+          ((bt & TILE_LEFT_BOUNDARY) && j < 0) ||
+          ((bt & TILE_RIGHT_BOUNDARY) && j >= sizex) ? CDEF_VERY_LARGE :
+          src_buffer[(ypos + i) * sstride + xpos + j];
+      }
+  else
+    for (int i = -padding; i < sizey + padding; i++) {
+#if CDEF_FULL
+      src16[i * stride16 - 3] = src_buffer[(ypos + i) * sstride + xpos - 3];
+      src16[i * stride16 + sizex + 2] = src_buffer[(ypos + i) * sstride + xpos + sizex + 2];
+#endif
+      src16[i * stride16 - 2] = src_buffer[(ypos + i) * sstride + xpos - 2];
+      src16[i * stride16 - 1] = src_buffer[(ypos + i) * sstride + xpos - 1];
+      src16[i * stride16 + sizex] = src_buffer[(ypos + i) * sstride + xpos + sizex];
+      src16[i * stride16 + sizex + 1] = src_buffer[(ypos + i) * sstride + xpos + sizex + 1];
+#ifdef HBD
+      if (sizex == 4)
+          v64_store_aligned(src16 + i * stride16, v64_load_aligned(src_buffer + (ypos + i) * sstride + xpos));
+      else
+        for (int j = 0; j < sizex; j += 8)
+          v128_store_aligned(src16 + j + i * stride16, v128_load_aligned(src_buffer + (ypos + i) * sstride + xpos + j));
+#else
+      if (sizex == 4)
+        v64_store_aligned(src16 + 0 + i * stride16, v128_unpack_u8_s16(v64_from_32(0, u32_load_aligned(src_buffer + (ypos + i) * sstride + xpos + 0))));
+      else
+        for (int j = 0; j < sizex; j += 8)
+          v128_store_aligned(src16 + j + i * stride16, v128_unpack_u8_s16(v64_load_aligned(src_buffer + (ypos + i) * sstride + xpos + j)));
+#endif
+    }
+}
+
+#ifndef HBD
+int cdef_allskip(int xoff, int yoff, int width, int height, deblock_data_t *deblock_data, int fb_size_log2) {
+
+  int allskip = 1;
+  for (int m = 0; allskip && m < (1 << fb_size_log2) / 8; m++) {
+    for (int n = 0; allskip && n < (1 << fb_size_log2) / 8; n++) {
+      int xpos = xoff + n * 8;
+      int ypos = yoff + m * 8;
+      if (xpos < width && ypos < height) {
+        int index = (ypos/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xpos/MIN_PB_SIZE);
+        allskip &= deblock_data[index].mode == MODE_SKIP;
+      }
+    }
+  }
+  return allskip;
+}
+#endif
+
+void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane) {
+
+  int c, k, l;
+  const int fb_size_log2 = 6;
+  const int sub = plane != 0 && frame->sub;
+  const int bs = sub ? 4 : 8;
+  const int bslog = log2i(bs);
+  int width = frame->width;
+  int height = frame->height;
+  int xpos, ypos;
+  const int sstride = plane != 0 ? frame->stride_c : frame->stride_y;
+  int dstride = bs;
+  const int num_fb_hor = (width + (1 << fb_size_log2) - 1) >> fb_size_log2;
+  const int num_fb_ver = (height + (1 << fb_size_log2) - 1) >> fb_size_log2;
+  SAMPLE *cache = NULL;
+  SAMPLE **cache_ptr = NULL;
+  SAMPLE **cache_dst = NULL;
+  int cache_idx = 0;
+  const int cache_size = (num_fb_hor + 1) << (2 * fb_size_log2);
+  const int cache_blocks = cache_size / (bs * bs);
+  SAMPLE *src_buffer = plane != 0 ? (plane == 1 ? frame->u : frame->v) : frame->y;
+  SAMPLE *dst_buffer;
+  int cdef_directions[8][2 + CDEF_FULL];
+  int cdef_directions_copy[8][2 + CDEF_FULL];
+
+  // Make buffer space for in-place filtering
+  cache = thor_alloc(cache_size * sizeof(SAMPLE), 32);
+  dst_buffer = cache;
+  cache_ptr = thor_alloc(cache_blocks * sizeof(*cache_ptr), 32);
+  cache_dst = thor_alloc(cache_blocks * sizeof(*cache_dst), 32);
+  memset(cache_ptr, 0, cache_blocks * sizeof(*cache_dst));
+
+  int padding = 2 + CDEF_FULL;
+  int hpadding = 16 - padding;
+  int stride16 = (bs + 2 * padding + 15) & ~15;
+  int offset16 = padding * stride16 + padding + hpadding;
+  uint16_t *src16 = thor_alloc((bs + 2 * padding) * stride16 * sizeof(uint16_t) + hpadding, 32);
+  cdef_init(stride16, cdef_directions_copy);
+  cdef_init(sstride, cdef_directions);
+
+  // Iterate over all filter blocks
+  for (k = 0; k < num_fb_ver; k++) {
+    for (l = 0; l < num_fb_hor; l++) {
+      int h, w;
+      const int xoff = l << fb_size_log2;
+      const int yoff = k << fb_size_log2;
+      int allskip = cdef_allskip(xoff, yoff, width, height, deblock_data, fb_size_log2);
+
+      // Calculate the actual filter block size near frame edges
+      h = min(height, (k + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
+      w = min(width, (l + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
+      h += !h << fb_size_log2;
+      w += !w << fb_size_log2;
+
+      int index = (yoff/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xoff/MIN_PB_SIZE);
+      cdef_strength *cdef = &deblock_data[index].cdef->plane[plane != 0];
+
+      int coeff_shift = bitdepth - 8;
+      int pri_strength = (cdef->level >> 1);
+      int filter_skip = cdef->level & 1;
+      int sec_strength = (cdef->sec_strength + (cdef->sec_strength == 3));
+      if (!pri_strength && !sec_strength && filter_skip) {
+        pri_strength = 19;
+        sec_strength = 7;
+      }
+      if (!allskip) {
+        // Iterate over all smaller blocks inside the filter block
+        for (int m = 0; m < ((h + bs - 1) >> (bslog + sub)); m++) {
+          for (int n = 0; n < ((w + bs - 1) >> (bslog + sub)); n++) {
+            int sizex, sizey;
+            xpos = (xoff >> sub) + n * bs;
+            ypos = (yoff >> sub) + m * bs;
+            sizex = min((width >> sub) - xpos, bs);
+            sizey = min((height >> sub) - ypos, bs);
+            index = ((yoff + m * 8) / MIN_PB_SIZE) * (width/MIN_PB_SIZE) + ((xoff + n * 8) / MIN_PB_SIZE);
+
+            if (plane == 0)
+              deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
+
+            if (filter_skip || deblock_data[index].mode != MODE_SKIP) {
+
+              // Temporary buffering needed for in-place filtering
+              if (cache_ptr[cache_idx]) {
+                // Copy filtered block back into the frame
+                if (sizeof(SAMPLE) == 2) {
+                  if (sizex == 8) {
+                    for (c = 0; c < sizey; c++) {
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride + 4) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs + 4);
+                    }
+                  } else if (sizex == 4) {
+                    for (c = 0; c < sizey; c++)
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                  } else {
+                    for (c = 0; c < sizey; c++)
+                      memcpy(cache_dst[cache_idx] + c * sstride, cache_ptr[cache_idx] + c * bs * 2,
+                             sizex);
+                  }
+                } else {
+                  if (sizex == 8)
+                    for (c = 0; c < sizey; c++)
+                      *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+                  else if (sizex == 4)
+                    for (c = 0; c < sizey; c++)
+                      *(uint32_t *)(cache_dst[cache_idx] + c * sstride) =
+                          *(uint32_t *)(cache_ptr[cache_idx] + c * bs);
+                  else
+                    for (c = 0; c < sizey; c++)
+                      memcpy(cache_dst[cache_idx] + c * sstride,
+                             cache_ptr[cache_idx] + c * bs, sizex);
+                }
+              }
+              cache_ptr[cache_idx] = cache + cache_idx * bs * bs;
+              dst_buffer = cache_ptr[cache_idx] - ypos * bs - xpos;
+              cache_dst[cache_idx] = src_buffer + ypos * sstride + xpos;
+              if (++cache_idx >= cache_blocks) cache_idx = 0;
+
+              // Prepare input
+	      boundary_type bt =
+		(TILE_LEFT_BOUNDARY & -!xpos) |
+		(TILE_ABOVE_BOUNDARY & -!ypos) |
+		(TILE_RIGHT_BOUNDARY & -(xpos == (width >> sub) - sizex)) |
+		(TILE_BOTTOM_BOUNDARY & -(ypos == (height >> sub) - sizey));
+
+	      TEMPLATE(cdef_prepare_input)(sizex, sizey, xpos, ypos, bt, padding, src16 + offset16, stride16, src_buffer, sstride);
+
+              int adj_str = plane ? pri_strength : adjust_strength(pri_strength, deblock_data[index].cdef_var);
+              int pri_damping = adj_str ? max(log2i(adj_str), cdef->pri_damping - !!plane) : cdef->pri_damping - !!plane;
+              int sec_damping = cdef->sec_damping - !!plane;
+
+              // Apply the filter.
+#ifdef HBD
+              (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst_buffer + ypos * dstride + xpos, dstride, src16 + offset16, stride16,
+                               adj_str << coeff_shift, sec_strength << coeff_shift,
+                               pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
+                               cdef_directions_copy);
+#else
+	      (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst_buffer + ypos * dstride + xpos, NULL, dstride, src16 + offset16, stride16,
+                               adj_str << coeff_shift, sec_strength << coeff_shift,
+                               pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
+                               cdef_directions_copy);
+#endif
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Copy remaining blocks into the frame
+  for (cache_idx = 0; cache_idx < cache_blocks && cache_ptr[cache_idx];
+       cache_idx++) {
+    if (sizeof(SAMPLE) == 2) {
+      for (c = 0; c < bs; c++) {
+        *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+            *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+        if (bs == 8)
+          *(uint64_t *)(cache_dst[cache_idx] + c * sstride + 4) =
+              *(uint64_t *)(cache_ptr[cache_idx] + c * bs + 4);
+      }
+    } else {
+      for (c = 0; c < bs; c++)
+        if (bs == 4)
+          *(uint32_t *)(cache_dst[cache_idx] + c * sstride) =
+              *(uint32_t *)(cache_ptr[cache_idx] + c * bs);
+        else
+          *(uint64_t *)(cache_dst[cache_idx] + c * sstride) =
+              *(uint64_t *)(cache_ptr[cache_idx] + c * bs);
+    }
+  }
+  thor_free(src16);
+  thor_free(cache);
+  thor_free(cache_ptr);
+  thor_free(cache_dst);
+}
+#endif
 
 void TEMPLATE(clpf_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream, int enable_fb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, unsigned int plane, int qp,
                           int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int, int)) {

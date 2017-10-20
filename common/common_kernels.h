@@ -65,4 +65,14 @@ SIMD_INLINE void TEMPLATE(clpf_block_simd)(const SAMPLE *src, SAMPLE *dst, int s
 #endif
 }
 
+#if CDEF
+void cdef_filter_block_simd(uint8_t *dst8, uint16_t *dst16, int dstride,
+                              const uint16_t *in, int sstride, int pri_strength,
+                              int sec_strength, int dir, int pri_damping,
+                              int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL]);
+int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var, int coeff_shift);
+v128 compute_directions(v128 lines[8], int32_t tmp_cost1[4]);
+void array_reverse_transpose_8x8(v128 *in, v128 *res);
+#endif
+
 #endif

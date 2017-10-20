@@ -42,9 +42,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "common_block.h"
 
 void write_sequence_header(stream_t *stream, enc_params *params);
-void write_frame_header(stream_t *stream, frame_info_t *frame_info);
+void write_frame_header(stream_t *stream, encoder_info_t *enc_info);
 int write_delta_qp(stream_t *stream, int delta_qp);
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp);
 void write_coeff(stream_t *stream,int16_t *coeff,int size,int type);
 int write_block(stream_t *stream,encoder_info_t *encoder_info,block_info_t *block_info, block_param_t *block_param);
 void write_super_mode(stream_t *stream, encoder_info_t *encoder_info, block_info_t *block_info, block_param_t *block_param, int split_flag,int encode_this_size);
+#if CDEF
+void write_cdef_params(stream_t *stream, encoder_info_t* enc_info);
+#endif

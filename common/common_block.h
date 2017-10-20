@@ -33,6 +33,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 void TEMPLATE(dequantize)(int16_t *coeff, int16_t *rcoeff, int qp, int size, qmtx_t * wt_matrix);
 void TEMPLATE(reconstruct_block)(int16_t *block, SAMPLE *pblock, SAMPLE *rec, int size, int pstride, int stride, int bitdepth);
 
+#if CDEF
+void cdef_filter_block(uint8_t *dst8, uint16_t *dst16, int dstride,
+                       const uint16_t *in, int sstride, int pri_strength, int sec_strength,
+                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL]);
+
+int TEMPLATE(cdef_find_dir)(const SAMPLE *img, int stride, int32_t *var, int coeff_shift);
+#endif
+
 void TEMPLATE(find_block_contexts)(int ypos, int xpos, int height, int width, int size, deblock_data_t *deblock_data, block_context_t *block_context, int enable);
 
 void TEMPLATE(clpf_block)(const SAMPLE *src, SAMPLE *dst, int sstride, int dstride, int x0, int y0, int sizex, int sizey, boundary_type bt, unsigned int strength, unsigned int damping);

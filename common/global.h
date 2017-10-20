@@ -83,6 +83,7 @@ static inline void fatalerror(char error_text[])
 #define NEW_DEBLOCK_FILTER 1     //New deblocking filter
 #define LIMITED_SKIP 1           //Limit number of skip candidates
 #define MODIFIED_DEBLOCK_TEST 1  //New test for whether or not to apply deblock filter
+#define CDEF 1                   //Constrained Directional Enhancement Filter
 
 #if LIMITED_SKIP
 #define MAX_NUM_SKIP 2           //Maximum number of skip candidates
@@ -102,6 +103,22 @@ static inline void fatalerror(char error_text[])
 #define NUM_QM_LEVELS 12
 
 #define TEMP_INTERP_USE_CHROMA 0 // 444 not supported!
+
+#if CDEF
+#define CDEF_PRI_STRENGTHS 32
+#define CDEF_SEC_STRENGTHS 4
+#define CDEF_BLOCKSIZE 64
+#define CDEF_BLOCKSIZE_LOG2 6
+#define CDEF_NBLOCKS (CDEF_BLOCKSIZE / 8)
+#define CDEF_SB_SHIFT (MAX_SB_SIZE_LOG2 - CDEF_BLOCKSIZE_LOG2)
+#define CDEF_VBORDER 3
+#define CDEF_HBORDER 8
+#define CDEF_VERY_LARGE 30000
+#define CDEF_INBUF_SIZE (CDEF_BSTRIDE * (CDEF_BLOCKSIZE + 2 * CDEF_VBORDER))
+#define CDEF_MAX_STRENGTHS 16
+#define CDEF_STRENGTH_BITS 7
+#define CDEF_FULL 0  // 1 = 7x7 filter, 0 = 5x5 filter
+#endif
 
 /* Testing and analysis*/
 #define STAT 0                   //Extended statistics printout in decoder

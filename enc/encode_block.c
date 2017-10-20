@@ -1608,6 +1608,12 @@ static void copy_deblock_data(encoder_info_t *encoder_info, block_info_t *block_
       encoder_info->deblock_data[block_index].inter_pred.ref_idx0 = block_info->block_param.ref_idx0;
       encoder_info->deblock_data[block_index].inter_pred.ref_idx1 = block_info->block_param.ref_idx1;
       encoder_info->deblock_data[block_index].inter_pred.bipred_flag = block_info->block_param.dir;
+#if CDEF
+      int xpos = block_info->block_pos.xpos + n * MIN_PB_SIZE;
+      int ypos = block_info->block_pos.ypos + m * MIN_PB_SIZE;
+      cdef_strengths *cdef = encoder_info->cdef + (ypos>>CDEF_BLOCKSIZE_LOG2)*((encoder_info->width + CDEF_BLOCKSIZE - 1)>>CDEF_BLOCKSIZE_LOG2) + (xpos>>CDEF_BLOCKSIZE_LOG2);
+      encoder_info->deblock_data[block_index].cdef = cdef;
+#endif
     }
   }
 }

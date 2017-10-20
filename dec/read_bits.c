@@ -80,7 +80,8 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
     decoder_info->input_bitdepth += 2 * get_flc(1, stream);
 }
 
-void read_frame_header(frame_info_t *frame_info, stream_t *stream) {
+void read_frame_header(decoder_info_t *dec_info, stream_t *stream) {
+  frame_info_t *frame_info = &dec_info->frame_info;
   frame_info->frame_type = get_flc(1, stream);
   frame_info->qp = get_flc(8, stream);
   frame_info->num_intra_modes = get_flc(4, stream);
@@ -98,6 +99,22 @@ void read_frame_header(frame_info_t *frame_info, stream_t *stream) {
     frame_info->num_ref = 0;
   }
   frame_info->display_frame_num = get_flc(16, stream);
+
+#if CDEF
+  dec_info->cdef_damping[1] = dec_info->cdef_damping[0] = get_flc(2, stream) + 3;
+  dec_info->cdef_bits = get_flc(2, stream);
+
+  for (int i = 0; i < (1 << dec_info->cdef_bits); i++) {
+    dec_info->cdef_presets[i].pri_strength[0] = get_flc(4, stream);
+    dec_info->cdef_presets[i].skip_condition[0] = get_flc(1, stream);
+    dec_info->cdef_presets[i].sec_strength[0] = get_flc(2, stream);
+    if (dec_info->subsample != 400) {
+      dec_info->cdef_presets[i].pri_strength[1] = get_flc(4, stream);
+      dec_info->cdef_presets[i].skip_condition[1] = get_flc(1, stream);
+      dec_info->cdef_presets[i].sec_strength[1] = get_flc(2, stream);
+    }
+  }
+#endif
 }
 
 

@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "mainenc.h"
 #include "encode_block.h"
 #include "common_block.h"
+#include "common_kernels.h"
 #include "common_frame.h"
 #include "putvlc.h"
 #include "wt_matrix.h"
@@ -39,6 +40,372 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 extern int chroma_qp[52];
 extern double squared_lambda_QP[52];
+
+#if CDEF
+int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
+                          int cdef_strengths[8], int cdef_uv_strengths[8], int speed);
+
+#define TOTAL_STRENGTHS (CDEF_PRI_STRENGTHS * CDEF_SEC_STRENGTHS)
+
+static int priconv[3][CDEF_PRI_STRENGTHS] = { { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 },
+                                              { 0, 1, 2, 3, 4, 7, 12, 25 },
+                                              { 0, 2, 6, 12 } };
+
+static int pristrengths[3] = { CDEF_PRI_STRENGTHS * CDEF_SEC_STRENGTHS, 8 * CDEF_SEC_STRENGTHS, 4 * CDEF_SEC_STRENGTHS};
+
+/* Search for the best strength to add as an option, knowing we
+   already selected nb_strengths options. */
+static uint64_t search_one(int *lev, int nb_strengths,
+                           uint64_t mse[][TOTAL_STRENGTHS], int sb_count,
+                           int speed) {
+  uint64_t tot_mse[TOTAL_STRENGTHS];
+  const int total_strengths = pristrengths[speed];
+  int i, j;
+  uint64_t best_tot_mse = (uint64_t)1 << 63;
+  int best_id = 0;
+  memset(tot_mse, 0, sizeof(tot_mse));
+  for (i = 0; i < sb_count; i++) {
+    int gi;
+    uint64_t best_mse = (uint64_t)1 << 63;
+    /* Find best mse among already selected options. */
+    for (gi = 0; gi < nb_strengths; gi++) {
+      if (mse[i][lev[gi]] < best_mse) {
+        best_mse = mse[i][lev[gi]];
+      }
+    }
+    /* Find best mse when adding each possible new option. */
+    for (j = 0; j < total_strengths; j++) {
+      uint64_t best = best_mse;
+      if (mse[i][j] < best) best = mse[i][j];
+      tot_mse[j] += best;
+    }
+  }
+  for (j = 0; j < total_strengths; j++) {
+    if (tot_mse[j] < best_tot_mse) {
+      best_tot_mse = tot_mse[j];
+      best_id = j;
+    }
+  }
+  lev[nb_strengths] = best_id;
+  return best_tot_mse;
+}
+
+/* Search for the best luma+chroma strength to add as an option, knowing we
+   already selected nb_strengths options. */
+static uint64_t search_one_dual(int *lev0, int *lev1, int nb_strengths,
+                                uint64_t (**mse)[TOTAL_STRENGTHS], int sb_count,
+                                int speed) {
+  uint64_t tot_mse[TOTAL_STRENGTHS][TOTAL_STRENGTHS];
+  int i, j;
+  uint64_t best_tot_mse = (uint64_t)1 << 63;
+  int best_id0 = 0;
+  int best_id1 = 0;
+  const int total_strengths = pristrengths[speed];
+  memset(tot_mse, 0, sizeof(tot_mse));
+  for (i = 0; i < sb_count; i++) {
+    int gi;
+    uint64_t best_mse = (uint64_t)1 << 63;
+    /* Find best mse among already selected options. */
+    for (gi = 0; gi < nb_strengths; gi++) {
+      uint64_t curr = mse[0][i][lev0[gi]];
+      curr += mse[1][i][lev1[gi]];
+      if (curr < best_mse) {
+        best_mse = curr;
+      }
+    }
+    /* Find best mse when adding each possible new option. */
+    for (j = 0; j < total_strengths; j++) {
+      int k;
+      for (k = 0; k < total_strengths; k++) {
+        uint64_t best = best_mse;
+        uint64_t curr = mse[0][i][j];
+        curr += mse[1][i][k];
+        if (curr < best) best = curr;
+        tot_mse[j][k] += best;
+      }
+    }
+  }
+  for (j = 0; j < total_strengths; j++) {
+    int k;
+    for (k = 0; k < total_strengths; k++) {
+      if (tot_mse[j][k] < best_tot_mse) {
+        best_tot_mse = tot_mse[j][k];
+        best_id0 = j;
+        best_id1 = k;
+      }
+    }
+  }
+  lev0[nb_strengths] = best_id0;
+  lev1[nb_strengths] = best_id1;
+  return best_tot_mse;
+}
+
+/* Search for the set of strengths that minimizes mse. */
+static uint64_t joint_strength_search(int *best_lev, int nb_strengths,
+                                      uint64_t mse[][TOTAL_STRENGTHS],
+                                      int sb_count, int speed) {
+  uint64_t best_tot_mse;
+  int i;
+  best_tot_mse = (uint64_t)1 << 63;
+  /* Greedy search: add one strength options at a time. */
+  for (i = 0; i < nb_strengths; i++) {
+    best_tot_mse = search_one(best_lev, i, mse, sb_count, speed);
+  }
+  /* Trying to refine the greedy search by reconsidering each
+     already-selected option. */
+  if (!speed) {
+    for (i = 0; i < 4 * nb_strengths; i++) {
+      int j;
+      for (j = 0; j < nb_strengths - 1; j++) best_lev[j] = best_lev[j + 1];
+      best_tot_mse =
+          search_one(best_lev, nb_strengths - 1, mse, sb_count, speed);
+    }
+  }
+  return best_tot_mse;
+}
+
+/* Search for the set of luma+chroma strengths that minimizes mse. */
+static uint64_t joint_strength_search_dual(int *best_lev0, int *best_lev1,
+                                           int nb_strengths,
+                                           uint64_t (**mse)[TOTAL_STRENGTHS],
+                                           int sb_count, int speed) {
+  uint64_t best_tot_mse;
+  int i;
+  best_tot_mse = (uint64_t)1 << 63;
+  /* Greedy search: add one strength options at a time. */
+  for (i = 0; i < nb_strengths; i++) {
+    best_tot_mse =
+        search_one_dual(best_lev0, best_lev1, i, mse, sb_count, speed);
+  }
+  /* Trying to refine the greedy search by reconsidering each
+     already-selected option. */
+  for (i = 0; i < 4 * nb_strengths; i++) {
+    int j;
+    for (j = 0; j < nb_strengths - 1; j++) {
+      best_lev0[j] = best_lev0[j + 1];
+      best_lev1[j] = best_lev1[j + 1];
+    }
+    best_tot_mse = search_one_dual(best_lev0, best_lev1, nb_strengths - 1, mse,
+                                   sb_count, speed);
+  }
+  return best_tot_mse;
+}
+
+int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
+                          int cdef_strengths[8], int cdef_uv_strengths[8], int speed) {
+  int width = rec->width;
+  int height = rec->height;
+  const int fb_size_log2 = CDEF_BLOCKSIZE_LOG2;
+  const int nhfb = (height+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
+  const int nvfb = (width+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
+  uint64_t best_tot_mse = (uint64_t)1 << 63;
+  uint64_t tot_mse;
+  uint64_t(*mse[2])[TOTAL_STRENGTHS];
+  int pri_damping = encoder_info->cdef_damping;
+  int sec_damping = pri_damping;
+  const int total_strengths = pristrengths[speed];
+  int sb_count = 0;
+  const int bs = 8;
+  const int bslog = log2i(bs);
+  int padding = 2 + CDEF_FULL;
+  int hpadding = 16 - padding;
+  int stride16 = (64 + 2 * padding + 15) & ~15;
+  int offset16 = padding * stride16 + padding + hpadding;
+  uint16_t *src16 = thor_alloc((64 + 2 * padding) * stride16 * sizeof(uint16_t) + hpadding, 32);
+  SAMPLE *dst = thor_alloc(bs * bs * sizeof(SAMPLE), 32);
+  int cdef_directions[8][2 + CDEF_FULL];
+  int cdef_directions_copy[8][2 + CDEF_FULL];
+  int *sb_index = thor_alloc(nvfb * nhfb * sizeof(*sb_index), 16);
+  int *selected_strength = thor_alloc(nvfb * nhfb * sizeof(*sb_index), 16);
+  stream_t *stream = encoder_info->stream;
+  const int bitdepth = encoder_info->params->bitdepth;
+
+  mse[0] = thor_alloc(sizeof(**mse) * nvfb * nhfb, 32);
+  mse[1] = thor_alloc(sizeof(**mse) * nvfb * nhfb, 32);
+
+  cdef_init(stride16, cdef_directions_copy);
+
+  for (int k = 0; k < nhfb; k++) {
+    for (int l = 0; l < nvfb; l++) {
+
+      int h, w;
+      const int xoff = l << fb_size_log2;
+      const int yoff = k << fb_size_log2;
+      int allskip = cdef_allskip(xoff, yoff, width, height, deblock_data, fb_size_log2);
+
+      if (allskip)
+        continue;
+
+      // Calculate the actual filter block size near frame edges
+      h = min(height, (k + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
+      w = min(width, (l + 1) << fb_size_log2) & ((1 << fb_size_log2) - 1);
+      h += !h << fb_size_log2;
+      w += !w << fb_size_log2;
+
+      int index = (yoff/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xoff/MIN_PB_SIZE);
+
+      int coeff_shift = bitdepth - 8;
+
+      // TODO: HBD
+      for (int plane = 0; plane < 3; plane++) {
+        const int sub = plane != 0 && rec->sub;
+        const int sstride = plane != 0 ? rec->stride_c : rec->stride_y;
+        SAMPLE *src_buffer = plane != 0 ? (plane == 1 ? rec->u : rec->v) : rec->y;
+        cdef_init(sstride, cdef_directions);  // TODO: calc once
+
+        // Prepare input
+	int sizex = min(width - xoff, 64) >> sub;
+	int sizey =  min(height - yoff, 64) >> sub;
+	int xpos = xoff >> sub;
+	int ypos = yoff >> sub;
+	boundary_type bt =
+	  (TILE_LEFT_BOUNDARY & -!xpos) |
+	  (TILE_ABOVE_BOUNDARY & -!ypos) |
+	  (TILE_RIGHT_BOUNDARY & -(xpos == (width >> sub) - sizex)) |
+	  (TILE_BOTTOM_BOUNDARY & -(ypos == (height >> sub) - sizey));
+
+	TEMPLATE(cdef_prepare_input)(sizex, sizey, xpos, ypos, bt, padding, src16 + offset16, stride16, src_buffer, sstride);
+
+        for (int gi = 0; gi < total_strengths; gi++) {
+          int level, filter_skip;
+          int pri_strength, sec_strength;
+          level = gi / CDEF_SEC_STRENGTHS;
+          level = priconv[speed][level];
+          filter_skip = level & 1;
+          pri_strength = (level >> 1);
+          sec_strength = (gi % CDEF_SEC_STRENGTHS);
+
+          if (plane < 2)
+            mse[plane][sb_count][gi] = 0;
+
+          for (int m = 0; m < ((h + bs - 1) >> (bslog + sub)); m++) {
+            for (int n = 0; n < ((w + bs - 1) >> (bslog + sub)); n++) {
+              int sizex, sizey;
+              xpos = (xoff >> sub) + n * bs;
+              ypos = (yoff >> sub) + m * bs;
+              sizex = min((width >> sub) - xpos, bs);
+              sizey = min((height >> sub) - ypos, bs);
+              index = ((yoff + m * 8) / MIN_PB_SIZE) * (width/MIN_PB_SIZE) + ((xoff + n * 8) / MIN_PB_SIZE);
+
+              if (plane == 0)
+                deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
+              if (filter_skip || deblock_data[index].mode != MODE_SKIP) {
+
+                int adj_str = plane ? pri_strength : adjust_strength(pri_strength, deblock_data[index].cdef_var);
+                int adj_pri_damping = adj_str ? max(log2i(adj_str), pri_damping - !!plane) : pri_damping - !!plane;
+                int adj_sec_damping = sec_damping - !!plane;
+
+                // Apply the filter.
+#ifdef HBD
+                (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
+                             adj_str << coeff_shift, sec_strength << coeff_shift,
+                             pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
+                             cdef_directions_copy);
+#else
+                (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst, NULL, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
+                             adj_str << coeff_shift, sec_strength << coeff_shift,
+                             pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
+                             cdef_directions_copy);
+#endif
+
+                // Calc mse.  TODO: Improve metric
+                SAMPLE *org_buffer = (plane != 0 ? (plane == 1 ? org->u : org->v) : org->y) + ypos * sstride + xpos;
+                for (int i = 0; i < sizey; i++)
+                  for (int j = 0; j < sizex; j++)
+                    mse[!!plane][sb_count][gi] +=
+                      (dst[i * sizex + j] - org_buffer[i * sstride + j]) *
+                      (dst[i * sizex + j] - org_buffer[i * sstride + j]);
+              }
+            }
+          }
+        }
+      }
+      sb_index[sb_count++] = ((k << fb_size_log2)/MIN_PB_SIZE)*(rec->width/MIN_PB_SIZE) + ((l << fb_size_log2)/MIN_PB_SIZE);
+    }
+  }
+
+  int nb_strengths;
+  int nb_strength_bits;
+
+  nb_strength_bits = 0;
+  /* Search for different number of signalling bits.  Currently fixed. */
+  for (int i = encoder_info->cdef_bits; i <= encoder_info->cdef_bits; i++) {
+    int j;
+    int best_lev0[CDEF_MAX_STRENGTHS];
+    int best_lev1[CDEF_MAX_STRENGTHS] = { 0 };
+
+    if (encoder_info->params->subsample != 400)
+      tot_mse = joint_strength_search_dual(best_lev0, best_lev1, 1 << i,
+                                           mse, sb_count, speed);
+    else
+      tot_mse = joint_strength_search(best_lev0, 1 << i, mse[0], sb_count,
+                                      speed);
+    /* Count superblock signalling cost. */
+    tot_mse += (uint64_t)(sb_count * frame_info->lambda * i);
+    /* Count header signalling cost. */
+    tot_mse += (uint64_t)((1 << i) * frame_info->lambda * CDEF_STRENGTH_BITS);
+    if (tot_mse < best_tot_mse) {
+      best_tot_mse = tot_mse;
+      nb_strength_bits = i;
+      for (j = 0; j < 1 << nb_strength_bits; j++) {
+        cdef_strengths[j] = best_lev0[j];
+        cdef_uv_strengths[j] = best_lev1[j];
+      }
+    }
+  }
+
+  nb_strengths = 1 << nb_strength_bits;
+
+  // Assign the best preset to every filter block
+  for (int i = 0; i < sb_count; i++) {
+    int gi;
+    int best_gi;
+    uint64_t best_mse = (uint64_t)1 << 63;
+    best_gi = 0;
+    for (gi = 0; gi < (1 << nb_strength_bits); gi++) {
+      uint64_t curr = mse[0][i][cdef_strengths[gi]];
+      if (encoder_info->params->subsample != 400) curr += mse[1][i][cdef_uv_strengths[gi]];
+      if (curr < best_mse) {
+        best_gi = gi;
+        best_mse = curr;
+      }
+    }
+    selected_strength[i] = best_gi;
+    if (nb_strength_bits)
+      put_flc(nb_strength_bits, best_gi, stream);
+  }
+
+  for (int j = 0; j < nb_strengths; j++) {
+    cdef_strengths[j] =
+      priconv[speed][cdef_strengths[j] / CDEF_SEC_STRENGTHS] *
+      CDEF_SEC_STRENGTHS +
+      (cdef_strengths[j] % CDEF_SEC_STRENGTHS);
+    cdef_uv_strengths[j] =
+      priconv[speed][cdef_uv_strengths[j] / CDEF_SEC_STRENGTHS] *
+      CDEF_SEC_STRENGTHS +
+      (cdef_uv_strengths[j] % CDEF_SEC_STRENGTHS);
+  }
+
+  for (int i = 0; i < sb_count; i++) {
+    for (int plane = 0; plane < 2; plane++) {
+      cdef_strength *cdef = &deblock_data[sb_index[i]].cdef->plane[plane != 0];
+      cdef->level = (plane ? cdef_uv_strengths[selected_strength[i]] : cdef_strengths[selected_strength[i]]) >> 2;
+      cdef->sec_strength = (plane ? cdef_uv_strengths[selected_strength[i]] : cdef_strengths[selected_strength[i]]) & 3;
+      cdef->pri_damping = cdef->sec_damping = encoder_info->cdef_damping;
+    }
+  }
+
+  thor_free(mse[0]);
+  thor_free(mse[1]);
+  thor_free(src16);
+  thor_free(dst);
+
+  thor_free(sb_index);
+  thor_free(selected_strength);
+
+  return nb_strength_bits;
+}
+#endif
 
 static int clpf_decision(int k, int l, const yuv_frame_t *rec, const yuv_frame_t *org, const deblock_data_t *deblock_data, int block_size, int w, int h, void *stream, unsigned int strength, unsigned int fb_size_log2, unsigned int shift, unsigned int size, int qp) {
   int sum0 = 0, sum1 = 0;
@@ -231,7 +598,16 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
     init_rate_control_per_frame(encoder_info->rc, min_qp, max_qp);
   }
 
-  write_frame_header(stream, frame_info);
+#if CDEF
+  // Set frame level CDEF parameters by guessing good values.
+  encoder_info->cdef_damping = 5;
+  encoder_info->cdef_bits = frame_info->frame_type == I_FRAME ? 3 : 3 - (encoder_info->frame_info.qp + 4) / 16;
+
+  for (int i = 0; i < (1 << encoder_info->cdef_bits); i++)
+    encoder_info->cdef_strengths[i] = encoder_info->cdef_uv_strengths[i] = 127;
+#endif
+
+  write_frame_header(stream, encoder_info);
 
   // Initialize prev_qp to qp used in frame header
   encoder_info->frame_info.prev_qp = encoder_info->frame_info.qp;
@@ -305,6 +681,25 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
       TEMPLATE(deblock_frame_uv)(encoder_info->rec, encoder_info->deblock_data, width, height, qpc, encoder_info->params->bitdepth);
     }
   }
+
+#if CDEF
+  if (encoder_info->params->cdef) {
+    int cdef_bits = TEMPLATE(cdef_search)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, encoder_info, encoder_info->cdef_strengths, encoder_info->cdef_uv_strengths, encoder_info->params->cdef - 1);
+
+    // Apply the filter using the chosen strengths
+    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 0);
+    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 1);
+    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 2);
+
+    // Modify the uncompressed header
+    stream_pos_t cur_stream_pos;
+    read_stream_pos(&cur_stream_pos, encoder_info->stream);
+    encoder_info->cdef_bits = cdef_bits;
+    write_stream_pos(encoder_info->stream, &encoder_info->cdef_header_pos);
+    write_cdef_params(encoder_info->stream, encoder_info);
+    write_stream_pos(encoder_info->stream, &cur_stream_pos);
+  }
+#endif
 
   if (encoder_info->params->clpf){
     if (qp <= 16) // CLPF will have no effect if the quality is very high

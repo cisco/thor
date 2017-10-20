@@ -151,6 +151,28 @@ typedef struct
   int v;
 } cbp_t;
 
+#if CDEF
+typedef struct
+{
+  int level;  // pri_strength, skip_condition
+  int sec_strength;
+  int pri_damping;
+  int sec_damping;
+} cdef_strength;
+
+typedef struct
+{
+  int pri_strength[2];
+  int skip_condition[2];
+  int sec_strength[2];
+} cdef_preset;
+
+typedef struct
+{
+  cdef_strength plane[2];
+} cdef_strengths;
+#endif
+
 typedef struct
 {
   block_mode_t mode;
@@ -160,6 +182,11 @@ typedef struct
   part_t pb_part;
   inter_pred_t inter_pred;
   inter_pred_t inter_pred_arr[16]; //TODO: MAX_GOP_SIZE
+#if CDEF
+  cdef_strengths *cdef;
+  int cdef_dir;
+  int cdef_var;
+#endif
 } deblock_data_t;
 
 typedef enum {

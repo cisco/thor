@@ -87,7 +87,57 @@ int get_bit_pos(stream_t *str){
   return bitpos; 
 }
 
+static inline unsigned int mask(unsigned int n)
+{
+  return (1 << n) - 1;
+}
+
+static inline void flush_bitbuf(stream_t *str, int bytes)
+{
+  int i;
+  if ((str->bytepos+bytes) > str->bytesize)
+  {
+    fatalerror("Run out of bits in stream buffer.");
+  }
+  for (i=3; i>=4-bytes; --i) {
+    str->bitstream[str->bytepos++] = (str->bitbuf >> (8*i)) & 0xff;
+  }
+  str->bitbuf = 0;
+  str->bitrest = 32;
+}
+
+static unsigned int putbits(unsigned int n, unsigned int val, stream_t *str)
+{
+  unsigned int rest;
+
+  if (n <= str->bitrest)
+  {
+    str->bitbuf |= ((val & mask(n)) << (str->bitrest-n));
+    str->bitrest -= n;
+  }
+  else
+  {
+    rest = n-str->bitrest;
+    str->bitbuf |= (val >> rest) & mask(n-rest);
+    flush_bitbuf(str,4);
+    str->bitbuf |= (val & mask(rest)) << (32-rest);
+    str->bitrest -= rest;
+  }
+
+  return n;
+}
+
 void write_stream_pos(stream_t *stream, stream_pos_t *stream_pos){
+  // Flush bitrest to memory if we move forward
+  if (stream_pos->bytepos > stream->bytepos) {
+    uint32_t tmp = 0;
+    for (int i = 0; i < 4; i++)
+      tmp |= stream->bitstream[stream->bytepos + i] << ((3 - i) * 8);
+    tmp &= mask(stream->bitrest);
+    putbits(stream->bitrest, tmp, stream);
+    flush_bitbuf(stream, 4);
+  }
+
   stream->bitrest = stream_pos->bitrest;
   stream->bytepos = stream_pos->bytepos;
   stream->bitbuf = stream_pos->bitbuf;

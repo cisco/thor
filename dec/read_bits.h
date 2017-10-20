@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "getbits.h"
 
 void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream);
-void read_frame_header(frame_info_t *frame_info, stream_t *stream);
+void read_frame_header(decoder_info_t *decoder_info, stream_t *stream);
 int read_delta_qp(stream_t *stream);
 void read_mv(stream_t *stream,mv_t *mv,mv_t *mvp);
 void read_coeff(stream_t *stream,int16_t *coeff,int size);

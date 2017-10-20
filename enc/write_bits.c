@@ -78,7 +78,26 @@ void write_sequence_header(stream_t *stream, enc_params *params) {
     put_flc(1, params->input_bitdepth == 12, stream);
 }
 
-void write_frame_header(stream_t *stream, frame_info_t *frame_info) {
+#if CDEF
+void write_cdef_params(stream_t *stream, encoder_info_t* enc_info) {
+  if (enc_info->params->cdef) {
+    put_flc(2, enc_info->cdef_damping - 3, stream);
+    put_flc(2, enc_info->cdef_bits, stream);
+    for (int i = 0; i < (1 << enc_info->cdef_bits); i++) {
+      put_flc(7, enc_info->cdef_strengths[i], stream);
+      if (enc_info->params->subsample != 400)
+	put_flc(7, enc_info->cdef_uv_strengths[i], stream);
+    }
+  }
+  else {
+    put_flc(18, 0, stream);
+  }
+}
+#endif
+
+void write_frame_header(stream_t *stream, encoder_info_t *enc_info) {
+
+  frame_info_t *frame_info = &enc_info->frame_info;
 
   put_flc(1, frame_info->frame_type != I_FRAME, stream);
   put_flc(8, (int)frame_info->qp, stream);
@@ -94,6 +113,11 @@ void write_frame_header(stream_t *stream, frame_info_t *frame_info) {
   }
   // 16 bit frame number for now
   put_flc(16, frame_info->frame_num, stream);
+
+#if CDEF
+  read_stream_pos(&enc_info->cdef_header_pos, stream);
+  write_cdef_params(stream, enc_info);
+#endif
 }
 
 void write_mv(stream_t *stream,mv_t *mv,mv_t *mvp)

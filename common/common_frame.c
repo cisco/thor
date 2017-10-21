@@ -962,12 +962,12 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
               (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst_buffer + ypos * dstride + xpos, dstride, src16 + offset16, stride16,
                                adj_str << coeff_shift, sec_strength << coeff_shift,
                                pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
-                               cdef_directions_copy);
+                               cdef_directions_copy, coeff_shift);
 #else
 	      (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst_buffer + ypos * dstride + xpos, NULL, dstride, src16 + offset16, stride16,
                                adj_str << coeff_shift, sec_strength << coeff_shift,
                                pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
-                               cdef_directions_copy);
+                               cdef_directions_copy, coeff_shift);
 #endif
             }
           }

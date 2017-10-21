@@ -330,12 +330,12 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
                 (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
                              adj_str << coeff_shift, sec_strength << coeff_shift,
                              pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
-                             cdef_directions_copy);
+                             cdef_directions_copy, coeff_shift);
 #else
                 (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst, NULL, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
                              adj_str << coeff_shift, sec_strength << coeff_shift,
                              pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
-                             cdef_directions_copy);
+                             cdef_directions_copy, coeff_shift);
 #endif
 
                 // Calc mse.  TODO: Improve metric

@@ -223,11 +223,11 @@ SIMD_INLINE int constrain(int diff, int threshold, unsigned int damping) {
 /* Smooth in the direction detected. */
 void cdef_filter_block(uint8_t *dst8, uint16_t *dst16, int dstride,
                        const uint16_t *in, int sstride, int pri_strength, int sec_strength,
-                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL])
+                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL], int coeff_shift)
 {
   int i, j, k;
-  const int *pri_taps = cdef_pri_taps[pri_strength & 1];
-  const int *sec_taps = cdef_sec_taps[pri_strength & 1];
+  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
+  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
   for (i = 0; i < bsize; i++) {
     for (j = 0; j < bsize; j++) {
       int16_t sum = 0;

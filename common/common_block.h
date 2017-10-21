@@ -36,7 +36,7 @@ void TEMPLATE(reconstruct_block)(int16_t *block, SAMPLE *pblock, SAMPLE *rec, in
 #if CDEF
 void cdef_filter_block(uint8_t *dst8, uint16_t *dst16, int dstride,
                        const uint16_t *in, int sstride, int pri_strength, int sec_strength,
-                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL]);
+                       int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL], int coeff_shift);
 
 int TEMPLATE(cdef_find_dir)(const SAMPLE *img, int stride, int32_t *var, int coeff_shift);
 #endif

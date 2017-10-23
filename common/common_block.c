@@ -226,8 +226,8 @@ void cdef_filter_block(uint8_t *dst8, uint16_t *dst16, int dstride,
                        int dir, int pri_damping, int sec_damping, int bsize, int cdef_directions[8][2 + CDEF_FULL], int coeff_shift)
 {
   int i, j, k;
-  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
-  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
+  const int *pri_taps = cdef_pri_taps[(pri_strength >> coeff_shift) & 1];
+  const int *sec_taps = cdef_sec_taps[(pri_strength >> coeff_shift) & 1];
   for (i = 0; i < bsize; i++) {
     for (j = 0; j < bsize; j++) {
       int16_t sum = 0;

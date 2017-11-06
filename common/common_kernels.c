@@ -2525,7 +2525,7 @@ int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
 #else
   v128 lines[8];
   for (i = 0; i < 8; i++) {
-    lines[i] = v128_unpacklo_u8_s16(v64_load_unaligned(&img[i * stride]));
+    lines[i] = v128_unpacklo_u8_s16(v128_from_v64(v64_zero(), v64_load_unaligned(&img[i * stride])));
     lines[i] =
         v128_sub_16(v128_shr_s16(lines[i], coeff_shift), v128_dup_16(128));
 #endif

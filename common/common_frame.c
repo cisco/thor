@@ -797,7 +797,7 @@ void TEMPLATE(cdef_prepare_input)(int sizex, int sizey, int xpos, int ypos, boun
           v128_store_aligned(src16 + j + i * stride16, v128_load_aligned(src_buffer + (ypos + i) * sstride + xpos + j));
 #else
       if (sizex == 4)
-        v64_store_aligned(src16 + 0 + i * stride16, v128_unpack_u8_s16(v64_from_32(0, u32_load_aligned(src_buffer + (ypos + i) * sstride + xpos + 0))));
+        v64_store_aligned(src16 + 0 + i * stride16, v128_low_v64(v128_unpack_u8_s16(v64_from_32(0, u32_load_aligned(src_buffer + (ypos + i) * sstride + xpos + 0)))));
       else
         for (int j = 0; j < sizex; j += 8)
           v128_store_aligned(src16 + j + i * stride16, v128_unpack_u8_s16(v64_load_aligned(src_buffer + (ypos + i) * sstride + xpos + j)));

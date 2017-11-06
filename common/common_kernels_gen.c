@@ -2525,7 +2525,7 @@ int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
 #else
   v256 lines[8];
   for (i = 0; i < 8; i++) {
-    lines[i] = v256_unpacklo_u16_s32(v128_load_unaligned(&img[i * stride]));
+    lines[i] = v256_unpacklo_u16_s32(v256_from_v128(v128_zero(), v128_load_unaligned(&img[i * stride])));
     lines[i] =
         v256_sub_32(v256_shr_s32(lines[i], coeff_shift), v256_dup_32(128));
 #endif
@@ -2623,8 +2623,8 @@ static void cdef_filter_block_4x4_8(uint8_t *dst, int dstride,
   int s2o1 = cdef_directions[(dir + 6) & 7][0];
   int s2o2 = cdef_directions[(dir + 6) & 7][1];
 
-  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
-  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
+  const int *pri_taps = cdef_pri_taps[(pri_strength >> coeff_shift) & 1];
+  const int *sec_taps = cdef_sec_taps[(pri_strength >> coeff_shift) & 1];
 
   if (pri_strength) pri_damping -= log2i(pri_strength);
   if (sec_strength) sec_damping -= log2i(sec_strength);
@@ -2816,8 +2816,8 @@ static void cdef_filter_block_8x8_8(uint8_t *dst, int dstride,
   int s2o1 = cdef_directions[(dir + 6) & 7][0];
   int s2o2 = cdef_directions[(dir + 6) & 7][1];
 
-  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
-  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
+  const int *pri_taps = cdef_pri_taps[(pri_strength >> coeff_shift) & 1];
+  const int *sec_taps = cdef_sec_taps[(pri_strength >> coeff_shift) & 1];
 
   if (pri_strength) pri_damping -= log2i(pri_strength);
   if (sec_strength) sec_damping -= log2i(sec_strength);
@@ -2985,8 +2985,8 @@ static void cdef_filter_block_4x4_16(uint32_t *dst, int dstride,
   int s2o1 = cdef_directions[(dir + 6) & 7][0];
   int s2o2 = cdef_directions[(dir + 6) & 7][1];
 
-  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
-  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
+  const int *pri_taps = cdef_pri_taps[(pri_strength >> coeff_shift) & 1];
+  const int *sec_taps = cdef_sec_taps[(pri_strength >> coeff_shift) & 1];
 
   if (pri_strength) pri_damping -= log2i(pri_strength);
   if (sec_strength) sec_damping -= log2i(sec_strength);
@@ -3130,8 +3130,8 @@ static void cdef_filter_block_8x8_16(uint32_t *dst, int dstride,
   int s2o1 = cdef_directions[(dir + 6) & 7][0];
   int s2o2 = cdef_directions[(dir + 6) & 7][1];
 
-  const int *pri_taps = cdef_pri_taps[pri_strength & (1 << coeff_shift)];
-  const int *sec_taps = cdef_sec_taps[pri_strength & (1 << coeff_shift)];
+  const int *pri_taps = cdef_pri_taps[(pri_strength >> coeff_shift) & 1];
+  const int *sec_taps = cdef_sec_taps[(pri_strength >> coeff_shift) & 1];
 
   if (pri_strength) pri_damping -= log2i(pri_strength);
   if (sec_strength) sec_damping -= log2i(sec_strength);

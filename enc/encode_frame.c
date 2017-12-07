@@ -47,9 +47,9 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
 
 #define TOTAL_STRENGTHS (CDEF_PRI_STRENGTHS * CDEF_SEC_STRENGTHS)
 
-static int priconv[3][CDEF_PRI_STRENGTHS] = { { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 },
-                                              { 0, 1, 2, 3, 4, 7, 12, 25 },
-                                              { 0, 2, 6, 12 } };
+static int priconv[3][CDEF_PRI_STRENGTHS] = { { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+                                              { 0, 1, 2, 3, 5, 7, 10, 13 },
+                                              { 0, 1, 3, 6 } };
 
 static int pristrengths[3] = { CDEF_PRI_STRENGTHS * CDEF_SEC_STRENGTHS, 8 * CDEF_SEC_STRENGTHS, 4 * CDEF_SEC_STRENGTHS};
 
@@ -297,12 +297,11 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
 	TEMPLATE(cdef_prepare_input)(sizex, sizey, xpos, ypos, bt, padding, src16 + offset16, stride16, src_buffer, sstride);
 
         for (int gi = 0; gi < total_strengths; gi++) {
-          int level, filter_skip;
+          int level;
           int pri_strength, sec_strength;
           level = gi / CDEF_SEC_STRENGTHS;
           level = priconv[speed][level];
-          filter_skip = level & 1;
-          pri_strength = (level >> 1);
+          pri_strength = level;
           sec_strength = (gi % CDEF_SEC_STRENGTHS);
 
           if (plane < 2)
@@ -319,7 +318,7 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
 
               if (plane == 0)
                 deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
-              if (filter_skip || deblock_data[index].mode != MODE_SKIP) {
+              if (deblock_data[index].mode != MODE_SKIP) {
 
                 int adj_str = plane ? pri_strength : adjust_strength(pri_strength, deblock_data[index].cdef_var);
                 int adj_pri_damping = adj_str ? max(log2i(adj_str), pri_damping - !!plane) : pri_damping - !!plane;

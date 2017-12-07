@@ -881,13 +881,8 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
       cdef_strength *cdef = &deblock_data[index].cdef->plane[plane != 0];
 
       int coeff_shift = bitdepth - 8;
-      int pri_strength = (cdef->level >> 1);
-      int filter_skip = cdef->level & 1;
+      int pri_strength = cdef->level;
       int sec_strength = (cdef->sec_strength + (cdef->sec_strength == 3));
-      if (!pri_strength && !sec_strength && filter_skip) {
-        pri_strength = 19;
-        sec_strength = 7;
-      }
       if (!allskip) {
         // Iterate over all smaller blocks inside the filter block
         for (int m = 0; m < ((h + bs - 1) >> (bslog + sub)); m++) {
@@ -902,7 +897,7 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
             if (plane == 0)
               deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
 
-            if (filter_skip || deblock_data[index].mode != MODE_SKIP) {
+            if (deblock_data[index].mode != MODE_SKIP) {
 
               // Temporary buffering needed for in-place filtering
               if (cache_ptr[cache_idx]) {

@@ -105,7 +105,7 @@ static inline void fatalerror(char error_text[])
 #define TEMP_INTERP_USE_CHROMA 0 // 444 not supported!
 
 #if CDEF
-#define CDEF_PRI_STRENGTHS 32
+#define CDEF_PRI_STRENGTHS 16
 #define CDEF_SEC_STRENGTHS 4
 #define CDEF_BLOCKSIZE 64
 #define CDEF_BLOCKSIZE_LOG2 6
@@ -116,7 +116,7 @@ static inline void fatalerror(char error_text[])
 #define CDEF_VERY_LARGE 30000
 #define CDEF_INBUF_SIZE (CDEF_BSTRIDE * (CDEF_BLOCKSIZE + 2 * CDEF_VBORDER))
 #define CDEF_MAX_STRENGTHS 16
-#define CDEF_STRENGTH_BITS 7
+#define CDEF_STRENGTH_BITS 6
 #define CDEF_FULL 0  // 1 = 7x7 filter, 0 = 5x5 filter
 #endif
 

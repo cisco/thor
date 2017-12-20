@@ -2187,12 +2187,21 @@ static int check_early_skip_sub_block (encoder_info_t *encoder_info, SAMPLE *ori
 
 static int calc_cbp(int16_t *block, int size, int threshold) {
   int sum, i, j;
-  if (size == 8) {
+  if (size == 16) {
+    for (j = 0; j < 16; j++) {
+      sum = 0;
+      for (i = 0; i < 16; i++)
+        sum += block[i*size+j];
+      if (abs(sum) > threshold)
+        return 1;
+    }
+  }
+  else if (size == 8) {
     for (j = 0; j < 8; j++) {
       sum = 0;
       for (i = 0; i < 8; i++)
         sum += block[i*size+j];
-      if (sum > threshold)
+      if (abs(sum) > threshold)
         return 1;
     }
   }
@@ -2201,7 +2210,7 @@ static int calc_cbp(int16_t *block, int size, int threshold) {
       sum = 0;
       for (i = 0; i < 4; i++)
         sum += block[i*size+j] + block[i*size+j+1];
-      if (sum > threshold)
+      if (abs(sum) > threshold)
         return 1;
     }
   }

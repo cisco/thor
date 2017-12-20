@@ -827,7 +827,65 @@ unsigned int TEMPLATE(sad_calc_fastquarter_simd)(const SAMPLE *po, const SAMPLE 
 #ifndef HBD
 int calc_cbp_simd(int32_t *block, int size, int threshold) {
   int cbp = 0;
-  if (size ==8 ) {
+  if (size == 16) {
+    if (sizeof(SAMPLE) == 1) {
+      v256 thr = v256_dup_16(threshold);
+      v256 sum = v256_add_16(v256_load_aligned(block+0*size),
+                             v256_load_aligned(block+1*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+2*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+3*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+4*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+5*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+6*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+7*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+8*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+9*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+10*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+11*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+12*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+13*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+14*size));
+      sum = v256_add_16(sum, v256_load_aligned(block+15*size));
+      cbp = !!v256_hadd_u8(v256_cmpgt_s16(v256_abs_s16(sum), thr));
+    } else {
+      v256 thr = v256_dup_32(threshold);
+      v256 sum1 = v256_add_32(v256_load_aligned(block+0*size),
+                              v256_load_aligned(block+1*size));
+      v256 sum2 = v256_add_32(v256_load_aligned(block+0*size),
+                              v256_load_aligned(block+1*size));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+2*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+2*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+3*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+3*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+4*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+4*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+5*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+5*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+6*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+6*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+7*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+7*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+8*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+8*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+9*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+9*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+10*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+10*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+11*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+11*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+12*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+12*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+13*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+13*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+14*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+14*size+8));
+      sum1 = v256_add_32(sum1, v256_load_aligned(block+15*size));
+      sum2 = v256_add_32(sum2, v256_load_aligned(block+15*size+8));
+      cbp =
+        !!v256_hadd_u16(v256_cmpgt_s32(v256_abs_s32(sum1), thr)) ||
+        !!v256_hadd_u16(v256_cmpgt_s32(v256_abs_s32(sum2), thr));
+    }
+  } else if (size == 8) {
     v256 thr = v256_dup_32(threshold);
     v256 sum = v256_add_32(v256_load_aligned(block+0*size),
                            v256_load_aligned(block+1*size));
@@ -837,14 +895,14 @@ int calc_cbp_simd(int32_t *block, int size, int threshold) {
     sum = v256_add_32(sum, v256_load_aligned(block+5*size));
     sum = v256_add_32(sum, v256_load_aligned(block+6*size));
     sum = v256_add_32(sum, v256_load_aligned(block+7*size));
-    cbp = !!v256_hadd_u16(v256_cmpgt_s32(sum, thr));
+    cbp = !!v256_hadd_u16(v256_cmpgt_s32(v256_abs_s32(sum), thr));
   } else {
     v128 sum = v128_add_32(v128_load_aligned(block+0*size),
                          v128_load_aligned(block+1*size));
     sum = v128_add_32(sum, v128_load_aligned(block+2*size));
     sum = v128_add_32(sum, v128_load_aligned(block+3*size));
     sum = v128_add_64(v128_shr_n_s64(sum, 16),
-                     v128_shr_n_s64(v128_shl_n_64(sum, 16), 16));
+                     v128_shr_n_s64(v128_shl_n_64(v256_abs_s32(sum), 16), 16));
     cbp = v128_high_v64(sum) > threshold || v128_low_v64(sum) > threshold;
   }
   return cbp;

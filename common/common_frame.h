@@ -52,8 +52,8 @@ void clpf_frame_lbd(const yuv_frame_t *frame, const yuv_frame_t *org, const debl
 void clpf_frame_hbd(const yuv_frame_t *frame, const yuv_frame_t *org, const deblock_data_t *deblock_data, void *stream,int enable_sb_flag, unsigned int strength, unsigned int fb_size_log2, int bitdepth, plane_t plane, int qp,
                     int(*decision)(int, int, const yuv_frame_t *, const yuv_frame_t *, const deblock_data_t *, int, int, int, void *, unsigned int, unsigned int, unsigned int, unsigned int, int));
 #if CDEF
-void cdef_frame_lbd(const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane);
-void cdef_frame_hbd(const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane);
+void cdef_frame_lbd(cdef_strengths *cdef_strengths, const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane);
+void cdef_frame_hbd(cdef_strengths *cdef_strengths, const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane);
 int cdef_allskip(int xoff, int yoff, int width, int height, deblock_data_t *deblock_data, int fb_size_log2);
 void cdef_prepare_input_lbd(int sizex, int sizey, int xpos, int ypos, boundary_type bt, int padding, uint16_t *src16, int stride16, uint8_t *src_buffer, int sstride);
 void cdef_prepare_input_hbd(int sizex, int sizey, int xpos, int ypos, boundary_type bt, int padding, uint16_t *src16, int stride16, uint16_t *src_buffer, int sstride);

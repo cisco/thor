@@ -169,6 +169,8 @@ typedef struct
 
 typedef struct
 {
+  int dir[CDEF_BLOCKSIZE * CDEF_BLOCKSIZE / 64];
+  int var[CDEF_BLOCKSIZE * CDEF_BLOCKSIZE / 64];
   cdef_strength plane[2];
 } cdef_strengths;
 #endif
@@ -182,11 +184,6 @@ typedef struct
   part_t pb_part;
   inter_pred_t inter_pred;
   inter_pred_t inter_pred_arr[16]; //TODO: MAX_GOP_SIZE
-#if CDEF
-  cdef_strengths *cdef;
-  int cdef_dir;
-  int cdef_var;
-#endif
 } deblock_data_t;
 
 typedef enum {

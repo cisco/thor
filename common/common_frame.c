@@ -823,7 +823,7 @@ int cdef_allskip(int xoff, int yoff, int width, int height, deblock_data_t *debl
 }
 #endif
 
-void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane) {
+void TEMPLATE(cdef_frame)(cdef_strengths *cdef_strengths, const yuv_frame_t *frame, const yuv_frame_t *org, deblock_data_t *deblock_data, void *stream, int cdef_bits, int bitdepth, unsigned int plane) {
 
   int c, k, l;
   const int fb_size_log2 = 6;
@@ -863,6 +863,8 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
   cdef_init(stride16, cdef_directions_copy);
   cdef_init(sstride, cdef_directions);
 
+  int ci = 0;
+
   // Iterate over all filter blocks
   for (k = 0; k < num_fb_ver; k++) {
     for (l = 0; l < num_fb_hor; l++) {
@@ -878,7 +880,7 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
       w += !w << fb_size_log2;
 
       int index = (yoff/MIN_PB_SIZE)*(width/MIN_PB_SIZE) + (xoff/MIN_PB_SIZE);
-      cdef_strength *cdef = &deblock_data[index].cdef->plane[plane != 0];
+      cdef_strength *cdef = &cdef_strengths[ci].plane[plane != 0];
 
       int coeff_shift = bitdepth - 8;
       int pri_strength = cdef->level;
@@ -895,7 +897,7 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
             index = ((yoff + m * 8) / MIN_PB_SIZE) * (width/MIN_PB_SIZE) + ((xoff + n * 8) / MIN_PB_SIZE);
 
             if (plane == 0)
-              deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
+              cdef_strengths[ci].dir[m * (bs << sub) + n] = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &cdef_strengths[ci].var[m * bs + n], coeff_shift);
 
             if (deblock_data[index].mode != MODE_SKIP) {
 
@@ -948,7 +950,7 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
 
 	      TEMPLATE(cdef_prepare_input)(sizex, sizey, xpos, ypos, bt, padding, src16 + offset16, stride16, src_buffer, sstride);
 
-              int adj_str = plane ? pri_strength : adjust_strength(pri_strength, deblock_data[index].cdef_var);
+              int adj_str = plane ? pri_strength : adjust_strength(pri_strength, cdef_strengths[ci].var[m * (bs << sub) + n]);
               int pri_damping = adj_str ? max(log2i(adj_str), cdef->pri_damping - !!plane) : cdef->pri_damping - !!plane;
               int sec_damping = cdef->sec_damping - !!plane;
 
@@ -956,18 +958,19 @@ void TEMPLATE(cdef_frame)(const yuv_frame_t *frame, const yuv_frame_t *org, debl
 #ifdef HBD
               (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst_buffer + ypos * dstride + xpos, dstride, src16 + offset16, stride16,
                                adj_str << coeff_shift, sec_strength << coeff_shift,
-                               pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
+                               pri_strength ? cdef_strengths[ci].dir[m * (bs << sub) + n] : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
                                cdef_directions_copy, coeff_shift);
 #else
 	      (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst_buffer + ypos * dstride + xpos, NULL, dstride, src16 + offset16, stride16,
                                adj_str << coeff_shift, sec_strength << coeff_shift,
-                               pri_strength ? deblock_data[index].cdef_dir : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
+                               pri_strength ? cdef_strengths[ci].dir[m * (bs << sub) + n] : 0, pri_damping + coeff_shift, sec_damping + coeff_shift, sizex,
                                cdef_directions_copy, coeff_shift);
 #endif
             }
           }
         }
       }
+      ci++;
     }
   }
 

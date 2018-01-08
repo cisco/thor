@@ -43,7 +43,7 @@ extern double squared_lambda_QP[52];
 
 #if CDEF
 int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
-                          int cdef_strengths[8], int cdef_uv_strengths[8], int speed);
+                          int strengths[8], int uv_strengths[8], int speed);
 
 #define TOTAL_STRENGTHS (CDEF_PRI_STRENGTHS * CDEF_SEC_STRENGTHS)
 
@@ -222,12 +222,12 @@ static uint64_t dist_8x8(SAMPLE *dst, int dstride, SAMPLE *src,
 
 
 int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
-                          int cdef_strengths[8], int cdef_uv_strengths[8], int speed) {
+                          int strengths[8], int uv_strengths[8], int speed) {
   int width = rec->width;
   int height = rec->height;
   const int fb_size_log2 = CDEF_BLOCKSIZE_LOG2;
-  const int nhfb = (height+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
-  const int nvfb = (width+CDEF_BLOCKSIZE-1)>>CDEF_BLOCKSIZE_LOG2;
+  const int num_fb_hor = (width + (1 << fb_size_log2) - 1) >> fb_size_log2;
+  const int num_fb_ver = (height + (1 << fb_size_log2) - 1) >> fb_size_log2;
   uint64_t best_tot_mse = (uint64_t)1 << 63;
   uint64_t tot_mse;
   uint64_t(*mse[2])[TOTAL_STRENGTHS];
@@ -245,23 +245,25 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   SAMPLE *dst = thor_alloc(bs * bs * sizeof(SAMPLE), 32);
   int cdef_directions[8][2 + CDEF_FULL];
   int cdef_directions_copy[8][2 + CDEF_FULL];
-  int *sb_index = thor_alloc(nvfb * nhfb * sizeof(*sb_index), 16);
-  int *selected_strength = thor_alloc(nvfb * nhfb * sizeof(*sb_index), 16);
+  int *ci_index = thor_alloc(num_fb_hor * num_fb_ver * sizeof(*ci_index), 16);
+  int *selected_strength = thor_alloc(num_fb_hor * num_fb_ver * sizeof(*ci_index), 16);
   stream_t *stream = encoder_info->stream;
   const int bitdepth = encoder_info->params->bitdepth;
 
-  mse[0] = thor_alloc(sizeof(**mse) * nvfb * nhfb, 32);
-  mse[1] = thor_alloc(sizeof(**mse) * nvfb * nhfb, 32);
+  mse[0] = thor_alloc(sizeof(**mse) * num_fb_hor * num_fb_ver, 32);
+  mse[1] = thor_alloc(sizeof(**mse) * num_fb_hor * num_fb_ver, 32);
 
   cdef_init(stride16, cdef_directions_copy);
 
-  for (int k = 0; k < nhfb; k++) {
-    for (int l = 0; l < nvfb; l++) {
+  int ci = -1;
+  for (int k = 0; k < num_fb_ver; k++) {
+    for (int l = 0; l < num_fb_hor; l++) {
 
       int h, w;
       const int xoff = l << fb_size_log2;
       const int yoff = k << fb_size_log2;
       int allskip = cdef_allskip(xoff, yoff, width, height, deblock_data, fb_size_log2);
+      ci++;
 
       if (allskip)
         continue;
@@ -316,11 +318,12 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
               sizey = min((height >> sub) - ypos, bs);
               index = ((yoff + m * 8) / MIN_PB_SIZE) * (width/MIN_PB_SIZE) + ((xoff + n * 8) / MIN_PB_SIZE);
 
-              if (plane == 0)
-                deblock_data[index].cdef_dir = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &deblock_data[index].cdef_var, coeff_shift);
+              if (plane == 0 && gi == 0)
+                encoder_info->cdef[ci].dir[m * bs + n] = (use_simd ? TEMPLATE(cdef_find_dir_simd) : TEMPLATE(cdef_find_dir))(src_buffer + ypos * sstride + xpos, sstride, &encoder_info->cdef[ci].var[m * bs + n], coeff_shift);
+
               if (deblock_data[index].mode != MODE_SKIP) {
 
-                int adj_str = plane ? pri_strength : adjust_strength(pri_strength, deblock_data[index].cdef_var);
+                int adj_str = plane ? pri_strength : adjust_strength(pri_strength, encoder_info->cdef[ci].var[m * bs + n]);
                 int adj_pri_damping = adj_str ? max(log2i(adj_str), pri_damping - !!plane) : pri_damping - !!plane;
                 int adj_sec_damping = sec_damping - !!plane;
 
@@ -328,12 +331,12 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
 #ifdef HBD
                 (use_simd ? cdef_filter_block_simd : cdef_filter_block)(NULL, dst, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
                              adj_str << coeff_shift, sec_strength << coeff_shift,
-                             pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
+                             pri_strength ? encoder_info->cdef[ci].dir[m * bs + n] : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
                              cdef_directions_copy, coeff_shift);
 #else
                 (use_simd ? cdef_filter_block_simd : cdef_filter_block)(dst, NULL, sizex, src16 + offset16 + n * bs + m * bs * stride16, stride16,
                              adj_str << coeff_shift, sec_strength << coeff_shift,
-                             pri_strength ? deblock_data[index].cdef_dir : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
+                             pri_strength ? encoder_info->cdef[ci].dir[m * bs + n] : 0, adj_pri_damping + coeff_shift, adj_sec_damping + coeff_shift, sizex,
                              cdef_directions_copy, coeff_shift);
 #endif
 
@@ -351,7 +354,7 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
           }
         }
       }
-      sb_index[sb_count++] = ((k << fb_size_log2)/MIN_PB_SIZE)*(rec->width/MIN_PB_SIZE) + ((l << fb_size_log2)/MIN_PB_SIZE);
+      ci_index[sb_count++] = ci;
     }
   }
 
@@ -379,8 +382,8 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
       best_tot_mse = tot_mse;
       nb_strength_bits = i;
       for (j = 0; j < 1 << nb_strength_bits; j++) {
-        cdef_strengths[j] = best_lev0[j];
-        cdef_uv_strengths[j] = best_lev1[j];
+        strengths[j] = best_lev0[j];
+        uv_strengths[j] = best_lev1[j];
       }
     }
   }
@@ -394,8 +397,8 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
     uint64_t best_mse = (uint64_t)1 << 63;
     best_gi = 0;
     for (gi = 0; gi < (1 << nb_strength_bits); gi++) {
-      uint64_t curr = mse[0][i][cdef_strengths[gi]];
-      if (encoder_info->params->subsample != 400) curr += mse[1][i][cdef_uv_strengths[gi]];
+      uint64_t curr = mse[0][i][strengths[gi]];
+      if (encoder_info->params->subsample != 400) curr += mse[1][i][uv_strengths[gi]];
       if (curr < best_mse) {
         best_gi = gi;
         best_mse = curr;
@@ -407,21 +410,21 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   }
 
   for (int j = 0; j < nb_strengths; j++) {
-    cdef_strengths[j] =
-      priconv[speed][cdef_strengths[j] / CDEF_SEC_STRENGTHS] *
+    strengths[j] =
+      priconv[speed][strengths[j] / CDEF_SEC_STRENGTHS] *
       CDEF_SEC_STRENGTHS +
-      (cdef_strengths[j] % CDEF_SEC_STRENGTHS);
-    cdef_uv_strengths[j] =
-      priconv[speed][cdef_uv_strengths[j] / CDEF_SEC_STRENGTHS] *
+      (strengths[j] % CDEF_SEC_STRENGTHS);
+    uv_strengths[j] =
+      priconv[speed][uv_strengths[j] / CDEF_SEC_STRENGTHS] *
       CDEF_SEC_STRENGTHS +
-      (cdef_uv_strengths[j] % CDEF_SEC_STRENGTHS);
+      (uv_strengths[j] % CDEF_SEC_STRENGTHS);
   }
 
   for (int i = 0; i < sb_count; i++) {
     for (int plane = 0; plane < 2; plane++) {
-      cdef_strength *cdef = &deblock_data[sb_index[i]].cdef->plane[plane != 0];
-      cdef->level = (plane ? cdef_uv_strengths[selected_strength[i]] : cdef_strengths[selected_strength[i]]) >> 2;
-      cdef->sec_strength = (plane ? cdef_uv_strengths[selected_strength[i]] : cdef_strengths[selected_strength[i]]) & 3;
+      cdef_strength *cdef = &encoder_info->cdef[ci_index[i]].plane[plane != 0];
+      cdef->level = (plane ? uv_strengths[selected_strength[i]] : strengths[selected_strength[i]]) >> 2;
+      cdef->sec_strength = (plane ? uv_strengths[selected_strength[i]] : strengths[selected_strength[i]]) & 3;
       cdef->pri_damping = cdef->sec_damping = encoder_info->cdef_damping;
     }
   }
@@ -431,7 +434,7 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   thor_free(src16);
   thor_free(dst);
 
-  thor_free(sb_index);
+  thor_free(ci_index);
   thor_free(selected_strength);
 
   return nb_strength_bits;
@@ -718,9 +721,9 @@ void TEMPLATE(encode_frame)(encoder_info_t *encoder_info)
     int cdef_bits = TEMPLATE(cdef_search)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, frame_info, encoder_info, encoder_info->cdef_strengths, encoder_info->cdef_uv_strengths, encoder_info->params->cdef - 1);
 
     // Apply the filter using the chosen strengths
-    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 0);
-    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 1);
-    TEMPLATE(cdef_frame)(encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 2);
+    TEMPLATE(cdef_frame)(encoder_info->cdef, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 0);
+    TEMPLATE(cdef_frame)(encoder_info->cdef, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 1);
+    TEMPLATE(cdef_frame)(encoder_info->cdef, encoder_info->rec, encoder_info->orig, encoder_info->deblock_data, stream, 0, encoder_info->params->bitdepth, 2);
 
     // Modify the uncompressed header
     stream_pos_t cur_stream_pos;

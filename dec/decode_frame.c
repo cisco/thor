@@ -157,7 +157,6 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
       for (int l = 0; l < nvfb; l++) {
         int xpos = l << fb_size_log2;
         int ypos = k << fb_size_log2;
-        int index = (ypos / MIN_PB_SIZE)*(width / MIN_PB_SIZE) + xpos / MIN_PB_SIZE;
         int preset = 0;
         if (decoder_info->cdef_bits) {
           int allskip = cdef_allskip(xpos, ypos, width, height, decoder_info->deblock_data, fb_size_log2);
@@ -166,7 +165,7 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
           }
         }
         for (int plane = 0; plane < 2; plane++) {
-          cdef_strength *cdef = &decoder_info->deblock_data[index].cdef->plane[plane != 0];
+          cdef_strength *cdef = &decoder_info->cdef[k*nvfb+l].plane[plane != 0];
           cdef->level = decoder_info->cdef_presets[preset].pri_strength[plane] * 2 + decoder_info->cdef_presets[preset].skip_condition[plane];
           cdef->sec_strength = decoder_info->cdef_presets[preset].sec_strength[plane];
           cdef->pri_damping = decoder_info->cdef_damping[0];
@@ -174,9 +173,9 @@ void decode_frame(decoder_info_t *decoder_info, yuv_frame_t* rec_buffer)
         }
       }
     }
-    TEMPLATE(cdef_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 0);
-    TEMPLATE(cdef_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 1);
-    TEMPLATE(cdef_frame)(decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 2);
+    TEMPLATE(cdef_frame)(decoder_info->cdef, decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 0);
+    TEMPLATE(cdef_frame)(decoder_info->cdef, decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 1);
+    TEMPLATE(cdef_frame)(decoder_info->cdef, decoder_info->rec, 0, decoder_info->deblock_data, stream, 0, decoder_info->bitdepth, 2);
   }
 #endif
 

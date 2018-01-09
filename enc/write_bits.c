@@ -90,7 +90,7 @@ void write_cdef_params(stream_t *stream, encoder_info_t* enc_info) {
     }
   }
   else {
-    put_flc(18, 0, stream);
+    put_flc(enc_info->params->subsample != 400 ? 18 : 11, 0, stream);
   }
 }
 #endif

@@ -221,6 +221,10 @@ static uint64_t dist_8x8(SAMPLE *dst, int dstride, SAMPLE *src,
 }
 
 
+static int cdef_cmp(const void *a, const void *b) {
+  return *(uint32_t*)a < *(uint32_t*)b ? -1 : *(uint32_t*)a > *(uint32_t*)b;
+}
+
 int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *deblock_data, const frame_info_t *frame_info, encoder_info_t *encoder_info,
                           int strengths[8], int uv_strengths[8], int speed) {
   int width = rec->width;
@@ -388,8 +392,26 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
     }
   }
 
-  nb_strengths = 1 << nb_strength_bits;
+  // Sort results and remove duplicates
+  int gi_trans[8];
+  uint32_t list[8];
+  for (int i = 0; i < 1 << nb_strength_bits; i++)
+    list[i] = (strengths[i] << 16) + (uv_strengths[i] << 8) + i;
+  qsort(list, 1 << nb_strength_bits, sizeof(*list), cdef_cmp);
+  int j = 0;
+  for (int i = 0; i < 1 << nb_strength_bits; i++) {
+    if (!i || (list[i] & ~255) != (list[i - 1] & ~255)) {
+        strengths[j] = list[i] >> 16;
+        uv_strengths[j] = (list[i] >> 8) & 255;
+        gi_trans[list[i] & 255] = j++;
+    }
+  }
 
+  // Reduce the number of bits per block
+  nb_strength_bits = log2i(j);
+
+  nb_strengths = 1 << nb_strength_bits;
+  
   // Assign the best preset to every filter block
   for (int i = 0; i < sb_count; i++) {
     int gi;
@@ -397,16 +419,17 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
     uint64_t best_mse = (uint64_t)1 << 63;
     best_gi = 0;
     for (gi = 0; gi < (1 << nb_strength_bits); gi++) {
-      uint64_t curr = mse[0][i][strengths[gi]];
-      if (encoder_info->params->subsample != 400) curr += mse[1][i][uv_strengths[gi]];
+      uint64_t curr = mse[0][i][strengths[gi_trans[gi]]];
+      if (encoder_info->params->subsample != 400) curr += mse[1][i][uv_strengths[gi_trans[gi]]];
       if (curr < best_mse) {
-        best_gi = gi;
+        best_gi = min(nb_strengths - 1, gi_trans[gi]);
         best_mse = curr;
       }
     }
     selected_strength[i] = best_gi;
-    if (nb_strength_bits)
+    if (nb_strength_bits) {
       put_flc(nb_strength_bits, best_gi, stream);
+    }
   }
 
   for (int j = 0; j < nb_strengths; j++) {

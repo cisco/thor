@@ -400,10 +400,10 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   qsort(list, 1 << nb_strength_bits, sizeof(*list), cdef_cmp);
   int j = 0;
   for (int i = 0; i < 1 << nb_strength_bits; i++) {
+    gi_trans[list[i] & 255] = j;
     if (!i || (list[i] & ~255) != (list[i - 1] & ~255)) {
         strengths[j] = list[i] >> 16;
-        uv_strengths[j] = (list[i] >> 8) & 255;
-        gi_trans[list[i] & 255] = j++;
+        uv_strengths[j++] = (list[i] >> 8) & 255;
     }
   }
 
@@ -411,7 +411,7 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   nb_strength_bits = log2i(j);
 
   nb_strengths = 1 << nb_strength_bits;
-  
+
   // Assign the best preset to every filter block
   for (int i = 0; i < sb_count; i++) {
     int gi;

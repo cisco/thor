@@ -254,10 +254,35 @@ int TEMPLATE(cdef_search)(yuv_frame_t *rec, yuv_frame_t *org, deblock_data_t *de
   stream_t *stream = encoder_info->stream;
   const int bitdepth = encoder_info->params->bitdepth;
 
+  cdef_init(stride16, cdef_directions_copy);
+
+  if (speed == 3) encoder_info->cdef_bits = 0;
+
+  if (encoder_info->cdef_bits == 0) {
+    int i, j, plane, inc;
+    int width = encoder_info->width;
+    int height = encoder_info->height;
+    int primary_strength = max(0, (encoder_info->frame_info.qp - 24)/3);
+    int secondary_strength = encoder_info->frame_info.qp < 32 && encoder_info->frame_info.qp > 16;
+    uv_strengths[0] = strengths[0] = (primary_strength << 2) + secondary_strength;
+    inc = CDEF_BLOCKSIZE / MIN_PB_SIZE;
+    int ci = 0;
+    for (i = 0; i < height / MIN_PB_SIZE; i += inc) {
+      for (j = 0; j < width / MIN_PB_SIZE; j += inc) {
+        for (plane = 0; plane < 2; plane++) {
+          cdef_strength *cdef = &encoder_info->cdef[ci].plane[plane != 0];
+          cdef->level = (plane ? uv_strengths[0] : strengths[0]) >> 2;
+          cdef->sec_strength = (plane ? uv_strengths[0] : strengths[0]) & 3;
+          cdef->pri_damping = cdef->sec_damping = encoder_info->cdef_damping;
+        }
+        ci++;
+      }
+    }
+    return 0;
+  }
+
   mse[0] = thor_alloc(sizeof(**mse) * num_fb_hor * num_fb_ver, 32);
   mse[1] = thor_alloc(sizeof(**mse) * num_fb_hor * num_fb_ver, 32);
-
-  cdef_init(stride16, cdef_directions_copy);
 
   int ci = -1;
   for (int k = 0; k < num_fb_ver; k++) {

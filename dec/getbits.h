@@ -37,7 +37,7 @@ typedef struct
   unsigned int inbfr;
   int incnt;
   int bitcnt;
-  int length;
+  uint32_t length;
 } stream_t;
 
 int initbits_dec(FILE *infile, stream_t *str);

@@ -85,7 +85,7 @@ static char **read_config_file(FILE *f, int *num_of_params)
     /* There is no double quote -> read next string */
     if (ret2 == 0)
     {
-      ret = fscanf(f, " %s", a);
+      ret = fscanf(f, " %1999s", a);
 
       if (ret < 1 || ret == EOF)
         break;

@@ -1908,10 +1908,10 @@ static int mode_decision_rdo(encoder_info_t *encoder_info,block_info_t *block_in
     }
   }
 
-  /* Evaluate inter mode */
   if ((size < 128 || encoder_info->params->encoder_speed == 0) &&
       !rectangular_flag && size <= MAX_TR_SIZE) { //Only evaluate intra or inter mode if the block is square
 
+    /* Evaluate inter mode */
     if (frame_type != I_FRAME){
       tb_param = 0;
       tmp_block_param.tb_param = 0;

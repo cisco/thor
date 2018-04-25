@@ -107,7 +107,7 @@ static mv_data_t* alloc_mv_data(int w, int h, int bs, int bbs, int ratio, int k,
   data->mv[1]=(mv_t*) malloc(area*sizeof(mv_t));
   data->cost[0]=(cost_t*) malloc(area*sizeof(cost_t));
   data->cost[1]=(cost_t*) malloc(area*sizeof(cost_t));
-  data->bgmap=(int*) malloc(area*sizeof(cost_t));
+  data->bgmap=(int*) malloc(area*sizeof(int));
 
   if (interpolate) {
     data->ratio=ratio;

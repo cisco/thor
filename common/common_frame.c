@@ -859,7 +859,7 @@ void TEMPLATE(cdef_frame)(cdef_strengths *cdef_strengths, const yuv_frame_t *fra
   int hpadding = 16 - padding;
   int stride16 = (bs + 2 * padding + 15) & ~15;
   int offset16 = padding * stride16 + padding + hpadding;
-  uint16_t *src16 = thor_alloc((bs + 2 * padding) * stride16 * sizeof(uint16_t) + hpadding, 32);
+  uint16_t *src16 = thor_alloc(((bs + 2 * padding) * stride16 + hpadding) * sizeof(uint16_t), 32);
   cdef_init(stride16, cdef_directions_copy);
   cdef_init(sstride, cdef_directions);
 

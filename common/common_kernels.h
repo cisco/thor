@@ -73,6 +73,7 @@ void cdef_filter_block_simd(uint8_t *dst8, uint16_t *dst16, int dstride,
 int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var, int coeff_shift);
 v128 compute_directions(v128 lines[8], int32_t tmp_cost1[4]);
 void array_reverse_transpose_8x8(v128 *in, v128 *res);
+int cdef_find_best_dir(v128 *lines, int32_t *cost, int *best_cost);
 #endif
 
 #endif

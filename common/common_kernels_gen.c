@@ -2510,6 +2510,26 @@ void array_reverse_transpose_8x8(v256 *in, v256 *res) {
 }
 #endif
 
+#ifndef HBD
+int cdef_find_best_dir(v256 *lines, int32_t *cost, int *best_cost) {
+  /* Compute "mostly vertical" directions. */
+  v256 dir47 = compute_directions(lines, cost + 4);
+
+  array_reverse_transpose_8x8(lines, lines);
+
+  /* Compute "mostly horizontal" directions. */
+  v256 dir03 = compute_directions(lines, cost);
+
+  v256 max = v128_max_s32(dir03, dir47);
+  max = v128_max_s32(max, v256_align(max, max, 8));
+  max = v128_max_s32(max, v256_align(max, max, 4));
+  *best_cost = v256_low_v64(max);
+  v256 t = v256_pack_s64_s32(v128_cmpeq_32(max, dir47), v128_cmpeq_32(max, dir03));
+  int best_dir = v128_movemask_8(v256_pack_s32_s16(t, t));
+  return log2i(best_dir ^ (best_dir - 1));  // Count trailing zeros
+}
+#endif
+
 int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
                                  int coeff_shift) {
   int i;
@@ -2522,48 +2542,17 @@ int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
     lines[i] = v128_load_unaligned(&img[i * stride]);
     lines[i] =
         v128_sub_16(v128_shr_s16(lines[i], coeff_shift), v128_dup_16(128));
+  }
 #else
   v256 lines[8];
   for (i = 0; i < 8; i++) {
     lines[i] = v256_unpacklo_u16_s32(v256_from_v128(v128_zero(), v128_load_unaligned(&img[i * stride])));
     lines[i] =
         v256_sub_32(v256_shr_s32(lines[i], coeff_shift), v256_dup_32(128));
-#endif
-}
-
-#if defined(__SSE4_1__)
-  /* Compute "mostly vertical" directions. */
-  __m128i dir47 = compute_directions(lines, cost + 4);
-
-  array_reverse_transpose_8x8(lines, lines);
-
-  /* Compute "mostly horizontal" directions. */
-  __m128i dir03 = compute_directions(lines, cost);
-
-  __m128i max = _mm_max_epi32(dir03, dir47);
-  max = _mm_max_epi32(max, _mm_shuffle_epi32(max, _MM_SHUFFLE(1, 0, 3, 2)));
-  max = _mm_max_epi32(max, _mm_shuffle_epi32(max, _MM_SHUFFLE(2, 3, 0, 1)));
-  best_cost = _mm_cvtsi128_si32(max);
-  __m128i t =
-      _mm_packs_epi32(_mm_cmpeq_epi32(max, dir03), _mm_cmpeq_epi32(max, dir47));
-  best_dir = _mm_movemask_epi8(_mm_packs_epi16(t, t));
-  best_dir = log2i(best_dir ^ (best_dir - 1));  // Count trailing zeros
-#else
-  /* Compute "mostly vertical" directions. */
-  compute_directions(lines, cost + 4);
-
-  array_reverse_transpose_8x8(lines, lines);
-
-  /* Compute "mostly horizontal" directions. */
-  compute_directions(lines, cost);
-
-  for (i = 0; i < 8; i++) {
-    if (cost[i] > best_cost) {
-      best_cost = cost[i];
-      best_dir = i;
-    }
   }
 #endif
+
+  best_dir = cdef_find_best_dir(lines, cost, &best_cost);
 
   /* Difference between the optimal variance and the variance along the
      orthogonal direction. Again, the sum(x^2) terms cancel out. */

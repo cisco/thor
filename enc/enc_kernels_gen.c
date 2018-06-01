@@ -121,31 +121,31 @@ uint64_t TEMPLATE(ssd_calc_simd)(SAMPLE *a, SAMPLE *b, int astride, int bstride,
   int i, j;
 
   if (size == 8) {
-    ssd128_internal_u16 s = v128_ssd_u16_init();
-    s = v128_ssd_u16(s, v128_load_aligned(a + 0*astride), v128_load_aligned(b + 0*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 1*astride), v128_load_aligned(b + 1*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 2*astride), v128_load_aligned(b + 2*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 3*astride), v128_load_aligned(b + 3*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 4*astride), v128_load_aligned(b + 4*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 5*astride), v128_load_aligned(b + 5*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 6*astride), v128_load_aligned(b + 6*bstride));
-    s = v128_ssd_u16(s, v128_load_aligned(a + 7*astride), v128_load_aligned(b + 7*bstride));
-    return v128_ssd_u16_sum(s);
+    ssd128_internal_s16 s = v128_ssd_s16_init();
+    s = v128_ssd_s16(s, v128_load_aligned(a + 0*astride), v128_load_aligned(b + 0*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 1*astride), v128_load_aligned(b + 1*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 2*astride), v128_load_aligned(b + 2*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 3*astride), v128_load_aligned(b + 3*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 4*astride), v128_load_aligned(b + 4*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 5*astride), v128_load_aligned(b + 5*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 6*astride), v128_load_aligned(b + 6*bstride));
+    s = v128_ssd_s16(s, v128_load_aligned(a + 7*astride), v128_load_aligned(b + 7*bstride));
+    return v128_ssd_s16_sum(s);
   } else {
     uint64_t ssd = 0;
     for (i = 0; i < size; i += 8) {
-      ssd256_internal_u16 s = v256_ssd_u16_init();
+      ssd256_internal_s16 s = v256_ssd_s16_init();
       for (j = 0; j < size; j += 16) {
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+0)*astride + j), v256_load_aligned(b + (i+0)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+1)*astride + j), v256_load_aligned(b + (i+1)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+2)*astride + j), v256_load_aligned(b + (i+2)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+3)*astride + j), v256_load_aligned(b + (i+3)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+4)*astride + j), v256_load_aligned(b + (i+4)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+5)*astride + j), v256_load_aligned(b + (i+5)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+6)*astride + j), v256_load_aligned(b + (i+6)*bstride + j));
-        s = v256_ssd_u16(s, v256_load_aligned(a + (i+7)*astride + j), v256_load_aligned(b + (i+7)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+0)*astride + j), v256_load_aligned(b + (i+0)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+1)*astride + j), v256_load_aligned(b + (i+1)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+2)*astride + j), v256_load_aligned(b + (i+2)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+3)*astride + j), v256_load_aligned(b + (i+3)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+4)*astride + j), v256_load_aligned(b + (i+4)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+5)*astride + j), v256_load_aligned(b + (i+5)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+6)*astride + j), v256_load_aligned(b + (i+6)*bstride + j));
+        s = v256_ssd_s16(s, v256_load_aligned(a + (i+7)*astride + j), v256_load_aligned(b + (i+7)*bstride + j));
       }
-      ssd += v256_ssd_u16_sum(s);
+      ssd += v256_ssd_s16_sum(s);
     }
     return ssd;
   }
@@ -259,8 +259,8 @@ void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int 
   TEMPLATE(detect_clpf)(rec, org, x0, y0, width, height, ostride, rstride, sum0, sum1, strength, shift, size, dmp);
   const int bottom = height - 2 - y0;
   const int right = width - 8 - x0;
-  ssd256_internal_u16 ssd0 = v256_ssd_u16_init();
-  ssd256_internal_u16 ssd1 = v256_ssd_u16_init();
+  ssd256_internal_s16 ssd0 = v256_ssd_s16_init();
+  ssd256_internal_s16 ssd1 = v256_ssd_s16_init();
   int y;
 
   if (size != 8) {  // Fallback to plain C
@@ -275,32 +275,32 @@ void TEMPLATE(detect_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int 
     v256 a, b, c, d, e, f, g, h, o, r;
     read_two_lines(rec, org, rstride, ostride, x0, y0, bottom, right, y, &o, &r,
                    &a, &b, &c, &d, &e, &f, &g, &h);
-    ssd0 = v256_ssd_u16(ssd0, o, r);
-    ssd1 = v256_ssd_u16(ssd1, o, calc_delta(r, a, b, c, d, e, f, g, h, strength, dmp));
+    ssd0 = v256_ssd_s16(ssd0, o, r);
+    ssd1 = v256_ssd_s16(ssd1, o, calc_delta(r, a, b, c, d, e, f, g, h, strength, dmp));
     rec += rstride * 2;
     org += ostride * 2;
   }
-  *sum0 += v256_ssd_u16_sum(ssd0) >> (shift*2);
-  *sum1 += v256_ssd_u16_sum(ssd1) >> (shift*2);
+  *sum0 += v256_ssd_s16_sum(ssd0) >> (shift*2);
+  *sum1 += v256_ssd_s16_sum(ssd1) >> (shift*2);
 }
 
 // Test multiple filter strengths at once.
 SIMD_INLINE void calc_delta_multi(v256 r, v256 o, v256 a, v256 b, v256 c,
-                                  v256 d, v256 e, v256 f,v256 g, v256 h, ssd256_internal_u16 *ssd1,
-                                  ssd256_internal_u16 *ssd2, ssd256_internal_u16 *ssd3, unsigned int shift, unsigned int dmp) {
-  *ssd1 = v256_ssd_u16(*ssd1, o, calc_delta(r, a, b, c, d, e, f, g, h, 1 << shift, dmp));
-  *ssd2 = v256_ssd_u16(*ssd2, o, calc_delta(r, a, b, c, d, e, f, g, h, 2 << shift, dmp));
-  *ssd3 = v256_ssd_u16(*ssd3, o, calc_delta(r, a, b, c, d, e, f, g, h, 4 << shift, dmp));
+                                  v256 d, v256 e, v256 f,v256 g, v256 h, ssd256_internal_s16 *ssd1,
+                                  ssd256_internal_s16 *ssd2, ssd256_internal_s16 *ssd3, unsigned int shift, unsigned int dmp) {
+  *ssd1 = v256_ssd_s16(*ssd1, o, calc_delta(r, a, b, c, d, e, f, g, h, 1 << shift, dmp));
+  *ssd2 = v256_ssd_s16(*ssd2, o, calc_delta(r, a, b, c, d, e, f, g, h, 2 << shift, dmp));
+  *ssd3 = v256_ssd_s16(*ssd3, o, calc_delta(r, a, b, c, d, e, f, g, h, 4 << shift, dmp));
 }
 
 void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0, int y0, int width, int height, int ostride,int rstride, int *sum, unsigned int shift, unsigned int size, unsigned int dmp)
 {
   const int bottom = height - 2 - y0;
   const int right = width - 8 - x0;
-  ssd256_internal_u16 ssd0 = v256_ssd_u16_init();
-  ssd256_internal_u16 ssd1 = v256_ssd_u16_init();
-  ssd256_internal_u16 ssd2 = v256_ssd_u16_init();
-  ssd256_internal_u16 ssd3 = v256_ssd_u16_init();
+  ssd256_internal_s16 ssd0 = v256_ssd_s16_init();
+  ssd256_internal_s16 ssd1 = v256_ssd_s16_init();
+  ssd256_internal_s16 ssd2 = v256_ssd_s16_init();
+  ssd256_internal_s16 ssd3 = v256_ssd_s16_init();
   int y;
 
   if (size != 8) {  // Fallback to plain C
@@ -315,15 +315,15 @@ void TEMPLATE(detect_multi_clpf_simd)(const SAMPLE *rec,const SAMPLE *org,int x0
     v256 a, b, c, d, e, f, g, h, o, r;
     read_two_lines(rec, org, rstride, ostride, x0, y0, bottom, right, y, &o, &r,
                    &a, &b, &c, &d, &e, &f, &g, &h);
-    ssd0 = v256_ssd_u16(ssd0, o, r);
+    ssd0 = v256_ssd_s16(ssd0, o, r);
     calc_delta_multi(r, o, a, b, c, d, e, f, g, h, &ssd1, &ssd2, &ssd3, shift, dmp);
     rec += 2 * rstride;
     org += 2 * ostride;
   }
-  sum[0] += v256_ssd_u16_sum(ssd0) >> (shift*2);
-  sum[1] += v256_ssd_u16_sum(ssd1) >> (shift*2);
-  sum[2] += v256_ssd_u16_sum(ssd2) >> (shift*2);
-  sum[3] += v256_ssd_u16_sum(ssd3) >> (shift*2);
+  sum[0] += v256_ssd_s16_sum(ssd0) >> (shift*2);
+  sum[1] += v256_ssd_s16_sum(ssd1) >> (shift*2);
+  sum[2] += v256_ssd_s16_sum(ssd2) >> (shift*2);
+  sum[3] += v256_ssd_s16_sum(ssd3) >> (shift*2);
 }
 
 /* Return the best approximated half-pel position around the centre */

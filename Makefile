@@ -4,8 +4,14 @@ DECODER_PROGRAM = build/Thordec
 CFLAGS += -std=c99 -g -O3 -Wall -pedantic -I common
 LDFLAGS = -lm
 
+export ARCH ?= native
+
 ifeq ($(ARCH),neon)
         CFLAGS += -mfpu=neon
+endif
+
+ifeq ($(ARCH),core2)
+        CFLAGS += -msse2 -mssse3 -mtune=core2
 endif
 
 ifeq ($(ARCH),ssse3)
@@ -14,6 +20,14 @@ endif
 
 ifeq ($(ARCH),sse4)
         CFLAGS += -msse4
+endif
+
+ifeq ($(ARCH),avx2)
+        CFLAGS += -mavx2
+endif
+
+ifeq ($(ARCH),native)
+        CFLAGS += -march=native -mtune=native
 endif
 
 COMMON_SOURCES = \

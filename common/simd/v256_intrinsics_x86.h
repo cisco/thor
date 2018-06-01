@@ -37,7 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // The _m256i type seems to cause problems for g++'s mangling prior to
 // version 5, but adding -fabi-version=0 fixes this.
-#if !defined(__clang__) && __GNUC__ < 5 && defined(__AVX2__) && defined(__cplusplus)
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ < 5 && defined(__AVX2__) && defined(__cplusplus)
 #pragma GCC optimize "-fabi-version=0"
 #endif
 
@@ -68,7 +68,7 @@ SIMD_INLINE v128 v256_high_v128(v256 a) {
 
 SIMD_INLINE v256 v256_from_v128(v128 a, v128 b) {
   // gcc seems to be missing _mm256_set_m128i()
-  return _mm256_insertf128_si256(_mm256_insertf128_si256(_mm256_setzero_si256(), b, 0), a, 1);
+  return _mm256_insertf128_si256(_mm256_castsi128_si256(b), a, 1);
 }
 
 SIMD_INLINE v256 v256_from_v64(v64 a, v64 b, v64 c, v64 d) {
@@ -109,6 +109,10 @@ SIMD_INLINE v256 v256_add_8(v256 a, v256 b) { return _mm256_add_epi8(a, b); }
 
 SIMD_INLINE v256 v256_add_16(v256 a, v256 b) { return _mm256_add_epi16(a, b); }
 
+SIMD_INLINE v256 v256_sadd_u8(v256 a, v256 b) { return _mm256_adds_epu8(a, b); }
+
+SIMD_INLINE v256 v256_sadd_s8(v256 a, v256 b) { return _mm256_adds_epi8(a, b); }
+
 SIMD_INLINE v256 v256_sadd_s16(v256 a, v256 b) {
   return _mm256_adds_epi16(a, b);
 }
@@ -116,6 +120,10 @@ SIMD_INLINE v256 v256_sadd_s16(v256 a, v256 b) {
 SIMD_INLINE v256 v256_add_32(v256 a, v256 b) { return _mm256_add_epi32(a, b); }
 
 SIMD_INLINE v256 v256_add_64(v256 a, v256 b) { return _mm256_add_epi64(a, b); }
+
+SIMD_INLINE v256 v256_padd_u8(v256 a) {
+  return _mm256_maddubs_epi16(a, _mm256_set1_epi8(1));
+}
 
 SIMD_INLINE v256 v256_padd_s16(v256 a) {
   return _mm256_madd_epi16(a, _mm256_set1_epi16(1));
@@ -253,6 +261,19 @@ SIMD_INLINE v256 v256_unpackhi_u8_s16(v256 a) {
                         v128_unpacklo_u8_s16(v256_high_v128(a)));
 }
 
+SIMD_INLINE v256 v256_unpack_s8_s16(v128 a) {
+  return v256_from_v128(v128_unpackhi_s8_s16(a), v128_unpacklo_s8_s16(a));
+}
+
+SIMD_INLINE v256 v256_unpacklo_s8_s16(v256 a) {
+  return v256_from_v128(v128_unpackhi_s8_s16(v256_low_v128(a)),
+                        v128_unpacklo_s8_s16(v256_low_v128(a)));
+}
+
+SIMD_INLINE v256 v256_unpackhi_s8_s16(v256 a) {
+  return v256_from_v128(v128_unpackhi_s8_s16(v256_high_v128(a)),
+                        v128_unpacklo_s8_s16(v256_high_v128(a)));
+}
 SIMD_INLINE v256 v256_pack_s32_s16(v256 a, v256 b) {
   return v256_from_v128(v128_pack_s32_s16(v256_high_v128(a), v256_low_v128(a)),
                         v128_pack_s32_s16(v256_high_v128(b), v256_low_v128(b)));
@@ -301,19 +322,35 @@ SIMD_INLINE v256 v256_unpackhi_s16_s32(v256 a) {
                         v128_unpacklo_s16_s32(v256_high_v128(a)));
 }
 SIMD_INLINE v256 v256_shuffle_8(v256 a, v256 pattern) {
-  v128 c16 = v128_dup_8(16);
-  v128 hi = v256_high_v128(pattern);
-  v128 lo = v256_low_v128(pattern);
-  v128 maskhi = v128_cmplt_s8(hi, c16);
-  v128 masklo = v128_cmplt_s8(lo, c16);
-  return v256_from_v128(v128_or(v128_and(v128_shuffle_8(v256_low_v128(a), hi), maskhi),
-                                v128_andn(v128_shuffle_8(v256_high_v128(a), v128_sub_8(hi, c16)), maskhi)),
-                        v128_or(v128_and(v128_shuffle_8(v256_low_v128(a), lo), masklo),
-                                v128_andn(v128_shuffle_8(v256_high_v128(a), v128_sub_8(lo, c16)), masklo)));
+  return _mm256_blendv_epi8(_mm256_shuffle_epi8(_mm256_permute2x128_si256(a, a, _MM_SHUFFLE(0, 1, 0, 1)), pattern),
+                            _mm256_shuffle_epi8(_mm256_permute2x128_si256(a, a, _MM_SHUFFLE(0, 0, 0, 0)), pattern),
+                            _mm256_cmpgt_epi8(v256_dup_8(16), pattern));
+}
+
+SIMD_INLINE v256 v256_wideshuffle_8(v256 a, v256 b, v256 pattern) {
+  v256 c32 = v256_dup_8(32);
+  v256 p32 = v256_sub_8(pattern, c32);
+  v256 r1 = _mm256_blendv_epi8(_mm256_shuffle_epi8(_mm256_permute2x128_si256(a, b, _MM_SHUFFLE(0, 1, 0, 1)), p32),
+                               _mm256_shuffle_epi8(_mm256_permute2x128_si256(a, b, _MM_SHUFFLE(0, 0, 0, 0)), p32),
+                               _mm256_cmpgt_epi8(v256_dup_8(48), pattern));
+  v256 r2 = _mm256_blendv_epi8(_mm256_shuffle_epi8(_mm256_permute2x128_si256(a, b, _MM_SHUFFLE(0, 3, 0, 3)), pattern),
+                               _mm256_shuffle_epi8(_mm256_permute2x128_si256(a, b, _MM_SHUFFLE(0, 2, 0, 2)), pattern),
+                               _mm256_cmpgt_epi8(v256_dup_8(16), pattern));
+  return _mm256_blendv_epi8(r1, r2, _mm256_cmpgt_epi8(c32, pattern));
 }
 
 SIMD_INLINE v256 v256_pshuffle_8(v256 a, v256 pattern) {
   return _mm256_shuffle_epi8(a, pattern);
+}
+
+SIMD_INLINE int64_t v256_dotp_su8(v256 a, v256 b) {
+  v256 t1 = _mm256_madd_epi16(v256_unpackhi_s8_s16(a), v256_unpackhi_u8_s16(b));
+  v256 t2 = _mm256_madd_epi16(v256_unpacklo_s8_s16(a), v256_unpacklo_u8_s16(b));
+  t1 = _mm256_add_epi32(t1, t2);
+  v128 t = _mm_add_epi32(_mm256_extracti128_si256(t1, 0), _mm256_extracti128_si256(t1, 1));
+  t = _mm_add_epi32(t, _mm_srli_si128(t, 8));
+  t = _mm_add_epi32(t, _mm_srli_si128(t, 4));
+  return (int32_t)v128_low_u32(t);
 }
 
 SIMD_INLINE int64_t v256_dotp_s16(v256 a, v256 b) {
@@ -385,26 +422,6 @@ SIMD_INLINE sad256_internal v256_sad_u8(sad256_internal s, v256 a, v256 b) {
 SIMD_INLINE uint32_t v256_sad_u8_sum(sad256_internal s) {
   v256 t = _mm256_add_epi32(s, _mm256_unpackhi_epi64(s, s));
   return v128_low_u32(_mm_add_epi32(v256_high_v128(t), v256_low_v128(t)));
-}
-
-typedef v256 sad256_internal_u16;
-
-SIMD_INLINE sad256_internal_u16 v256_sad_u16_init() {
-  return v256_zero();
-}
-
-/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum(). */
-SIMD_INLINE sad256_internal_u16 v256_sad_u16(sad256_internal_u16 s, v256 a, v256 b) {
-  return v256_add_32(s, v256_padd_s16(v256_abs_s16(v256_sub_16(a, b))));
-}
-
-SIMD_INLINE uint32_t v256_sad_u16_sum(sad256_internal_u16 s) {
-  v128 t = v128_add_32(v256_high_v128(s), v256_low_v128(s));
-    return
-      v128_low_u32(t) +
-      v128_low_u32(v128_shr_n_byte(t, 4)) +
-      v128_low_u32(v128_shr_n_byte(t, 8)) +
-      v128_low_u32(v128_shr_n_byte(t, 12));
 }
 
 typedef v256 ssd256_internal;
@@ -490,11 +507,19 @@ SIMD_INLINE v256 v256_max_u8(v256 a, v256 b) { return _mm256_max_epu8(a, b); }
 
 SIMD_INLINE v256 v256_min_s8(v256 a, v256 b) { return _mm256_min_epi8(a, b); }
 
+SIMD_INLINE uint32_t v256_movemask_8(v256 a) { return _mm256_movemask_epi8(a); }
+
+SIMD_INLINE v256 v256_blend_8(v256 a, v256 b, v256 c) { return _mm256_blendv_epi8(a, b, c); }
+
 SIMD_INLINE v256 v256_max_s8(v256 a, v256 b) { return _mm256_max_epi8(a, b); }
 
 SIMD_INLINE v256 v256_min_s16(v256 a, v256 b) { return _mm256_min_epi16(a, b); }
 
 SIMD_INLINE v256 v256_max_s16(v256 a, v256 b) { return _mm256_max_epi16(a, b); }
+
+SIMD_INLINE v256 v256_min_s32(v256 a, v256 b) { return _mm256_min_epi32(a, b); }
+
+SIMD_INLINE v256 v256_max_s32(v256 a, v256 b) { return _mm256_max_epi32(a, b); }
 
 SIMD_INLINE v256 v256_cmpgt_s8(v256 a, v256 b) {
   return _mm256_cmpgt_epi8(a, b);
@@ -518,6 +543,18 @@ SIMD_INLINE v256 v256_cmplt_s16(v256 a, v256 b) {
 
 SIMD_INLINE v256 v256_cmpeq_16(v256 a, v256 b) {
   return _mm256_cmpeq_epi16(a, b);
+}
+
+SIMD_INLINE v256 v256_cmpgt_s32(v256 a, v256 b) {
+  return _mm256_cmpgt_epi32(a, b);
+}
+
+SIMD_INLINE v256 v256_cmplt_s32(v256 a, v256 b) {
+  return _mm256_cmpgt_epi32(b, a);
+}
+
+SIMD_INLINE v256 v256_cmpeq_32(v256 a, v256 b) {
+  return _mm256_cmpeq_epi32(a, b);
 }
 
 SIMD_INLINE v256 v256_shl_8(v256 a, unsigned int c) {
@@ -576,28 +613,6 @@ SIMD_INLINE v256 v256_shr_s64(v256 a, unsigned int c) {
 #endif
 }
 
-
-typedef v256 ssd256_internal_u16;
-
-SIMD_INLINE ssd256_internal_u16 v256_ssd_u16_init() {
-  return v256_zero();
-}
-
-/* Implementation dependent return value.  Result must be finalised with v256_ssd_u16_sum(). */
-SIMD_INLINE ssd256_internal_u16 v256_ssd_u16(ssd256_internal_u16 s, v256 a, v256 b) {
-  v256 d = v256_sub_16(a, b);
-  return v256_add_32(s, v256_madd_s16(d, d));
-}
-
-SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
-  v128 t = v128_add_32(v256_high_v128(s), v256_low_v128(s));
-  return
-    v128_low_u32(t) +
-    v128_low_u32(v128_shr_n_byte(t, 4)) +
-    v128_low_u32(v128_shr_n_byte(t, 8)) +
-    v128_low_u32(v128_shr_n_byte(t, 12));
-}
-
 /* These intrinsics require immediate values, so we must use #defines
    to enforce that. */
 // _mm256_slli_si256 works on 128 bit lanes and can't be used
@@ -638,10 +653,59 @@ SIMD_INLINE uint32_t v256_ssd_u16_sum(ssd256_internal_u16 s) {
 #define v256_shl_n_32(a, c) _mm256_slli_epi32(a, c)
 #define v256_shr_n_u32(a, c) _mm256_srli_epi32(a, c)
 #define v256_shr_n_s32(a, c) _mm256_srai_epi32(a, c)
+#define v256_shl_n_64(a, c) _mm256_slli_epi64(a, c)
 #define v256_shr_n_u64(a, c) _mm256_srli_epi64(a, c)
-#define v256_shr_n_s64(a, c) _mm256_srai_epi64(a, c)
+#define v256_shr_n_s64(a, c)                                                   \
+  v256_shr_s64((a), (c)) // _mm256_srai_epi64 broken in gcc?
 #define v256_shr_n_word(a, n) v256_shr_n_byte(a, 2*(n))
 #define v256_shl_n_word(a, n) v256_shl_n_byte(a, 2*(n))
+
+typedef v256 sad256_internal_u16;
+
+SIMD_INLINE sad256_internal_u16 v256_sad_u16_init() { return v256_zero(); }
+
+/* Implementation dependent return value.  Result must be finalised with
+ * v256_sad_u16_sum(). */
+SIMD_INLINE sad256_internal_u16 v256_sad_u16(sad256_internal_u16 s, v256 a,
+                                             v256 b) {
+#if defined(__SSE4_1__)
+  v256 t = v256_sub_16(_mm256_max_epu16(a, b), _mm256_min_epu16(a, b));
+#else
+  v256 t = v256_cmplt_s16(v256_xor(a, v256_dup_16(32768)),
+                          v256_xor(b, v256_dup_16(32768)));
+  t = v256_sub_16(v256_or(v256_and(b, t), v256_andn(a, t)),
+                  v256_or(v256_and(a, t), v256_andn(b, t)));
+#endif
+  return v256_add_32(
+      s, v256_add_32(v256_unpackhi_u16_s32(t), v256_unpacklo_u16_s32(t)));
+}
+
+SIMD_INLINE uint32_t v256_sad_u16_sum(sad256_internal_u16 s) {
+  v128 t = v128_add_32(v256_high_v128(s), v256_low_v128(s));
+  return v128_low_u32(t) + v128_low_u32(v128_shr_n_byte(t, 4)) +
+         v128_low_u32(v128_shr_n_byte(t, 8)) +
+         v128_low_u32(v128_shr_n_byte(t, 12));
+}
+
+typedef v256 ssd256_internal_s16;
+
+SIMD_INLINE ssd256_internal_s16 v256_ssd_s16_init() { return v256_zero(); }
+
+/* Implementation dependent return value.  Result must be finalised with
+ * v256_ssd_s16_sum(). */
+SIMD_INLINE ssd256_internal_s16 v256_ssd_s16(ssd256_internal_s16 s, v256 a,
+                                             v256 b) {
+  v256 d = v256_sub_16(a, b);
+  d = v256_madd_s16(d, d);
+  return v256_add_64(s, v256_add_64(_mm256_unpackhi_epi32(d, v256_zero()),
+                                    _mm256_unpacklo_epi32(d, v256_zero())));
+}
+
+SIMD_INLINE uint64_t v256_ssd_s16_sum(ssd256_internal_s16 s) {
+  v128 t = v128_add_64(v256_high_v128(s), v256_low_v128(s));
+  return v64_u64(v128_low_v64(t)) + v64_u64(v128_high_v64(t));
+}
+
 #endif
 
 #endif /* _V256_INTRINSICS_H */

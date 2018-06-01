@@ -99,6 +99,14 @@ SIMD_INLINE c_v128 c_v128_load_aligned(const void *p) {
   return c_v128_load_unaligned(p);
 }
 
+SIMD_INLINE c_v128 c_v128_load_two_v64(const void *p0, const void *p1){
+  return c_v128_from_v64(c_v64_load_unaligned(p0), c_v64_load_unaligned(p1));
+}
+
+SIMD_INLINE c_v128 c_v128_load_low_v64(const void *p) {
+  return c_v128_from_v64(c_v64_zero(), c_v64_load_unaligned(p));
+}
+
 SIMD_INLINE void c_v128_store_unaligned(void *p, c_v128 a) {
   uint8_t *pp = (uint8_t*)p;
   uint8_t *q = (uint8_t*)&a;
@@ -148,14 +156,21 @@ SIMD_INLINE c_v128 c_v128_dup_64(uint64_t x) {
 
 
 
+SIMD_INLINE int64_t c_v128_dotp_su8(c_v128 a, c_v128 b) {
+  return c_v64_dotp_su8(a.v64[1], b.v64[1]) + c_v64_dotp_su8(a.v64[0], b.v64[0]);
+}
+
 SIMD_INLINE int64_t c_v128_dotp_s16(c_v128 a, c_v128 b) {
   return c_v64_dotp_s16(a.v64[1], b.v64[1]) + c_v64_dotp_s16(a.v64[0], b.v64[0]);
 }
 
 SIMD_INLINE int64_t c_v128_dotp_s32(c_v128 a, c_v128 b) {
+  // 32 bit products, 64 bit sum
   return
-    (int64_t)(a.s32[3] * b.s32[3]) + (int64_t)(a.s32[2] * b.s32[2]) +
-    (int64_t)(a.s32[1] * b.s32[1]) + (int64_t)(a.s32[0] * b.s32[0]);
+    (int64_t)(int32_t)((int64_t)a.s32[3] * b.s32[3]) +
+    (int64_t)(int32_t)((int64_t)a.s32[2] * b.s32[2]) +
+    (int64_t)(int32_t)((int64_t)a.s32[1] * b.s32[1]) +
+    (int64_t)(int32_t)((int64_t)a.s32[0] * b.s32[0]);
 }
 
 SIMD_INLINE uint64_t c_v128_hadd_u8(c_v128 a) {
@@ -199,25 +214,6 @@ SIMD_INLINE uint32_t c_v128_ssd_u8_sum(c_ssd128_internal s) {
   return s;
 }
 
-typedef uint32_t c_ssd128_internal_u16;
-
-SIMD_INLINE c_ssd128_internal_u16 c_v128_ssd_u16_init() {
-  return 0;
-}
-
-/* Implementation dependent return value.  Result must be finalised with v128_ssd_u16_sum(). */
-SIMD_INLINE c_ssd128_internal_u16 c_v128_ssd_u16(c_ssd128_internal_u16 s, c_v128 a, c_v128 b) {
-  int c;
-  for (c = 0; c < 8; c++)
-    s += (a.u16[c] - b.u16[c]) * (a.u16[c] - b.u16[c]);
-  return s;
-}
-
-SIMD_INLINE uint32_t c_v128_ssd_u16_sum(c_ssd128_internal_u16 s) {
-  return s;
-}
-
-
 
 SIMD_INLINE c_v128 c_v128_or(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_or(a.v64[1], b.v64[1]), c_v64_or(a.v64[0], b.v64[0]));
@@ -245,6 +241,14 @@ SIMD_INLINE c_v128 c_v128_add_16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_add_16(a.v64[1], b.v64[1]), c_v64_add_16(a.v64[0], b.v64[0]));
 }
 
+SIMD_INLINE c_v128 c_v128_sadd_u8(c_v128 a, c_v128 b) {
+  return c_v128_from_v64(c_v64_sadd_u8(a.v64[1], b.v64[1]), c_v64_sadd_u8(a.v64[0], b.v64[0]));
+}
+
+SIMD_INLINE c_v128 c_v128_sadd_s8(c_v128 a, c_v128 b) {
+  return c_v128_from_v64(c_v64_sadd_s8(a.v64[1], b.v64[1]), c_v64_sadd_s8(a.v64[0], b.v64[0]));
+}
+
 SIMD_INLINE c_v128 c_v128_sadd_s16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_sadd_s16(a.v64[1], b.v64[1]), c_v64_sadd_s16(a.v64[0], b.v64[0]));
 }
@@ -254,7 +258,13 @@ SIMD_INLINE c_v128 c_v128_add_32(c_v128 a, c_v128 b) {
 }
 
 SIMD_INLINE c_v128 c_v128_add_64(c_v128 a, c_v128 b) {
-  return c_v128_from_64(a.v64[1].u64 + b.v64[1].u64, a.v64[0].u64 + b.v64[0].u64);
+  // Two complement overflow (silences sanitizers)
+  return c_v128_from_64(a.v64[1].u64 > ~b.v64[1].u64 ?
+                        a.v64[1].u64 - ~b.v64[1].u64 - 1:
+                        a.v64[1].u64 + b.v64[1].u64,
+                        a.v64[0].u64 > ~b.v64[0].u64 ?
+                        a.v64[0].u64 - ~b.v64[0].u64 - 1 :
+                        a.v64[0].u64 + b.v64[0].u64);
 }
 
 SIMD_INLINE c_v128 c_v128_padd_s16(c_v128 a) {
@@ -266,16 +276,16 @@ SIMD_INLINE c_v128 c_v128_padd_s16(c_v128 a) {
   return t;
 }
 
-SIMD_INLINE c_v128 c_v128_padd_s8(c_v128 a) {
+SIMD_INLINE c_v128 c_v128_padd_u8(c_v128 a) {
   c_v128 t;
-  t.s16[0] = (int32_t)a.s8[0] + (int32_t)a.s8[1];
-  t.s16[1] = (int32_t)a.s8[2] + (int32_t)a.s8[3];
-  t.s16[2] = (int32_t)a.s8[4] + (int32_t)a.s8[5];
-  t.s16[3] = (int32_t)a.s8[6] + (int32_t)a.s8[7];
-  t.s16[4] = (int32_t)a.s8[8] + (int32_t)a.s8[9];
-  t.s16[5] = (int32_t)a.s8[10] + (int32_t)a.s8[11];
-  t.s16[6] = (int32_t)a.s8[12] + (int32_t)a.s8[13];
-  t.s16[7] = (int32_t)a.s8[14] + (int32_t)a.s8[15];
+  t.u16[0] = (uint16_t)a.u8[0] + (uint16_t)a.u8[1];
+  t.u16[1] = (uint16_t)a.u8[2] + (uint16_t)a.u8[3];
+  t.u16[2] = (uint16_t)a.u8[4] + (uint16_t)a.u8[5];
+  t.u16[3] = (uint16_t)a.u8[6] + (uint16_t)a.u8[7];
+  t.u16[4] = (uint16_t)a.u8[8] + (uint16_t)a.u8[9];
+  t.u16[5] = (uint16_t)a.u8[10] + (uint16_t)a.u8[11];
+  t.u16[6] = (uint16_t)a.u8[12] + (uint16_t)a.u8[13];
+  t.u16[7] = (uint16_t)a.u8[14] + (uint16_t)a.u8[15];
   return t;
 }
 
@@ -308,7 +318,13 @@ SIMD_INLINE c_v128 c_v128_sub_32(c_v128 a, c_v128 b) {
 }
 
 SIMD_INLINE c_v128 c_v128_sub_64(c_v128 a, c_v128 b) {
-  return c_v128_from_64(a.v64[1].u64 - b.v64[1].u64, a.v64[0].u64 - b.v64[0].u64);
+  // Two complement underflow (silences sanitizers)
+  return c_v128_from_64(a.v64[1].u64 < b.v64[1].u64 ?
+                        a.v64[1].u64 + ~b.v64[1].u64 + 1 :
+                        a.v64[1].u64 - b.v64[1].u64,
+                        a.v64[0].u64 < b.v64[0].u64 ?
+                        a.v64[0].u64 + ~b.v64[0].u64 + 1 :
+                        a.v64[0].u64 - b.v64[0].u64);
 }
 
 SIMD_INLINE c_v128 c_v128_abs_s16(c_v128 a) {
@@ -376,6 +392,33 @@ SIMD_INLINE c_v128 c_v128_min_s8(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_min_s8(a.v64[1], b.v64[1]), c_v64_min_s8(a.v64[0], b.v64[0]));
 }
 
+SIMD_INLINE uint32_t c_v128_movemask_8(c_v128 a) {
+  return
+    ((a.s8[15] < 0) << 15) |
+    ((a.s8[14] < 0) << 14) |
+    ((a.s8[13] < 0) << 13) |
+    ((a.s8[12] < 0) << 12) |
+    ((a.s8[11] < 0) << 11) |
+    ((a.s8[10] < 0) << 10) |
+    ((a.s8[9] < 0) << 9) |
+    ((a.s8[8] < 0) << 8) |
+    ((a.s8[7] < 0) << 7) |
+    ((a.s8[6] < 0) << 6) |
+    ((a.s8[5] < 0) << 5) |
+    ((a.s8[4] < 0) << 4) |
+    ((a.s8[3] < 0) << 3) |
+    ((a.s8[2] < 0) << 2) |
+    ((a.s8[1] < 0) << 1) |
+    ((a.s8[0] < 0) << 0);
+}
+
+SIMD_INLINE c_v128 c_v128_blend_8(c_v128 a, c_v128 b, c_v128 c) {
+  c_v128 t;
+  for (int i = 0; i < 16; i++)
+    t.u8[i] = c.s8[i] < 0 ? b.u8[i] : a.u8[i];
+  return t;
+}
+
 SIMD_INLINE c_v128 c_v128_max_s8(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_max_s8(a.v64[1], b.v64[1]), c_v64_max_s8(a.v64[0], b.v64[0]));
 }
@@ -388,7 +431,19 @@ SIMD_INLINE c_v128 c_v128_max_s16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_max_s16(a.v64[1], b.v64[1]), c_v64_max_s16(a.v64[0], b.v64[0]));
 }
 
+SIMD_INLINE c_v128 c_v128_max_s32(c_v128 a, c_v128 b) {
+  c_v128 t;
+  int c;
+  for (c = 0; c < 4; c++) t.s32[c] = a.s32[c] > b.s32[c] ? a.s32[c] : b.s32[c];
+  return t;
+}
 
+SIMD_INLINE c_v128 c_v128_min_s32(c_v128 a, c_v128 b) {
+  c_v128 t;
+  int c;
+  for (c = 0; c < 4; c++) t.s32[c] = a.s32[c] > b.s32[c] ? b.s32[c] : a.s32[c];
+  return t;
+}
 
 SIMD_INLINE c_v128 c_v128_ziplo_8(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_ziphi_8(a.v64[0], b.v64[0]), c_v64_ziplo_8(a.v64[0], b.v64[0]));
@@ -553,6 +608,18 @@ SIMD_INLINE c_v128 c_v128_unpackhi_u8_s16(c_v128 a)
   return c_v128_from_v64(c_v64_unpackhi_u8_s16(a.v64[1]), c_v64_unpacklo_u8_s16(a.v64[1]));
 }
 
+SIMD_INLINE c_v128 c_v128_unpack_s8_s16(c_v64 a) {
+  return c_v128_from_v64(c_v64_unpackhi_s8_s16(a), c_v64_unpacklo_s8_s16(a));
+}
+
+SIMD_INLINE c_v128 c_v128_unpacklo_s8_s16(c_v128 a) {
+  return c_v128_from_v64(c_v64_unpackhi_s8_s16(a.v64[0]), c_v64_unpacklo_s8_s16(a.v64[0]));
+}
+
+SIMD_INLINE c_v128 c_v128_unpackhi_s8_s16(c_v128 a) {
+  return c_v128_from_v64(c_v64_unpackhi_s8_s16(a.v64[1]), c_v64_unpacklo_s8_s16(a.v64[1]));
+}
+
 SIMD_INLINE c_v128 c_v128_pack_s32_s16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_pack_s32_s16(a.v64[1], a.v64[0]), c_v64_pack_s32_s16(b.v64[1], b.v64[0]));
 }
@@ -596,13 +663,9 @@ SIMD_INLINE c_v128 c_v128_unpackhi_s16_s32(c_v128 a) {
 SIMD_INLINE c_v128 c_v128_shuffle_8(c_v128 a, c_v128 pattern) {
   c_v128 t;
   int c;
-  for (c = 0; c < 16; c++) {
-    if (pattern.u8[c] & ~15) {
-      fprintf(stderr, "Undefined v128_shuffle_8 index %d/%d\n", pattern.u8[c], c);
-      abort();
-    }
+  for (c = 0; c < 16; c++)
     t.u8[c] = a.u8[big_endian() ? 15 - (pattern.u8[c] & 15) : pattern.u8[c] & 15];
-  }
+
   return t;
 }
 
@@ -632,7 +695,26 @@ SIMD_INLINE c_v128 c_v128_cmpeq_16(c_v128 a, c_v128 b) {
   return c_v128_from_v64(c_v64_cmpeq_16(a.v64[1], b.v64[1]), c_v64_cmpeq_16(a.v64[0], b.v64[0]));
 }
 
+SIMD_INLINE c_v128 c_v128_cmpgt_s32(c_v128 a, c_v128 b) {
+  c_v128 t;
+  int c;
+  for (c = 0; c < 4; c++) t.s32[c] = -(a.s32[c] > b.s32[c]);
+  return t;
+}
 
+SIMD_INLINE c_v128 c_v128_cmplt_s32(c_v128 a, c_v128 b) {
+  c_v128 t;
+  int c;
+  for (c = 0; c < 4; c++) t.s32[c] = -(a.s32[c] < b.s32[c]);
+  return t;
+}
+
+SIMD_INLINE c_v128 c_v128_cmpeq_32(c_v128 a, c_v128 b) {
+  c_v128 t;
+  int c;
+  for (c = 0; c < 4; c++) t.s32[c] = -(a.s32[c] == b.s32[c]);
+  return t;
+}
 
 SIMD_INLINE c_v128 c_v128_shl_n_byte(c_v128 a, const unsigned int n) {
   if (n < 8)
@@ -767,7 +849,7 @@ SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16_init() {
   return 0;
 }
 
-/* Implementation dependent return value.  Result must be finalised with v64_sad_u8_sum(). */
+/* Implementation dependent return value.  Result must be finalised with v128_sad_u16_sum(). */
 SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16(c_sad128_internal_u16 s, c_v128 a, c_v128 b) {
   int c;
   for (c = 0; c < 8; c++)
@@ -778,5 +860,24 @@ SIMD_INLINE c_sad128_internal_u16 c_v128_sad_u16(c_sad128_internal_u16 s, c_v128
 SIMD_INLINE uint32_t c_v128_sad_u16_sum(c_sad128_internal_u16 s) {
   return s;
 }
+
+typedef uint64_t c_ssd128_internal_s16;
+
+SIMD_INLINE c_ssd128_internal_s16 c_v128_ssd_s16_init() {
+  return 0;
+}
+
+/* Implementation dependent return value.  Result must be finalised with v128_ssd_s16_sum(). */
+SIMD_INLINE c_ssd128_internal_s16 c_v128_ssd_s16(c_ssd128_internal_s16 s, c_v128 a, c_v128 b) {
+  int c;
+  for (c = 0; c < 8; c++)
+    s += (int32_t)(int16_t)(a.s16[c] - b.s16[c]) * (int32_t)(int16_t)(a.s16[c] - b.s16[c]);
+  return s;
+}
+
+SIMD_INLINE uint64_t c_v128_ssd_s16_sum(c_ssd128_internal_s16 s) {
+  return s;
+}
+
 
 #endif /* _V128_INTRINSICS_C_H */

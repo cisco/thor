@@ -2547,7 +2547,7 @@ int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
   __m128i t =
       _mm_packs_epi32(_mm_cmpeq_epi32(max, dir03), _mm_cmpeq_epi32(max, dir47));
   best_dir = _mm_movemask_epi8(_mm_packs_epi16(t, t));
-  best_dir = get_msb(best_dir ^ (best_dir - 1));  // Count trailing zeros
+  best_dir = log2i(best_dir ^ (best_dir - 1));  // Count trailing zeros
 #else
   /* Compute "mostly vertical" directions. */
   compute_directions(lines, cost + 4);

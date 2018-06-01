@@ -27,14 +27,14 @@ s/v128_dup_8/v256_dup_16/g
 s/v128_dup_16/v256_dup_32/g
 s/v128_dup_32/v256_dup_64/g
 s/sad128_internal/sad256_internal_u16/g
-s/ssd128_internal/ssd256_internal_u16/g
+s/ssd128_internal/ssd256_internal_s16/g
 s/v128 /v256 /g
 s/v128_sad_u8_init/v256_sad_u16_init/g
 s/v128_sad_u8/v256_sad_u16/g
 s/v128_sad_u8_sum/v256_sad_u16_sum/g
-s/v128_ssd_u8_init/v256_ssd_u16_init/g
-s/v128_ssd_u8/v256_ssd_u16/g
-s/v128_ssd_u8_sum/v256_ssd_u16_sum/g
+s/v128_ssd_u8_init/v256_ssd_s16_init/g
+s/v128_ssd_u8/v256_ssd_s16/g
+s/v128_ssd_u8_sum/v256_ssd_s16_sum/g
 s/v128_dotp_s16/v256_dotp_s32/g
 s/v128_hadd_u8/v256_hadd_u16/g
 s/v128_or/v256_or/g
@@ -45,7 +45,7 @@ s/v128_add_8/v256_add_16/g
 s/v128_add_16/v256_add_32/g
 s/v128_sadd_s16/v256_sadd_s32/g
 s/v128_add_32/v256_add_64/g
-s/v128_padd_s8/v256_padd_s16/g
+s/v128_padd_u8/v256_padd_s16/g
 s/v128_padd_s16/v256_padd_s32/g
 s/v128_sub_8/v256_sub_16/g
 s/v128_ssub_u8/v256_ssub_u16/g
@@ -129,7 +129,7 @@ s/v128_shr_n_s32/v256_shr_n_s64/g
 
 sed -i '
 s/sad64_internal/sad128_internal_u16/g
-s/ssd64_internal/ssd128_internal_u16/g
+s/ssd64_internal/ssd128_internal_s16/g
 s/v64 /v128 /g
 s/v64_low_u32/v128_low_v64/g
 s/v64_high_u32/v128_high_v64/g
@@ -182,9 +182,9 @@ s/v64_shuffle_8/v128_shuffle_16/g
 s/v64_sad_u8_init/v128_sad_u16_init/g
 s/v64_sad_u8/v128_sad_u16/g
 s/v64_sad_u8_sum/v128_sad_u16_sum/g
-s/v64_ssd_u8_init/v128_ssd_u16_init/g
-s/v64_ssd_u8/v128_ssd_u16/g
-s/v64_ssd_u8_sum/v128_ssd_u16_sum/g
+s/v64_ssd_u8_init/v128_ssd_s16_init/g
+s/v64_ssd_u8/v128_ssd_s16/g
+s/v64_ssd_u8_sum/v128_ssd_s16_sum/g
 s/v64_dotp_su8/v128_dotp_su16/g
 s/v64_dotp_s16/v128_dotp_s32/g
 s/v64_hadd_u8/v128_hadd_u16/g

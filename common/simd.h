@@ -59,7 +59,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if defined(_WIN32)
 #include <intrin.h>
 
-SIMD_INLINE unsigned int log2i(uint32_t x)
+SIMD_INLINE int log2i(uint32_t x)
 {
   unsigned long y;
   _BitScanReverse(&y, x);
@@ -78,8 +78,10 @@ SIMD_INLINE void thor_free(void *p)
   free(((void**)p)[-1]);
 }
 
-#elif defined(__GNUC__) && !defined(__clang__)
+#elif (__GNUC__)&&(!__APPLE__)
 #include <alloca.h>
+#include <byteswap.h>
+
 
 SIMD_INLINE unsigned int log2i(uint32_t x)
 {
@@ -118,9 +120,10 @@ SIMD_INLINE void thor_free(void *p)
 
 #endif
 
+
 static const int simd_check = 1;
 
-#if defined(__ARM_NEON__) && defined(ALIGN)
+#if defined(__ARM_NEON) && defined(ALIGN)
 static const int simd_available = 1;
 #include "simd/v256_intrinsics_arm.h"
 #elif (defined(__SSE2__) || _M_IX86_FP==2 || defined(_M_AMD64) || defined(_M_X64)) && defined(ALIGN)
@@ -128,6 +131,7 @@ static const int simd_available = 1;
 #include "simd/v256_intrinsics_x86.h"
 #else
 static const int simd_available = 0;
+#define NOSIMD 1
 #include "simd/v256_intrinsics.h"
 #endif
 

@@ -1858,7 +1858,7 @@ void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout)
       v128 a = v128_load_unaligned(&sin->y[(2*i+0)*si+2*j]);
       v128 b = v128_load_unaligned(&sin->y[(2*i+1)*si+2*j]);
       v128 c = v128_avg_u8(a,b);
-      v128 d = v128_shr_s16(v128_padd_s8(c),1);
+      v128 d = v128_shr_s16(v128_padd_u8(c),1);
       v64_store_aligned(&sout->y[i*so+j], v128_low_v64(v128_pack_s16_u8(z,d)));
     }
     for (; j<wo; ++j) {
@@ -1878,7 +1878,7 @@ void TEMPLATE(scale_frame_down2x2_simd)(yuv_frame_t* sin, yuv_frame_t* sout)
       v128 a = v128_load_aligned(&sin->u[(2*i+0)*sic+2*j]);
       v128 b = v128_load_aligned(&sin->u[(2*i+1)*sic+2*j]);
       v128 c = v128_avg_u8(a,b);
-      v128 d = v128_shr_s16(v128_padd_s8(c),1);
+      v128 d = v128_shr_s16(v128_padd_u8(c),1);
       v64_store_aligned(&sout->u[i*soc+j], v128_low_v64(v128_pack_s16_u8(z,d)));
     }
     for (; j<wo; ++j) {
@@ -2547,7 +2547,7 @@ int TEMPLATE(cdef_find_dir_simd)(const SAMPLE *img, int stride, int32_t *var,
   __m128i t =
       _mm_packs_epi32(_mm_cmpeq_epi32(max, dir03), _mm_cmpeq_epi32(max, dir47));
   best_dir = _mm_movemask_epi8(_mm_packs_epi16(t, t));
-  best_dir = get_msb(best_dir ^ (best_dir - 1));  // Count trailing zeros
+  best_dir = log2i(best_dir ^ (best_dir - 1));  // Count trailing zeros
 #else
   /* Compute "mostly vertical" directions. */
   compute_directions(lines, cost + 4);

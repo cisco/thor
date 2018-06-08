@@ -68,7 +68,7 @@ SIMD_INLINE v128 v256_high_v128(v256 a) {
 
 SIMD_INLINE v256 v256_from_v128(v128 a, v128 b) {
   // gcc seems to be missing _mm256_set_m128i()
-  return _mm256_insertf128_si256(_mm256_castsi128_si256(b), a, 1);
+  return _mm256_inserti128_si256(_mm256_castsi128_si256(b), a, 1);
 }
 
 SIMD_INLINE v256 v256_from_v64(v64 a, v64 b, v64 c, v64 d) {

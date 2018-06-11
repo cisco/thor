@@ -616,28 +616,26 @@ SIMD_INLINE v256 v256_shr_s64(v256 a, unsigned int c) {
 /* These intrinsics require immediate values, so we must use #defines
    to enforce that. */
 // _mm256_slli_si256 works on 128 bit lanes and can't be used
-#define v256_shl_n_byte(a, n)                                                 \
-  ((n) < 16                                                                   \
-       ? v256_from_v128(v128_or(v128_shl_n_byte(v256_high_v128(a), n),        \
-                                v128_shr_n_byte(v256_low_v128(a), 16 - (n))), \
-                        v128_shl_n_byte(v256_low_v128(a), n))                 \
-       : v256_from_v128(v128_shl_n_byte(v256_low_v128(a), (n)-16),            \
-                        v128_zero()))
+#define v256_shl_n_byte(a, n)                                                \
+  ((n) < 16 ? v256_from_v128(v128_align(v256_high_v128(a), v256_low_v128(a), \
+                                        (16 - (n)) & 15),                    \
+                             v128_shl_n_byte(v256_low_v128(a), n))           \
+            : _mm256_inserti128_si256(                                       \
+                  _mm256_setzero_si256(),                                    \
+                  v128_shl_n_byte(v256_low_v128(a), (n) & 15), 1))
 
 // _mm256_srli_si256 works on 128 bit lanes and can't be used
-#define v256_shr_n_byte(a, n)                                                 \
-  ((n) < 16                                                                   \
-       ? _mm256_alignr_epi8(                                                  \
-             _mm256_permute2x128_si256(a, a, _MM_SHUFFLE(2, 0, 0, 1)), a, n)  \
-       : ((n) > 16                                                            \
-              ? _mm256_srli_si256(                                            \
-                    _mm256_permute2x128_si256(a, a, _MM_SHUFFLE(2, 0, 0, 1)), \
-                    (n)-16)                                                   \
-              : _mm256_permute2x128_si256(a, a, _MM_SHUFFLE(2, 0, 0, 1))))
+#define v256_shr_n_byte(a, n)                                                \
+  ((n) < 16                                                                  \
+       ? _mm256_alignr_epi8(                                                 \
+             _mm256_permute2x128_si256(a, a, _MM_SHUFFLE(2, 0, 0, 1)), a, n) \
+       : _mm256_inserti128_si256(                                            \
+             _mm256_setzero_si256(),                                         \
+             v128_align(v256_high_v128(a), v256_high_v128(a), n), 0))
 
 // _mm256_alignr_epi8 works on two 128 bit lanes and can't be used
 #define v256_align(a, b, c) \
-  ((c) ? v256_or(v256_shr_n_byte(b, c), v256_shl_n_byte(a, 32 - c)) : b)
+  ((c) ? v256_or(v256_shr_n_byte(b, c), v256_shl_n_byte(a, 32 - (c))) : b)
 
 #define v256_shl_n_8(a, c)                                   \
   _mm256_and_si256(_mm256_set1_epi8((uint8_t)(0xff << (c))), \

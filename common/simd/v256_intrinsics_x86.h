@@ -158,43 +158,51 @@ SIMD_INLINE v256 v256_abs_s8(v256 a) { return _mm256_abs_epi8(a); }
 // unpack/pack intrinsics operate on the 256 bit input vector as 2
 // independent 128 bit vectors.
 SIMD_INLINE v256 v256_ziplo_8(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_8(v256_low_v128(a), v256_low_v128(b)),
-                        v128_ziplo_8(v256_low_v128(a), v256_low_v128(b)));
+  return _mm256_unpacklo_epi8(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziphi_8(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_8(v256_high_v128(a), v256_high_v128(b)),
-                        v128_ziplo_8(v256_high_v128(a), v256_high_v128(b)));
+  return _mm256_unpackhi_epi8(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziplo_16(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_16(v256_low_v128(a), v256_low_v128(b)),
-                        v128_ziplo_16(v256_low_v128(a), v256_low_v128(b)));
+  return _mm256_unpacklo_epi16(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziphi_16(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_16(v256_high_v128(a), v256_high_v128(b)),
-                        v128_ziplo_16(v256_high_v128(a), v256_high_v128(b)));
+  return _mm256_unpackhi_epi16(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziplo_32(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_32(v256_low_v128(a), v256_low_v128(b)),
-                        v128_ziplo_32(v256_low_v128(a), v256_low_v128(b)));
+  return _mm256_unpacklo_epi32(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziphi_32(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_32(v256_high_v128(a), v256_high_v128(b)),
-                        v128_ziplo_32(v256_high_v128(a), v256_high_v128(b)));
+  return _mm256_unpackhi_epi32(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziplo_64(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_64(v256_low_v128(a), v256_low_v128(b)),
-                        v128_ziplo_64(v256_low_v128(a), v256_low_v128(b)));
+  return _mm256_unpacklo_epi64(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziphi_64(v256 a, v256 b) {
-  return v256_from_v128(v128_ziphi_64(v256_high_v128(a), v256_high_v128(b)),
-                        v128_ziplo_64(v256_high_v128(a), v256_high_v128(b)));
+  return _mm256_unpackhi_epi64(
+      _mm256_permute4x64_epi64(b, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)));
 }
 
 SIMD_INLINE v256 v256_ziplo_128(v256 a, v256 b) {
@@ -217,34 +225,40 @@ SIMD_INLINE v256 v256_zip_32(v128 a, v128 b) {
   return v256_from_v128(v128_ziphi_32(a, b), v128_ziplo_32(a, b));
 }
 
-SIMD_INLINE v256 v256_unziplo_8(v256 a, v256 b) {
-  return v256_from_v128(v128_unziplo_8(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziplo_8(v256_high_v128(b), v256_low_v128(b)));
-}
-
 SIMD_INLINE v256 v256_unziphi_8(v256 a, v256 b) {
-  return v256_from_v128(v128_unziphi_8(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziphi_8(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(
+      _mm256_packs_epi16(_mm256_srai_epi16(b, 8), _mm256_srai_epi16(a, 8)),
+      _MM_SHUFFLE(3, 1, 2, 0));
 }
 
-SIMD_INLINE v256 v256_unziplo_16(v256 a, v256 b) {
-  return v256_from_v128(v128_unziplo_16(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziplo_16(v256_high_v128(b), v256_low_v128(b)));
+SIMD_INLINE v256 v256_unziplo_8(v256 a, v256 b) {
+  return v256_unziphi_8(_mm256_slli_si256(a, 1), _mm256_slli_si256(b, 1));
 }
 
 SIMD_INLINE v256 v256_unziphi_16(v256 a, v256 b) {
-  return v256_from_v128(v128_unziphi_16(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziphi_16(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(
+      _mm256_packs_epi32(_mm256_srai_epi32(b, 16), _mm256_srai_epi32(a, 16)),
+      _MM_SHUFFLE(3, 1, 2, 0));
 }
 
-SIMD_INLINE v256 v256_unziplo_32(v256 a, v256 b) {
-  return v256_from_v128(v128_unziplo_32(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziplo_32(v256_high_v128(b), v256_low_v128(b)));
+SIMD_INLINE v256 v256_unziplo_16(v256 a, v256 b) {
+  return v256_unziphi_16(_mm256_slli_si256(a, 2), _mm256_slli_si256(b, 2));
 }
 
 SIMD_INLINE v256 v256_unziphi_32(v256 a, v256 b) {
-  return v256_from_v128(v128_unziphi_32(v256_high_v128(a), v256_low_v128(a)),
-                        v128_unziphi_32(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(
+      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(b),
+                                            _mm256_castsi256_ps(a),
+                                            _MM_SHUFFLE(3, 1, 3, 1))),
+      _MM_SHUFFLE(3, 1, 2, 0));
+}
+
+SIMD_INLINE v256 v256_unziplo_32(v256 a, v256 b) {
+  return _mm256_permute4x64_epi64(
+      _mm256_castps_si256(_mm256_shuffle_ps(_mm256_castsi256_ps(b),
+                                            _mm256_castsi256_ps(a),
+                                            _MM_SHUFFLE(2, 0, 2, 0))),
+      _MM_SHUFFLE(3, 1, 2, 0));
 }
 
 SIMD_INLINE v256 v256_unpack_u8_s16(v128 a) {
@@ -252,46 +266,49 @@ SIMD_INLINE v256 v256_unpack_u8_s16(v128 a) {
 }
 
 SIMD_INLINE v256 v256_unpacklo_u8_s16(v256 a) {
-  return v256_from_v128(v128_unpackhi_u8_s16(v256_low_v128(a)),
-                        v128_unpacklo_u8_s16(v256_low_v128(a)));
+  return _mm256_unpacklo_epi8(
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_setzero_si256());
 }
 
 SIMD_INLINE v256 v256_unpackhi_u8_s16(v256 a) {
-  return v256_from_v128(v128_unpackhi_u8_s16(v256_high_v128(a)),
-                        v128_unpacklo_u8_s16(v256_high_v128(a)));
-}
-
-SIMD_INLINE v256 v256_unpack_s8_s16(v128 a) {
-  return v256_from_v128(v128_unpackhi_s8_s16(a), v128_unpacklo_s8_s16(a));
+  return _mm256_unpackhi_epi8(
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_setzero_si256());
 }
 
 SIMD_INLINE v256 v256_unpacklo_s8_s16(v256 a) {
-  return v256_from_v128(v128_unpackhi_s8_s16(v256_low_v128(a)),
-                        v128_unpacklo_s8_s16(v256_low_v128(a)));
+  return _mm256_srai_epi16(
+      _mm256_unpacklo_epi8(
+          a, _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0))),
+      8);
 }
 
 SIMD_INLINE v256 v256_unpackhi_s8_s16(v256 a) {
-  return v256_from_v128(v128_unpackhi_s8_s16(v256_high_v128(a)),
-                        v128_unpacklo_s8_s16(v256_high_v128(a)));
+  return _mm256_srai_epi16(
+      _mm256_unpackhi_epi8(
+          a, _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0))),
+      8);
 }
+
 SIMD_INLINE v256 v256_pack_s32_s16(v256 a, v256 b) {
-  return v256_from_v128(v128_pack_s32_s16(v256_high_v128(a), v256_low_v128(a)),
-                        v128_pack_s32_s16(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(_mm256_packs_epi32(b, a),
+                                  _MM_SHUFFLE(3, 1, 2, 0));
 }
 
 SIMD_INLINE v256 v256_pack_s32_u16(v256 a, v256 b) {
-  return v256_from_v128(v128_pack_s32_u16(v256_high_v128(a), v256_low_v128(a)),
-                        v128_pack_s32_u16(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(_mm256_packus_epi32(b, a),
+                                  _MM_SHUFFLE(3, 1, 2, 0));
 }
 
 SIMD_INLINE v256 v256_pack_s16_u8(v256 a, v256 b) {
-  return v256_from_v128(v128_pack_s16_u8(v256_high_v128(a), v256_low_v128(a)),
-                        v128_pack_s16_u8(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(_mm256_packus_epi16(b, a),
+                                  _MM_SHUFFLE(3, 1, 2, 0));
 }
 
 SIMD_INLINE v256 v256_pack_s16_s8(v256 a, v256 b) {
-  return v256_from_v128(v128_pack_s16_s8(v256_high_v128(a), v256_low_v128(a)),
-                        v128_pack_s16_s8(v256_high_v128(b), v256_low_v128(b)));
+  return _mm256_permute4x64_epi64(_mm256_packs_epi16(b, a),
+                                  _MM_SHUFFLE(3, 1, 2, 0));
 }
 
 SIMD_INLINE v256 v256_unpack_u16_s32(v128 a) {
@@ -303,24 +320,31 @@ SIMD_INLINE v256 v256_unpack_s16_s32(v128 a) {
 }
 
 SIMD_INLINE v256 v256_unpacklo_u16_s32(v256 a) {
-  return v256_from_v128(v128_unpackhi_u16_s32(v256_low_v128(a)),
-                        v128_unpacklo_u16_s32(v256_low_v128(a)));
+  return _mm256_unpacklo_epi16(
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_setzero_si256());
 }
 
 SIMD_INLINE v256 v256_unpacklo_s16_s32(v256 a) {
-  return v256_from_v128(v128_unpackhi_s16_s32(v256_low_v128(a)),
-                        v128_unpacklo_s16_s32(v256_low_v128(a)));
+  return _mm256_srai_epi32(
+      _mm256_unpacklo_epi16(
+          a, _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0))),
+      16);
 }
 
 SIMD_INLINE v256 v256_unpackhi_u16_s32(v256 a) {
-  return v256_from_v128(v128_unpackhi_u16_s32(v256_high_v128(a)),
-                        v128_unpacklo_u16_s32(v256_high_v128(a)));
+  return _mm256_unpackhi_epi16(
+      _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0)),
+      _mm256_setzero_si256());
 }
 
 SIMD_INLINE v256 v256_unpackhi_s16_s32(v256 a) {
-  return v256_from_v128(v128_unpackhi_s16_s32(v256_high_v128(a)),
-                        v128_unpacklo_s16_s32(v256_high_v128(a)));
+  return _mm256_srai_epi32(
+      _mm256_unpackhi_epi16(
+          a, _mm256_permute4x64_epi64(a, _MM_SHUFFLE(3, 1, 2, 0))),
+      16);
 }
+
 SIMD_INLINE v256 v256_shuffle_8(v256 a, v256 pattern) {
   return _mm256_blendv_epi8(_mm256_shuffle_epi8(_mm256_permute2x128_si256(a, a, _MM_SHUFFLE(0, 1, 0, 1)), pattern),
                             _mm256_shuffle_epi8(_mm256_permute2x128_si256(a, a, _MM_SHUFFLE(0, 0, 0, 0)), pattern),
@@ -355,46 +379,20 @@ SIMD_INLINE int64_t v256_dotp_su8(v256 a, v256 b) {
 
 SIMD_INLINE int64_t v256_dotp_s16(v256 a, v256 b) {
   v256 r = _mm256_madd_epi16(a, b);
-#if defined(__x86_64__)
   v128 t;
   r = _mm256_add_epi64(_mm256_cvtepi32_epi64(v256_high_v128(r)),
                        _mm256_cvtepi32_epi64(v256_low_v128(r)));
   t = v256_low_v128(_mm256_add_epi64(r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
   return _mm_cvtsi128_si64(_mm_add_epi64(t, _mm_srli_si128(t, 8)));
-#else
-  v128 l = v256_low_v128(r);
-  v128 h = v256_high_v128(r);
-  return (int64_t)_mm_cvtsi128_si32(l) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 4)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 8)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 12)) +
-         (int64_t)_mm_cvtsi128_si32(h) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 4)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 8)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 12));
-#endif
 }
 
 SIMD_INLINE int64_t v256_dotp_s32(v256 a, v256 b) {
   v256 r = _mm256_mullo_epi32(a, b);
-#if defined(__x86_64__)
   v128 t;
   r = _mm256_add_epi64(_mm256_cvtepi32_epi64(v256_high_v128(r)),
                        _mm256_cvtepi32_epi64(v256_low_v128(r)));
   t = v256_low_v128(_mm256_add_epi64(r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
   return _mm_cvtsi128_si64(_mm_add_epi64(t, _mm_srli_si128(t, 8)));
-#else
-  v128 l = v256_low_v128(r);
-  v128 h = v256_high_v128(r);
-  return (int64_t)_mm_cvtsi128_si32(l) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 4)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 8)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 12)) +
-         (int64_t)_mm_cvtsi128_si32(h) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 4)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 8)) +
-         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 12));
-#endif
 }
 
 
@@ -526,7 +524,7 @@ SIMD_INLINE v256 v256_cmpgt_s8(v256 a, v256 b) {
 }
 
 SIMD_INLINE v256 v256_cmplt_s8(v256 a, v256 b) {
-  return v256_andn(_mm256_cmpgt_epi8(b, a), _mm256_cmpeq_epi8(b, a));
+  return _mm256_cmpgt_epi8(b, a);
 }
 
 SIMD_INLINE v256 v256_cmpeq_8(v256 a, v256 b) {
@@ -538,7 +536,7 @@ SIMD_INLINE v256 v256_cmpgt_s16(v256 a, v256 b) {
 }
 
 SIMD_INLINE v256 v256_cmplt_s16(v256 a, v256 b) {
-  return v256_andn(_mm256_cmpgt_epi16(b, a), _mm256_cmpeq_epi16(b, a));
+  return _mm256_cmpgt_epi16(b, a);
 }
 
 SIMD_INLINE v256 v256_cmpeq_16(v256 a, v256 b) {

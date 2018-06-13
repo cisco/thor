@@ -103,7 +103,7 @@ SIMD_INLINE v256 v256_dup_16(uint16_t x) { return _mm256_set1_epi16(x); }
 
 SIMD_INLINE v256 v256_dup_32(uint32_t x) { return _mm256_set1_epi32(x); }
 
-SIMD_INLINE v256 v256_dup_64(uint64_t x) { return v256_from_v128(v128_dup_64(x), v128_dup_64(x)); }
+SIMD_INLINE v256 v256_dup_64(uint64_t x) { return _mm256_set1_epi64x(x); }
 
 SIMD_INLINE v256 v256_add_8(v256 a, v256 b) { return _mm256_add_epi8(a, b); }
 

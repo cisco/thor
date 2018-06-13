@@ -379,22 +379,49 @@ SIMD_INLINE int64_t v256_dotp_su8(v256 a, v256 b) {
 
 SIMD_INLINE int64_t v256_dotp_s16(v256 a, v256 b) {
   v256 r = _mm256_madd_epi16(a, b);
+#if defined(__x86_64__)
   v128 t;
   r = _mm256_add_epi64(_mm256_cvtepi32_epi64(v256_high_v128(r)),
                        _mm256_cvtepi32_epi64(v256_low_v128(r)));
-  t = v256_low_v128(_mm256_add_epi64(r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
+  t = v256_low_v128(_mm256_add_epi64(
+      r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
   return _mm_cvtsi128_si64(_mm_add_epi64(t, _mm_srli_si128(t, 8)));
+#else
+  v128 l = v256_low_v128(r);
+  v128 h = v256_high_v128(r);
+  return (int64_t)_mm_cvtsi128_si32(l) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 4)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 8)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 12)) +
+         (int64_t)_mm_cvtsi128_si32(h) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 4)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 8)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 12));
+#endif
 }
 
 SIMD_INLINE int64_t v256_dotp_s32(v256 a, v256 b) {
   v256 r = _mm256_mullo_epi32(a, b);
+#if defined(__x86_64__)
   v128 t;
   r = _mm256_add_epi64(_mm256_cvtepi32_epi64(v256_high_v128(r)),
                        _mm256_cvtepi32_epi64(v256_low_v128(r)));
-  t = v256_low_v128(_mm256_add_epi64(r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
+  t = v256_low_v128(_mm256_add_epi64(
+      r, _mm256_permute2x128_si256(r, r, _MM_SHUFFLE(2, 0, 0, 1))));
   return _mm_cvtsi128_si64(_mm_add_epi64(t, _mm_srli_si128(t, 8)));
+#else
+  v128 l = v256_low_v128(r);
+  v128 h = v256_high_v128(r);
+  return (int64_t)_mm_cvtsi128_si32(l) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 4)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 8)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(l, 12)) +
+         (int64_t)_mm_cvtsi128_si32(h) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 4)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 8)) +
+         (int64_t)_mm_cvtsi128_si32(_mm_srli_si128(h, 12));
+#endif
 }
-
 
 SIMD_INLINE uint64_t v256_hadd_u8(v256 a) {
   v256 t = _mm256_sad_epu8(a, _mm256_setzero_si256());

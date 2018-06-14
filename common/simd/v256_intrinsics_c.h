@@ -590,6 +590,32 @@ SIMD_INLINE c_v256 c_v256_unziphi_32(c_v256 a, c_v256 b) {
   return big_endian() ? _c_v256_unzip_32(b, a, 0) : _c_v256_unzip_32(b, a, 1);
 }
 
+SIMD_INLINE c_v256 _c_v256_unzip_64(c_v256 a, c_v256 b, int mode) {
+  c_v256 t;
+  if (mode) {
+    t.u64[3] = b.u64[3];
+    t.u64[2] = b.u64[1];
+    t.u64[1] = a.u64[3];
+    t.u64[0] = a.u64[1];
+  } else {
+    t.u64[3] = a.u64[2];
+    t.u64[2] = a.u64[0];
+    t.u64[1] = b.u64[2];
+    t.u64[0] = b.u64[0];
+  }
+  return t;
+}
+
+SIMD_INLINE c_v256 c_v256_unziplo_64(c_v256 a, c_v256 b) {
+  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_64(a, b, 1)
+                           : _c_v256_unzip_64(a, b, 0);
+}
+
+SIMD_INLINE c_v256 c_v256_unziphi_64(c_v256 a, c_v256 b) {
+  return CONFIG_BIG_ENDIAN ? _c_v256_unzip_64(b, a, 0)
+                           : _c_v256_unzip_64(b, a, 1);
+}
+
 SIMD_INLINE c_v256 c_v256_unpack_u8_s16(c_v128 a) {
   return c_v256_from_v128(c_v128_unpackhi_u8_s16(a), c_v128_unpacklo_u8_s16(a));
 }

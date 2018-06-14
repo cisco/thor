@@ -432,6 +432,32 @@ SIMD_INLINE v256 v256_unziphi_32(v256 a, v256 b) {
                         v128_unziphi_32(b.val[1], b.val[0]));
 }
 
+SIMD_INLINE v256 v256_unziplo_64(v256 a, v256 b) {
+#if defined(__SSE2__)
+  return v256_from_v128(
+      _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(a.val[0]),
+                                      _mm_castsi128_pd(a.val[1]), 0)),
+      _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(b.val[0]),
+                                      _mm_castsi128_pd(b.val[1]), 0)));
+#else
+  return v256_from_v64(v128_low_v64(a.val[1]), v128_low_v64(a.val[0]),
+                       v128_low_v64(b.val[1]), v128_low_v64(b.val[0]));
+#endif
+}
+
+SIMD_INLINE v256 v256_unziphi_64(v256 a, v256 b) {
+#if defined(__SSE2__)
+  return v256_from_v128(
+      _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(a.val[0]),
+                                      _mm_castsi128_pd(a.val[1]), 3)),
+      _mm_castpd_si128(_mm_shuffle_pd(_mm_castsi128_pd(b.val[0]),
+                                      _mm_castsi128_pd(b.val[1]), 3)));
+#else
+  return v256_from_v64(v128_high_v64(a.val[1]), v128_high_v64(a.val[0]),
+                       v128_high_v64(b.val[1]), v128_high_v64(b.val[0]));
+#endif
+}
+
 SIMD_INLINE v256 v256_unpack_u8_s16(v128 a) {
   return v256_from_v128(v128_unpackhi_u8_s16(a), v128_unpacklo_u8_s16(a));
 }

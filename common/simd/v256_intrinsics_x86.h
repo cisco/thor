@@ -261,6 +261,20 @@ SIMD_INLINE v256 v256_unziplo_32(v256 a, v256 b) {
       _MM_SHUFFLE(3, 1, 2, 0));
 }
 
+SIMD_INLINE v256 v256_unziphi_64(v256 a, v256 b) {
+  return _mm256_permute4x64_epi64(
+      _mm256_castpd_si256(_mm256_shuffle_pd(_mm256_castsi256_pd(b),
+                                            _mm256_castsi256_pd(a), 15)),
+      _MM_SHUFFLE(3, 1, 2, 0));
+}
+
+SIMD_INLINE v256 v256_unziplo_64(v256 a, v256 b) {
+  return _mm256_permute4x64_epi64(
+      _mm256_castpd_si256(
+          _mm256_shuffle_pd(_mm256_castsi256_pd(b), _mm256_castsi256_pd(a), 0)),
+      _MM_SHUFFLE(3, 1, 2, 0));
+}
+
 SIMD_INLINE v256 v256_unpack_u8_s16(v128 a) {
   return v256_from_v128(v128_unpackhi_u8_s16(a), v128_unpacklo_u8_s16(a));
 }

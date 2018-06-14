@@ -59,7 +59,7 @@ SIMD_INLINE uint64_t v256_low_u64(v256 a) {
 }
 
 SIMD_INLINE v128 v256_low_v128(v256 a) {
-  return _mm256_extracti128_si256(a, 0);
+  return _mm256_castsi256_si128(a);
 }
 
 SIMD_INLINE v128 v256_high_v128(v256 a) {

@@ -919,7 +919,7 @@ void TEMPLATE(cdef_frame)(cdef_strengths *cdef_strengths, const yuv_frame_t *fra
                   } else {
                     for (c = 0; c < sizey; c++)
                       memcpy(cache_dst[cache_idx] + c * sstride, cache_ptr[cache_idx] + c * bs * 2,
-                             sizex);
+                             sizex * sizeof(SAMPLE));
                   }
                 } else {
                   if (sizex == 8)

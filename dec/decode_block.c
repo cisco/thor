@@ -650,7 +650,7 @@ void TEMPLATE(process_block_dec)(decoder_info_t *decoder_info,int size,int yposY
 
   decoder_info->bit_count.super_mode[decoder_info->bit_count.stat_frame_type] += (stream->bitcnt - bit_start);
 
-  if (split_flag){
+  if (split_flag && size >= MIN_BLOCK_SIZE){
     int new_size = size/2;
     TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+0*new_size,xposY+0*new_size,sub);
     TEMPLATE(process_block_dec)(decoder_info,new_size,yposY+1*new_size,xposY+0*new_size,sub);

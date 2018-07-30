@@ -50,6 +50,7 @@ void read_sequence_header(decoder_info_t *decoder_info, stream_t *stream) {
   decoder_info->width = get_flc(16, stream);
   decoder_info->height = get_flc(16, stream);
   decoder_info->log2_sb_size = get_flc(3, stream);
+  decoder_info->log2_sb_size = clip(decoder_info->log2_sb_size, log2i(MIN_BLOCK_SIZE), log2i(MAX_SB_SIZE));
   decoder_info->pb_split = get_flc(1, stream);
   decoder_info->tb_split_enable = get_flc(1, stream);
   decoder_info->max_num_ref = get_flc(2, stream) + 1;

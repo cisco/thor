@@ -283,7 +283,6 @@ int read_block(decoder_info_t *decoder_info,stream_t *stream,block_info_dec_t *b
   int16_t *coeff_v = block_info->coeffq_v;
 
   zerovec.y = zerovec.x = 0;
-  bit_start = stream->bitcnt;
 
   mode = decoder_info->mode;
   int coeff_block_type = (mode == MODE_INTRA)<<1;

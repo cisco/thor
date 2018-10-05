@@ -92,7 +92,6 @@ static char **read_config_file(FILE *f, int *num_of_params)
 
       if (a[0] == ';')
       {
-        ret = fscanf(f, "%[^\n]", a);
         continue;
       }
     }
